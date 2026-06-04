@@ -1,4 +1,4 @@
-import { getSupabase, getIsAdmin } from "@/utils/supabase/queries";
+import { getDataClient, getIsAdmin } from "@/utils/data/queries";
 import GalleryClient from "@/components/GalleryClient";
 
 export const metadata = {
@@ -7,10 +7,10 @@ export const metadata = {
 };
 
 export default async function GalleryPage() {
-  const supabase = await getSupabase();
+  const dataClient = getDataClient();
   const isAdmin = await getIsAdmin();
 
-  const { data: items } = await supabase
+  const { data: items } = await dataClient
     .from("gallery_items")
     .select("*")
     .order("event_date", { ascending: false, nullsFirst: false });

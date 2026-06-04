@@ -198,6 +198,9 @@ DROP POLICY IF EXISTS "Admins can manage persons" ON public.persons;
 DROP POLICY IF EXISTS "Admins can insert persons" ON public.persons;
 DROP POLICY IF EXISTS "Admins can update persons" ON public.persons;
 DROP POLICY IF EXISTS "Admins can delete persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins and Editors can insert persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins and Editors can update persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins and Editors can delete persons" ON public.persons;
 
 CREATE POLICY "Admins and Editors can insert persons" ON public.persons FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR public.is_editor());
 CREATE POLICY "Admins and Editors can update persons" ON public.persons FOR UPDATE TO authenticated USING (public.is_admin() OR public.is_editor()) WITH CHECK (public.is_admin() OR public.is_editor());
@@ -218,6 +221,9 @@ DROP POLICY IF EXISTS "Admins can manage relationships" ON public.relationships;
 DROP POLICY IF EXISTS "Admins can insert relationships" ON public.relationships;
 DROP POLICY IF EXISTS "Admins can update relationships" ON public.relationships;
 DROP POLICY IF EXISTS "Admins can delete relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins and Editors can insert relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins and Editors can update relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins and Editors can delete relationships" ON public.relationships;
 
 CREATE POLICY "Admins and Editors can insert relationships" ON public.relationships FOR INSERT TO authenticated WITH CHECK (public.is_admin() OR public.is_editor());
 CREATE POLICY "Admins and Editors can update relationships" ON public.relationships FOR UPDATE TO authenticated USING (public.is_admin() OR public.is_editor()) WITH CHECK (public.is_admin() OR public.is_editor());
@@ -482,7 +488,7 @@ $$;
 -- ========================================================
 
 -- Add gallery table
-CREATE TABLE public.gallery_items (
+CREATE TABLE IF NOT EXISTS public.gallery_items (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   title text NOT NULL,
   description text,
@@ -496,18 +502,22 @@ CREATE TABLE public.gallery_items (
 ALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Ai cũng xem được
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.gallery_items;
 CREATE POLICY "Enable read access for all users" ON public.gallery_items FOR SELECT USING (true);
 
 -- Policy: User đăng nhập mới được thêm
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.gallery_items;
 CREATE POLICY "Enable insert for authenticated users only" ON public.gallery_items FOR INSERT WITH CHECK (auth.uid() = created_by);
 
 -- Policy: Chỉ admin hoặc người tạo mới được sửa
+DROP POLICY IF EXISTS "Enable update for admin and owner" ON public.gallery_items;
 CREATE POLICY "Enable update for admin and owner" ON public.gallery_items FOR UPDATE USING (
   auth.uid() = created_by OR 
   EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
 );
 
 -- Policy: Chỉ admin hoặc người tạo mới được xóa
+DROP POLICY IF EXISTS "Enable delete for admin and owner" ON public.gallery_items;
 CREATE POLICY "Enable delete for admin and owner" ON public.gallery_items FOR DELETE USING (
   auth.uid() = created_by OR 
   EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')
@@ -523,18 +533,22 @@ VALUES ('gallery', 'gallery', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
 CREATE POLICY "Public Access"
 ON storage.objects FOR SELECT
 USING ( bucket_id = 'gallery' );
 
+DROP POLICY IF EXISTS "Authenticated users can upload" ON storage.objects;
 CREATE POLICY "Authenticated users can upload"
 ON storage.objects FOR INSERT
 WITH CHECK ( bucket_id = 'gallery' AND auth.role() = 'authenticated' );
 
+DROP POLICY IF EXISTS "Admin and owner can update" ON storage.objects;
 CREATE POLICY "Admin and owner can update"
 ON storage.objects FOR UPDATE
 USING ( bucket_id = 'gallery' AND (auth.uid() = owner OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')) );
 
+DROP POLICY IF EXISTS "Admin and owner can delete" ON storage.objects;
 CREATE POLICY "Admin and owner can delete"
 ON storage.objects FOR DELETE
 USING ( bucket_id = 'gallery' AND (auth.uid() = owner OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin')) );

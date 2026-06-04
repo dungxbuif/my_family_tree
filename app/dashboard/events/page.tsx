@@ -1,28 +1,47 @@
 import { MemberListProvider } from "@/context/MemberListContext";
 import EventsList from "@/components/EventsList";
 import MemberDetailModal from "@/components/modal/MemberDetailModal";
-import { getSupabase } from "@/utils/supabase/queries";
+import { getDataClient } from "@/utils/data/queries";
 
 export const metadata = {
   title: "Sự kiện gia phả",
 };
 
 export default async function EventsPage() {
-  const supabase = await getSupabase();
+  const db = getDataClient();
 
   const [personsRes, customEventsRes] = await Promise.all([
-    supabase
-      .from("persons")
-      .select(
-        "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, avatar_url",
-      ),
-    supabase
+    db.from("persons").select(
+      "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased, avatar_url",
+    ),
+    db
       .from("custom_events")
       .select("id, name, content, event_date, location, created_by"),
   ]);
 
-  const persons = personsRes.data || [];
-  const customEvents = customEventsRes.data || [];
+  const persons = (personsRes.data as {
+    id: string;
+    full_name: string;
+    birth_year: number | null;
+    birth_month: number | null;
+    birth_day: number | null;
+    death_year: number | null;
+    death_month: number | null;
+    death_day: number | null;
+    death_lunar_year: number | null;
+    death_lunar_month: number | null;
+    death_lunar_day: number | null;
+    is_deceased: boolean;
+    avatar_url: string | null;
+  }[]) || [];
+  const customEvents = (customEventsRes.data as {
+    id: string;
+    name: string;
+    content: string | null;
+    event_date: string;
+    location: string | null;
+    created_by: string | null;
+  }[]) || [];
 
   return (
     <MemberListProvider>

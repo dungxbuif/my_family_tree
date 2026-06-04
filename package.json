@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:services": "docker compose up -d db",
+    "dev:migrate": "bash scripts/migrate-local-dev.sh",
+    "test:local-dev": "bash scripts/test-local-dev-migration.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -21,6 +24,7 @@
     "lunar-javascript": "^1.7.7",
     "next": "16.2.6",
     "papaparse": "^5.5.3",
+    "pg": "^8.21.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -29,6 +33,7 @@
     "@types/d3": "^7.4.3",
     "@types/node": "^25.9.1",
     "@types/papaparse": "^5.5.2",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.39.4",

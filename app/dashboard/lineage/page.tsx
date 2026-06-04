@@ -1,5 +1,5 @@
 import LineageManager from "@/components/LineageManager";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { getProfile, getDataClient } from "@/utils/data/queries";
 import { redirect } from "next/navigation";
 
 export default async function LineagePage() {
@@ -9,14 +9,14 @@ export default async function LineagePage() {
     redirect("/dashboard");
   }
 
-  const supabase = await getSupabase();
+  const dataClient = getDataClient();
 
-  const { data: personsData } = await supabase
+  const { data: personsData } = await dataClient
     .from("persons")
     .select("*")
     .order("birth_year", { ascending: true, nullsFirst: false });
 
-  const { data: relsData } = await supabase.from("relationships").select("*");
+  const { data: relsData } = await dataClient.from("relationships").select("*");
 
   // Identify "roots" - people with no parents
   const persons = personsData || [];

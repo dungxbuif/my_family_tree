@@ -1,15 +1,15 @@
 import FamilyStats from "@/components/FamilyStats";
-import { getSupabase } from "@/utils/supabase/queries";
+import { getDataClient } from "@/utils/data/queries";
 
 export const metadata = {
   title: "Thống kê gia phả",
 };
 
 export default async function StatsPage() {
-  const supabase = await getSupabase();
+  const dataClient = getDataClient();
 
-  const { data: persons } = await supabase.from("persons").select("*");
-  const { data: relationships } = await supabase
+  const { data: persons } = await dataClient.from("persons").select("*");
+  const { data: relationships } = await dataClient
     .from("relationships")
     .select("*");
 

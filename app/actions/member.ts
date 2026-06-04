@@ -26,7 +26,7 @@ export async function deleteMemberProfile(memberId: string) {
     return { error: "Lỗi kiểm tra mối quan hệ gia đình." };
   }
 
-  if (relationships && (relationships as any[]).length > 0) {
+  if (relationships && (relationships as { id: string }[]).length > 0) {
     return {
       error:
         "Không thể xoá. Vui lòng xoá hết các mối quan hệ gia đình của người này trước.",

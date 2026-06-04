@@ -1,5 +1,6 @@
 import MemberForm from "@/components/MemberForm";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { Person } from "@/types";
+import { getProfile, getDataClient } from "@/utils/data/queries";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -29,11 +30,11 @@ export default async function EditMemberPage({ params }: PageProps) {
     );
   }
 
-  const supabase = await getSupabase();
+  const db = getDataClient();
 
   // Fetch Public Data
-  const { data: person, error } = await supabase
-    .from("persons")
+  const { data: person, error } = await db
+    .from<Person>("persons")
     .select("*")
     .eq("id", id)
     .single();
@@ -45,10 +46,10 @@ export default async function EditMemberPage({ params }: PageProps) {
   // Fetch Private Data
   let privateData = null;
   if (isAdmin) {
-    const { data } = await supabase
+    const { data } = await db
       .from("person_details_private")
       .select("*")
-      .eq("person_id", id)  
+      .eq("person_id", id)
       .single();
     privateData = data;
   }

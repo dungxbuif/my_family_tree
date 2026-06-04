@@ -1,6 +1,7 @@
 import DeleteMemberButton from "@/components/DeleteMemberButton";
 import MemberDetailContent from "@/context/MemberDetailContent";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { Person } from "@/types";
+import { getProfile, getDataClient } from "@/utils/data/queries";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,11 +18,11 @@ export default async function MemberDetailPage({ params }: PageProps) {
   const isAdmin = profile?.role === "admin";
   const canEdit = profile?.role === "admin" || profile?.role === "editor";
 
-  const supabase = await getSupabase();
+  const db = getDataClient();
 
   // Fetch Person Public Data
-  const { data: person, error } = await supabase
-    .from("persons")
+  const { data: person, error } = await db
+    .from<Person>("persons")
     .select("*")
     .eq("id", id)
     .single();
@@ -33,7 +34,7 @@ export default async function MemberDetailPage({ params }: PageProps) {
   // Fetch Private Data if Admin
   let privateData = null;
   if (isAdmin) {
-    const { data } = await supabase
+    const { data } = await db
       .from("person_details_private")
       .select("*")
       .eq("person_id", id)

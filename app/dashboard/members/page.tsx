@@ -5,6 +5,7 @@ import ViewToggle from "@/components/ViewToggle";
 import { getProfile, getDataClient } from "@/utils/data/queries";
 
 import { ViewMode } from "@/components/ViewToggle";
+import { Person, Relationship } from "@/types";
 
 interface PageProps {
   searchParams: Promise<{ view?: string; rootId?: string; avatar?: string }>;
@@ -21,14 +22,14 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
 
   const [personsRes, relsRes] = await Promise.all([
     db
-      .from("persons")
+      .from<Person>("persons")
       .select("*")
       .order("birth_year", { ascending: true }),
-    db.from("relationships").select("*"),
+    db.from<Relationship>("relationships").select("*"),
   ]);
 
-  const persons = (personsRes.data as any[]) || [];
-  const relationships = (relsRes.data as any[]) || [];
+  const persons = personsRes.data || [];
+  const relationships = relsRes.data || [];
 
   // Prepare map and roots for tree views
   const personsMap = new Map();

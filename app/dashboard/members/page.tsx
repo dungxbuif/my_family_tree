@@ -2,7 +2,7 @@ import { MemberListProvider } from "@/context/MemberListContext";
 import MembersViews from "@/components/MembersViews";
 import MemberDetailModal from "@/components/modal/MemberDetailModal";
 import ViewToggle from "@/components/ViewToggle";
-import { getProfile, getSupabase } from "@/utils/supabase/queries";
+import { getProfile, getDataClient } from "@/utils/data/queries";
 
 import { ViewMode } from "@/components/ViewToggle";
 
@@ -17,22 +17,18 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   const profile = await getProfile();
   const canEdit = profile?.role === "admin" || profile?.role === "editor";
 
-  // If view is list, we only need persons, not relationships.
-  // We fetch persons for all views to pass down as a prop if we want, or let components fetch.
-  // Actually, to make transitions fast and avoid duplicate fetching across components,
-  // we will fetch data here and pass it down as props.
-  const supabase = await getSupabase();
+  const db = getDataClient();
 
   const [personsRes, relsRes] = await Promise.all([
-    supabase
+    db
       .from("persons")
       .select("*")
-      .order("birth_year", { ascending: true, nullsFirst: false }),
-    supabase.from("relationships").select("*"),
+      .order("birth_year", { ascending: true }),
+    db.from("relationships").select("*"),
   ]);
 
-  const persons = personsRes.data || [];
-  const relationships = relsRes.data || [];
+  const persons = (personsRes.data as any[]) || [];
+  const relationships = (relsRes.data as any[]) || [];
 
   // Prepare map and roots for tree views
   const personsMap = new Map();

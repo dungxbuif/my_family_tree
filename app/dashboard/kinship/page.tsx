@@ -1,4 +1,5 @@
 import KinshipFinder from "@/components/KinshipFinder";
+import { Person, Relationship } from "@/types";
 import { getDataClient } from "@/utils/data/queries";
 
 export const metadata = {
@@ -9,14 +10,26 @@ export default async function KinshipPage() {
   const dataClient = getDataClient();
 
   const { data: persons } = await dataClient
-    .from("persons")
+    .from<
+      Pick<
+        Person,
+        | "id"
+        | "full_name"
+        | "gender"
+        | "birth_year"
+        | "birth_order"
+        | "generation"
+        | "is_in_law"
+        | "avatar_url"
+      >
+    >("persons")
     .select(
       "id, full_name, gender, birth_year, birth_order, generation, is_in_law, avatar_url",
     )
     .order("birth_year", { ascending: true, nullsFirst: false });
 
   const { data: relationships } = await dataClient
-    .from("relationships")
+    .from<Pick<Relationship, "type" | "person_a" | "person_b">>("relationships")
     .select("type, person_a, person_b");
 
   return (

@@ -1,8 +1,9 @@
 import { getDataClient, getIsAdmin } from "@/utils/data/queries";
 import GalleryClient from "@/components/GalleryClient";
+import { GalleryItem } from "@/types";
 
 export const metadata = {
-  title: "Phòng trưng bày | Gia Phả OS",
+  title: "Phòng trưng bày | Family Tree",
   description: "Lưu giữ và chia sẻ hình ảnh, kỷ niệm dòng họ",
 };
 
@@ -11,7 +12,7 @@ export default async function GalleryPage() {
   const isAdmin = await getIsAdmin();
 
   const { data: items } = await dataClient
-    .from("gallery_items")
+    .from<GalleryItem>("gallery_items")
     .select("*")
     .order("event_date", { ascending: false, nullsFirst: false });
 

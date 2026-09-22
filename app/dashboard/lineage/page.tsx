@@ -1,4 +1,5 @@
 import LineageManager from "@/components/LineageManager";
+import { Person, Relationship } from "@/types";
 import { getProfile, getDataClient } from "@/utils/data/queries";
 import { redirect } from "next/navigation";
 
@@ -12,11 +13,13 @@ export default async function LineagePage() {
   const dataClient = getDataClient();
 
   const { data: personsData } = await dataClient
-    .from("persons")
+    .from<Person>("persons")
     .select("*")
     .order("birth_year", { ascending: true, nullsFirst: false });
 
-  const { data: relsData } = await dataClient.from("relationships").select("*");
+  const { data: relsData } = await dataClient
+    .from<Relationship>("relationships")
+    .select("*");
 
   // Identify "roots" - people with no parents
   const persons = personsData || [];

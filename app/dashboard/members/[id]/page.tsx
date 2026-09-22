@@ -10,6 +10,13 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+interface PrivateDetails extends Record<string, unknown> {
+  person_id: string;
+  phone_number: string | null;
+  occupation: string | null;
+  current_residence: string | null;
+}
+
 export default async function MemberDetailPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -32,10 +39,10 @@ export default async function MemberDetailPage({ params }: PageProps) {
   }
 
   // Fetch Private Data if Admin
-  let privateData = null;
+  let privateData: PrivateDetails | null = null;
   if (isAdmin) {
     const { data } = await db
-      .from("person_details_private")
+      .from<PrivateDetails>("person_details_private")
       .select("*")
       .eq("person_id", id)
       .single();

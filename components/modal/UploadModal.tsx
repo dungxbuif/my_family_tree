@@ -1,7 +1,7 @@
 "use client";
 
-import { uploadGalleryImage } from "@/utils/supabase/storage";
-import { createClient } from "@/utils/supabase/client";
+import { uploadGalleryItem } from "@/app/actions/gallery";
+import { uploadImage } from "@/utils/storage/client";
 import { X, UploadCloud, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -96,44 +96,22 @@ export default function UploadModal({
     setError(null);
 
     try {
-      let finalUrl = initialData?.image_url || "";
-
-      // 1. Upload to storage (only if new file selected)
-      if (file) {
-        const { url, error: uploadError } = await uploadGalleryImage(file);
-        if (uploadError || !url) {
-          throw new Error("Lỗi khi tải ảnh lên. Vui lòng thử lại.");
-        }
-        finalUrl = url;
-      }
-
-      // 2. Save to database
-      const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-
-      const itemData = {
-        title,
-        description: description || null,
-        image_url: finalUrl,
-        event_date: eventDate || null,
-      };
-
+      const uploadedImageUrl = file
+        ? await uploadImage(file, "gallery")
+        : initialData?.image_url;
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
+      formData.append("eventDate", eventDate);
       if (initialData) {
-        // Update
-        const { error: dbError } = await supabase
-          .from("gallery_items")
-          .update(itemData)
-          .eq("id", initialData.id);
-        if (dbError) throw dbError;
-      } else {
-        // Insert
-        const { error: dbError } = await supabase.from("gallery_items").insert([
-          {
-            ...itemData,
-            created_by: userData?.user?.id || null,
-          },
-        ]);
-        if (dbError) throw dbError;
+        formData.append("id", initialData.id);
+      }
+      if (uploadedImageUrl) formData.append("imageUrl", uploadedImageUrl);
+
+      const result = await uploadGalleryItem(formData);
+
+      if (result.error) {
+        throw new Error(result.error);
       }
 
       // Success

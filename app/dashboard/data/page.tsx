@@ -1,5 +1,5 @@
 import DataImportExport from "@/components/DataImportExport";
-import { getProfile } from "@/utils/supabase/queries";
+import { getProfile } from "@/utils/data/queries";
 import { redirect } from "next/navigation";
 
 export default async function DataManagementPage() {

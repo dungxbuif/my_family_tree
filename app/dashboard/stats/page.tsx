@@ -1,4 +1,5 @@
 import FamilyStats from "@/components/FamilyStats";
+import { Person, Relationship } from "@/types";
 import { getDataClient } from "@/utils/data/queries";
 
 export const metadata = {
@@ -8,9 +9,9 @@ export const metadata = {
 export default async function StatsPage() {
   const dataClient = getDataClient();
 
-  const { data: persons } = await dataClient.from("persons").select("*");
+  const { data: persons } = await dataClient.from<Person>("persons").select("*");
   const { data: relationships } = await dataClient
-    .from("relationships")
+    .from<Relationship>("relationships")
     .select("*");
 
   return (

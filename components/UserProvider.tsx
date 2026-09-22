@@ -1,16 +1,13 @@
 "use client";
 
-import { Profile } from "@/types";
-import { createClient } from "@/utils/supabase/client";
-import { User, SupabaseClient } from "@supabase/supabase-js";
-import { createContext, useContext, ReactNode, useMemo } from "react";
+import { Profile, AppUser } from "@/types";
+import { createContext, useContext, ReactNode } from "react";
 
 interface UserState {
-  user: User | null;
+  user: AppUser | null;
   profile: Profile | null;
   isAdmin: boolean;
   isEditor: boolean;
-  supabase: SupabaseClient;
 }
 
 const UserContext = createContext<UserState | undefined>(undefined);
@@ -21,15 +18,14 @@ export function UserProvider({
   profile,
 }: {
   children: ReactNode;
-  user: User | null;
+  user: AppUser | null;
   profile: Profile | null;
 }) {
-  const supabase = useMemo(() => createClient(), []);
   const isAdmin = profile?.role === "admin";
   const isEditor = profile?.role === "editor" || isAdmin;
 
   return (
-    <UserContext.Provider value={{ user, profile, isAdmin, isEditor, supabase }}>
+    <UserContext.Provider value={{ user, profile, isAdmin, isEditor }}>
       {children}
     </UserContext.Provider>
   );

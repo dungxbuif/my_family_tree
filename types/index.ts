@@ -5,6 +5,13 @@ export type RelationshipType =
   | "adopted_child";
 export type UserRole = "admin" | "editor" | "member";
 
+export interface AppUser {
+  id: string;
+  email: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Profile {
   id: string;
   role: UserRole;

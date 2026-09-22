@@ -5,7 +5,7 @@ import { useState } from "react";
 import { X, CalendarDays, Maximize2 } from "lucide-react";
 import dayjs from "dayjs";
 
-import { createClient } from "@/utils/supabase/client";
+import { deleteGalleryItem } from "@/app/actions/gallery";
 
 interface GalleryGridProps {
   items: GalleryItem[];
@@ -27,20 +27,8 @@ export default function GalleryGrid({
     if (!confirm("Bạn có chắc chắn muốn xóa hình ảnh này?")) return;
     setIsDeleting(true);
     try {
-      const supabase = createClient();
-
-      // Delete from storage if possible
-      const fileName = item.image_url.split("/").pop();
-      if (fileName) {
-        await supabase.storage.from("gallery").remove([fileName]);
-      }
-
-      // Delete from db
-      const { error } = await supabase
-        .from("gallery_items")
-        .delete()
-        .eq("id", item.id);
-      if (error) throw error;
+      const result = await deleteGalleryItem(item.id, item.image_url);
+      if (result.error) throw new Error(result.error);
 
       setSelectedItem(null);
       if (onDeleteSuccess) onDeleteSuccess(item.id);

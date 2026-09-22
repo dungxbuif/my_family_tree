@@ -1,6 +1,7 @@
 import { getTodayLunar } from "@/utils/dateHelpers";
 import { computeEvents } from "@/utils/eventHelpers";
 import { getIsAdmin, getDataClient } from "@/utils/data/queries";
+import { Person } from "@/types";
 import {
   ArrowRight,
   BarChart2,
@@ -45,13 +46,38 @@ export default async function DashboardLaunchpad() {
 
   /* ── Fetch events data ────────────────────────────────────────── */
   const { data: persons } = await dataClient
-    .from("persons")
+    .from<
+      Pick<
+        Person,
+        | "id"
+        | "full_name"
+        | "birth_year"
+        | "birth_month"
+        | "birth_day"
+        | "death_year"
+        | "death_month"
+        | "death_day"
+        | "death_lunar_year"
+        | "death_lunar_month"
+        | "death_lunar_day"
+        | "is_deceased"
+      >
+    >("persons")
     .select(
       "id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, death_lunar_year, death_lunar_month, death_lunar_day, is_deceased",
     );
 
   const { data: customEvents } = await dataClient
-    .from("custom_events")
+    .from<
+      {
+        id: string;
+        name: string;
+        content: string | null;
+        event_date: string;
+        location: string | null;
+        created_by: string | null;
+      }
+    >("custom_events")
     .select("id, name, content, event_date, location, created_by");
 
   const allEvents = computeEvents(persons ?? [], customEvents ?? []);

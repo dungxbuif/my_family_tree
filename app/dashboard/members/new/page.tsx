@@ -1,5 +1,5 @@
 import MemberForm from "@/components/MemberForm";
-import { getProfile } from "@/utils/supabase/queries";
+import { getProfile } from "@/utils/data/queries";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 

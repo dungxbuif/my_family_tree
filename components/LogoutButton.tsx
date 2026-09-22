@@ -1,21 +1,16 @@
 "use client";
 
-import { createClient } from "@/utils/supabase/client";
+import { logout } from "@/app/actions/auth";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LogoutButton() {
-  const router = useRouter();
-  const supabase = createClient();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await supabase.auth.signOut();
-      router.push("/login");
-      router.refresh(); // Refresh to clear any cached Server Component data
+      await logout();
     } catch (error) {
       console.error("Lỗi đăng xuất:", error);
       setIsLoggingOut(false);

@@ -1,5 +1,5 @@
 {
-  "name": "giapha-os",
+  "name": "my-family-tree",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,8 +12,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.106.2",
+    "@aws-sdk/client-s3": "^3.1127.0",
+    "@aws-sdk/s3-request-presigner": "^3.1127.0",
     "d3": "^7.9.0",
     "dayjs": "^1.11.21",
     "framer-motion": "^12.40.0",

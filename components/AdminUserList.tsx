@@ -6,11 +6,10 @@ import {
   deleteUser,
   toggleUserStatus,
 } from "@/app/actions/user";
-import config from "@/app/config";
 import { AdminUserData, UserRole } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trash } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface AdminUserListProps {
   initialUsers: AdminUserData[];
@@ -31,13 +30,6 @@ export default function AdminUserList({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsDemo(window.location.hostname === config.demoDomain);
-    }
-  }, []);
 
   const showNotification = (
     message: string,
@@ -48,13 +40,6 @@ export default function AdminUserList({
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    if (isDemo) {
-      showNotification(
-        "Đây là tài khoản demo cho mọi người sử dụng, vui lòng không thay đổi thông tin này.",
-        "info",
-      );
-      return;
-    }
     try {
       setLoadingId(userId);
       const result = await changeUserRole(userId, newRole);
@@ -80,13 +65,6 @@ export default function AdminUserList({
   };
 
   const handleStatusChange = async (userId: string, newStatus: boolean) => {
-    if (isDemo) {
-      showNotification(
-        "Đây là tài khoản demo cho mọi người sử dụng, vui lòng không thay đổi thông tin này.",
-        "info",
-      );
-      return;
-    }
     try {
       setLoadingId(userId);
       const result = await toggleUserStatus(userId, newStatus);
@@ -117,13 +95,6 @@ export default function AdminUserList({
   };
 
   const handleDelete = async (userId: string) => {
-    if (isDemo) {
-      showNotification(
-        "Đây là tài khoản demo cho mọi người sử dụng, vui lòng không thay đổi thông tin này.",
-        "info",
-      );
-      return;
-    }
     if (
       !confirm(
         "Bạn có chắc chắn muốn xóa user này khỏi hệ thống vĩnh viễn không?",
@@ -154,14 +125,6 @@ export default function AdminUserList({
 
   const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (isDemo) {
-      showNotification(
-        "Đây là trang demo, chức năng tạo người dùng bị hạn chế.",
-        "info",
-      );
-      setIsCreateModalOpen(false);
-      return;
-    }
     setIsCreating(true);
     const formData = new FormData(e.currentTarget);
     try {

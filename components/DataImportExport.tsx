@@ -1,6 +1,7 @@
 "use client";
 
 import { exportData, importData } from "@/app/actions/data";
+import { getPersonSelectorList } from "@/app/actions/member";
 import { Person } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, Download, Upload } from "lucide-react";
@@ -25,26 +26,8 @@ export default function DataImportExport() {
   useEffect(() => {
     async function fetchPersons() {
       try {
-        const { createClient } = await import("@/utils/supabase/client");
-        const supabase = createClient();
-        
-        let allFetched: Person[] = [];
-        let from = 0;
-        const step = 1000;
-        
-        while (true) {
-          const { data } = await supabase
-            .from("persons")
-            .select("id, full_name, birth_year, gender, avatar_url, generation")
-            .order("birth_year", { ascending: true, nullsFirst: false })
-            .range(from, from + step - 1);
-            
-          if (!data || data.length === 0) break;
-          allFetched = allFetched.concat(data as Person[]);
-          if (data.length < step) break;
-          from += step;
-        }
-        setPersons(allFetched);
+        const data = await getPersonSelectorList();
+        setPersons(data);
       } catch (err) {
         console.error("Error fetching persons:", err);
       }
@@ -170,6 +153,8 @@ export default function DataImportExport() {
       }
 
       const result = await importData({
+        version: payload.version ?? 1,
+        timestamp: payload.timestamp ?? new Date().toISOString(),
         persons: payload.persons,
         relationships: payload.relationships,
         person_details_private: payload.person_details_private,

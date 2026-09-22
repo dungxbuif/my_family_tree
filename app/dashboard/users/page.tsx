@@ -1,5 +1,5 @@
 import AdminUserList from "@/components/AdminUserList";
-import { AdminUserData } from "@/types";
+import { AdminUserData, UserRole } from "@/types";
 import { getProfile, getDataClient } from "@/utils/data/queries";
 import { redirect } from "next/navigation";
 

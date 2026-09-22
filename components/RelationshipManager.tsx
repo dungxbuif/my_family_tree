@@ -4,11 +4,22 @@ import { MemberListContext, useMemberListView } from "@/context/MemberListContex
 import { Person, RelationshipType } from "@/types";
 import { formatDisplayDate } from "@/utils/dateHelpers";
 import { getAvatarBg } from "@/utils/styleHelprs";
-import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useContext, useEffect, useState } from "react";
 import DefaultAvatar from "./DefaultAvatar";
+
+// Server Actions
+import { 
+  fetchMemberRelationships, 
+  getRelationshipStats, 
+  addRelationship, 
+  deleteRelationship, 
+  quickAddSpouse,
+  bulkAddChildren,
+  EnrichedRelationship
+} from "@/app/actions/relationship";
+import { searchMembers, getRecentMembers } from "@/app/actions/member";
 
 interface RelationshipManagerProps {
   person: Person;
@@ -25,21 +36,12 @@ interface RelationshipManagerProps {
   }) => void;
 }
 
-interface EnrichedRelationship {
-  id: string;
-  type: RelationshipType;
-  direction: "parent" | "child" | "spouse" | "child_in_law";
-  targetPerson: Person;
-  note: string | null;
-}
-
 export default function RelationshipManager({
   person,
   isAdmin,
   canEdit = false,
   onStatsLoaded,
 }: RelationshipManagerProps) {
-  const supabase = createClient();
   const memberListContext = useContext(MemberListContext);
   const { setMemberModalId } = useMemberListView();
   const router = useRouter();
@@ -106,163 +108,11 @@ export default function RelationshipManager({
   // Fetch relationships
   const fetchRelationships = useCallback(async () => {
     try {
-      // Get all relationships where this person involved
-      // This is a bit complex because we need to check both a and b columns
-      const { data: relsA, error: errA } = await supabase
-        .from("relationships")
-        .select(`*, target:persons!person_b(*)`) // if I am A, target is B
-        .eq("person_a", personId);
-
-      const { data: relsB, error: errB } = await supabase
-        .from("relationships")
-        .select(`*, target:persons!person_a(*)`) // if I am B, target is A
-        .eq("person_b", personId);
-
-      if (errA || errB) throw errA || errB;
-
-      const formattedRels: EnrichedRelationship[] = [];
-
-      // Process Rels where I am Person A
-      relsA?.forEach((r) => {
-        let direction: "parent" | "child" | "spouse" = "spouse";
-        if (r.type === "marriage") direction = "spouse";
-        else if (r.type === "biological_child" || r.type === "adopted_child")
-          direction = "child"; // I am A (Parent), B is Child
-
-        formattedRels.push({
-          id: r.id,
-          type: r.type,
-          direction,
-          targetPerson: r.target,
-          note: r.note,
-        });
-      });
-
-      // Process Rels where I am Person B
-      relsB?.forEach((r) => {
-        let direction: "parent" | "child" | "spouse" = "spouse";
-        if (r.type === "marriage") direction = "spouse";
-        else if (r.type === "biological_child" || r.type === "adopted_child")
-          direction = "parent"; // I am B (Child), A is Parent
-
-        formattedRels.push({
-          id: r.id,
-          type: r.type,
-          direction,
-          targetPerson: r.target,
-          note: r.note,
-        });
-      });
-
-      // Fetch in-laws (spouses of children)
-      const childrenIds = formattedRels
-        .filter((r) => r.direction === "child")
-        .map((r) => r.targetPerson.id);
-
-      if (childrenIds.length > 0) {
-        const { data: childrenMarriages } = await supabase
-          .from("relationships")
-          .select(
-            `*, person_a_data:persons!person_a(*), person_b_data:persons!person_b(*)`,
-          )
-          .eq("type", "marriage")
-          .or(
-            `person_a.in.(${childrenIds.join(",")}),person_b.in.(${childrenIds.join(",")})`,
-          );
-
-        if (childrenMarriages) {
-          childrenMarriages.forEach((m) => {
-            const isAChild = childrenIds.includes(m.person_a);
-            const childPerson = isAChild ? m.person_a_data : m.person_b_data;
-            const spousePerson = isAChild ? m.person_b_data : m.person_a_data;
-
-            if (spousePerson && childPerson) {
-              const spouseGender = spousePerson.gender;
-              let noteLabel = `Vợ/chồng của ${childPerson.full_name}`;
-              if (spouseGender === "female")
-                noteLabel = `Con dâu (vợ của ${childPerson.full_name})`;
-              if (spouseGender === "male")
-                noteLabel = `Con rể (chồng của ${childPerson.full_name})`;
-
-              // Append existing marriage note if any
-              if (m.note) noteLabel += ` - ${m.note}`;
-
-              formattedRels.push({
-                id: m.id + "_inlaw",
-                type: "marriage",
-                direction: "child_in_law",
-                targetPerson: spousePerson,
-                note: noteLabel,
-              });
-            }
-          });
-        }
-      }
+      const formattedRels = await fetchMemberRelationships(personId);
 
       if (onStatsLoaded) {
-        const biologicalChildrenList = formattedRels.filter(
-          (r) => r.direction === "child" && r.type === "biological_child",
-        );
-        const biologicalChildren = biologicalChildrenList.length;
-        const maleBiologicalChildren = biologicalChildrenList.filter(
-          (c) => c.targetPerson.gender === "male",
-        ).length;
-        const femaleBiologicalChildren = biologicalChildrenList.filter(
-          (c) => c.targetPerson.gender === "female",
-        ).length;
-
-        const daughterInLaw = formattedRels.filter(
-          (r) =>
-            r.direction === "child_in_law" &&
-            r.targetPerson.gender === "female",
-        ).length;
-        const sonInLaw = formattedRels.filter(
-          (r) =>
-            r.direction === "child_in_law" && r.targetPerson.gender === "male",
-        ).length;
-
-        // Fetch Grandchildren mapping
-        let paternalGrandchildren = 0;
-        let maternalGrandchildren = 0;
-        if (childrenIds.length > 0) {
-          const { data: grandchildrenData } = await supabase
-            .from("relationships")
-            .select("id, person_a")
-            .in("type", ["biological_child", "adopted_child"])
-            .in("person_a", childrenIds);
-
-          if (grandchildrenData) {
-            const maleChildrenIds = formattedRels
-              .filter(
-                (r) =>
-                  r.direction === "child" && r.targetPerson.gender === "male",
-              )
-              .map((r) => r.targetPerson.id);
-            const femaleChildrenIds = formattedRels
-              .filter(
-                (r) =>
-                  r.direction === "child" && r.targetPerson.gender === "female",
-              )
-              .map((r) => r.targetPerson.id);
-
-            paternalGrandchildren = grandchildrenData.filter((g) =>
-              maleChildrenIds.includes(g.person_a),
-            ).length;
-            maternalGrandchildren = grandchildrenData.filter((g) =>
-              femaleChildrenIds.includes(g.person_a),
-            ).length;
-          }
-        }
-
-        onStatsLoaded({
-          biologicalChildren,
-          maleBiologicalChildren,
-          femaleBiologicalChildren,
-          paternalGrandchildren,
-          maternalGrandchildren,
-          sonInLaw,
-          daughterInLaw,
-        });
+        const stats = await getRelationshipStats(personId, formattedRels);
+        onStatsLoaded(stats);
       }
 
       setRelationships(formattedRels);
@@ -271,7 +121,7 @@ export default function RelationshipManager({
     } finally {
       setLoading(false);
     }
-  }, [personId, supabase, onStatsLoaded]);
+  }, [personId, onStatsLoaded]);
 
   useEffect(() => {
     fetchRelationships();
@@ -285,35 +135,32 @@ export default function RelationshipManager({
         return;
       }
 
-      const { data } = await supabase
-        .from("persons")
-        .select("*")
-        .ilike("full_name", `%${searchTerm}%`)
-        .neq("id", personId) // Exclude self
-        .limit(5);
-
-      if (data) setSearchResults(data);
+      try {
+        const results = await searchMembers(searchTerm, personId);
+        setSearchResults(results);
+      } catch (err) {
+        console.error("Search error:", err);
+      }
     };
 
     const timeoutId = setTimeout(searchPeople, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, personId, supabase]);
+  }, [searchTerm, personId]);
 
   // Fetch recent members when opening Add form
   useEffect(() => {
     if (isAdding && recentMembers.length === 0) {
       const fetchRecent = async () => {
-        const { data } = await supabase
-          .from("persons")
-          .select("*")
-          .neq("id", personId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-        if (data) setRecentMembers(data);
+        try {
+          const results = await getRecentMembers(personId);
+          setRecentMembers(results);
+        } catch (err) {
+          console.error("Fetch recent error:", err);
+        }
       };
       fetchRecent();
     }
-  }, [isAdding, personId, supabase, recentMembers.length]);
+  }, [isAdding, personId, recentMembers.length]);
 
   const handleAddRelationship = async () => {
     if (!selectedTargetId) return;
@@ -323,14 +170,6 @@ export default function RelationshipManager({
     try {
       let personA = personId;
       let personB = selectedTargetId;
-      // Default: I am A, Target is B.
-
-      // Setup payload based on logic
-      // Marriage: Order doesn't strictly matter logically, but consistency is good.
-      // Parent/Child:
-      //    Relationship Type: biological_child
-      //    Column A: Parent
-      //    Column B: Child
 
       if (newRelDirection === "parent") {
         // Target is Parent (A), I am Child (B)
@@ -347,55 +186,17 @@ export default function RelationshipManager({
       if (newRelDirection === "spouse") type = "marriage";
       else if (newRelType === "adopted_child") type = "adopted_child";
 
-      const { error } = await supabase.from("relationships").insert({
+      const result = await addRelationship({
         person_a: personA,
         person_b: personB,
         type: type,
         note: newRelNote ? newRelNote : null,
+        direction: newRelDirection,
+        personGeneration: person.generation,
+        personIsInLaw: person.is_in_law
       });
 
-      if (error) throw error;
-
-      // Auto-update target person generation and is_in_law if currently missing
-      try {
-        const { data: targetPerson } = await supabase
-          .from("persons")
-          .select("generation, is_in_law")
-          .eq("id", selectedTargetId)
-          .single();
-
-        if (
-          targetPerson &&
-          (targetPerson.generation == null || targetPerson.is_in_law == null)
-        ) {
-          const updates: { generation?: number; is_in_law?: boolean } = {};
-
-          if (targetPerson.generation == null && person.generation != null) {
-            if (newRelDirection === "child")
-              updates.generation = person.generation + 1;
-            else if (newRelDirection === "parent")
-              updates.generation = person.generation - 1;
-            else if (newRelDirection === "spouse")
-              updates.generation = person.generation;
-          }
-
-          if (targetPerson.is_in_law == null) {
-            if (newRelDirection === "child" || newRelDirection === "parent")
-              updates.is_in_law = false;
-            else if (newRelDirection === "spouse")
-              updates.is_in_law = person.is_in_law === true ? false : true;
-          }
-
-          if (Object.keys(updates).length > 0) {
-            await supabase
-              .from("persons")
-              .update(updates)
-              .eq("id", selectedTargetId);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to auto-update target person properties", err);
-      }
+      if (result.error) throw new Error(result.error);
 
       setIsAdding(false);
       setSearchTerm("");
@@ -423,72 +224,23 @@ export default function RelationshipManager({
 
     setProcessing(true);
     setError(null);
-    let successCount = 0;
 
     try {
-      // For each child row, insert a Person, then insert Relationship(s)
-      for (let i = 0; i < validChildren.length; i++) {
-        const child = validChildren[i];
+      const result = await bulkAddChildren({
+        parentId: personId,
+        spouseId: selectedSpouseId,
+        parentGeneration: person.generation,
+        children: validChildren.map(c => ({
+            name: c.name,
+            gender: c.gender,
+            birthYear: c.birthYear,
+            birthOrder: c.birthOrder
+        }))
+      });
 
-        // 1. Insert Person
-        const personPayload: {
-          full_name: string;
-          gender: "male" | "female" | "other";
-          birth_year?: number;
-          birth_order?: number;
-          is_in_law?: boolean;
-          generation?: number;
-        } = {
-          full_name: child.name.trim(),
-          gender: child.gender,
-          is_in_law: false,
-        };
+      if (result.error) throw new Error(result.error);
 
-        if (person.generation != null) {
-          personPayload.generation = person.generation + 1;
-        }
-        if (child.birthYear.trim() !== "") {
-          const year = parseInt(child.birthYear);
-          if (!isNaN(year)) personPayload.birth_year = year;
-        }
-        if (child.birthOrder.trim() !== "") {
-          const order = parseInt(child.birthOrder);
-          if (!isNaN(order)) personPayload.birth_order = order;
-        }
-
-        const { data: newPersonData, error: insertError } = await supabase
-          .from("persons")
-          .insert(personPayload)
-          .select("id")
-          .single();
-
-        if (insertError || !newPersonData) {
-          console.error("Error inserting child:", child.name, insertError);
-          continue; // Skip setting relationships for this if person insert failed
-        }
-
-        const newChildId = newPersonData.id;
-
-        // 2. Insert Relationship to Main Person (parent)
-        await supabase.from("relationships").insert({
-          person_a: personId,
-          person_b: newChildId,
-          type: "biological_child",
-        });
-
-        // 3. Insert Relationship to Second Parent (spouse), if selected
-        if (selectedSpouseId && selectedSpouseId !== "unknown") {
-          await supabase.from("relationships").insert({
-            person_a: selectedSpouseId,
-            person_b: newChildId,
-            type: "biological_child",
-          });
-        }
-
-        successCount++;
-      }
-
-      if (successCount === validChildren.length) {
+      if (result.success && result.count === validChildren.length) {
         setIsAddingBulk(false);
         setBulkChildren([
           {
@@ -504,7 +256,7 @@ export default function RelationshipManager({
         router.refresh();
       } else {
         setError(
-          `Đã xảy ra lỗi. Chỉ lưu thành công ${successCount}/${validChildren.length} người.`,
+          `Đã xảy ra lỗi. Chỉ lưu thành công ${result.count}/${validChildren.length} người.`,
         );
         setTimeout(() => setError(null), 5000);
         fetchRelationships();
@@ -530,7 +282,7 @@ export default function RelationshipManager({
     setError(null);
     try {
       // Determine default gender based on current person defined in personGender prop
-      // Default to opposite. If original is other, default to female (arbitrary choice, or let user pick, but standard says opposite)
+      // Default to opposite. If original is other, default to female
       const newSpouseGender =
         personGender === "male"
           ? "female"
@@ -538,47 +290,19 @@ export default function RelationshipManager({
             ? "male"
             : "female";
 
-      const personPayload: {
-        full_name: string;
-        gender: "male" | "female" | "other";
-        birth_year?: number;
-        is_in_law?: boolean;
-        generation?: number;
-      } = {
-        full_name: newSpouseName.trim(),
-        gender: newSpouseGender,
+      const birthYearNum = newSpouseBirthYear.trim() !== "" ? parseInt(newSpouseBirthYear) : undefined;
+
+      const result = await quickAddSpouse({
+        personId,
+        name: newSpouseName.trim(),
+        gender: newSpouseGender as "male" | "female" | "other",
         is_in_law: person.is_in_law === true ? false : true,
-      };
-
-      if (person.generation != null) {
-        personPayload.generation = person.generation;
-      }
-
-      if (newSpouseBirthYear.trim() !== "") {
-        const year = parseInt(newSpouseBirthYear);
-        if (!isNaN(year)) personPayload.birth_year = year;
-      }
-
-      // 1. Insert Person
-      const { data: newPersonData, error: insertError } = await supabase
-        .from("persons")
-        .insert(personPayload)
-        .select("id")
-        .single();
-
-      if (insertError || !newPersonData) throw insertError;
-
-      const newSpouseId = newPersonData.id;
-
-      // 2. Insert Marriage Relationship
-      const { error: relError } = await supabase.from("relationships").insert({
-        person_a: personId,
-        person_b: newSpouseId,
-        type: "marriage",
-        note: newSpouseNote.trim() || null,
+        generation: person.generation,
+        birthYear: isNaN(birthYearNum!) ? undefined : birthYearNum,
+        note: newSpouseNote.trim() || null
       });
 
-      if (relError) throw relError;
+      if (result.error) throw new Error(result.error);
 
       setIsAddingSpouse(false);
       setNewSpouseName("");
@@ -598,11 +322,8 @@ export default function RelationshipManager({
   const handleDelete = async (relId: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa mối quan hệ này?")) return;
     try {
-      const { error } = await supabase
-        .from("relationships")
-        .delete()
-        .eq("id", relId);
-      if (error) throw error;
+      const result = await deleteRelationship(relId);
+      if (result.error) throw new Error(result.error);
       fetchRelationships();
       router.refresh();
     } catch (err: unknown) {
@@ -701,7 +422,7 @@ export default function RelationshipManager({
                     </button>
                     {canEdit && rel.direction !== "child_in_law" && (
                       <button
-                        onClick={() => handleDelete(rel.id)}
+                        onClick={() => handleDelete(rel.id.replace("_inlaw", ""))}
                         className="text-stone-300 hover:text-red-500 hover:bg-red-50 p-2 sm:p-2.5 rounded-lg transition-colors flex items-center justify-center ml-2"
                         title="Xóa mối quan hệ"
                         aria-label="Xóa mối quan hệ"

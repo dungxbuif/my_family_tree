@@ -3,7 +3,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import Footer from "@/components/Footer";
 import LogoutButton from "@/components/LogoutButton";
 import { UserProvider } from "@/components/UserProvider";
-import { getProfile, getUser } from "@/utils/supabase/queries";
+import { getProfile, getUser } from "@/utils/data/queries";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import React from "react";
@@ -13,13 +13,11 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getUser();
+  const [user, profile] = await Promise.all([getUser(), getProfile()]);
 
   if (!user) {
     redirect("/login");
   }
-
-  const profile = await getProfile(user.id);
 
   if (!profile?.is_active) {
     return (

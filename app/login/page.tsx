@@ -1,8 +1,7 @@
 "use client";
 
-import config from "@/app/config";
 import Footer from "@/components/Footer";
-import { createClient } from "@/utils/supabase/client";
+import { login, signup } from "@/app/actions/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -13,29 +12,13 @@ import {
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDemo, setIsDemo] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const hostname = window.location.hostname;
-      if (hostname === config.demoDomain) {
-        setIsDemo(true);
-        setEmail("giaphaos@homielab.com");
-        setPassword("giaphaos");
-      }
-    }
-  }, []);
-
-  const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
 
   const [isLogin, setIsLogin] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -48,74 +31,36 @@ export default function LoginPage() {
     setSuccessMessage(null);
 
     try {
+      const formData = new FormData();
+      formData.append("email", email);
+      formData.append("password", password);
+      
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) {
-          setError(error.message);
-        } else {
-          router.push("/dashboard");
-          router.refresh();
+        const result = await login(formData);
+        if (result?.error) {
+          setError(result.error);
         }
       } else {
-        if (password !== confirmPassword) {
-          setError("Mật khẩu xác nhận không khớp.");
-          setLoading(false);
-          return;
-        }
-
-        // 1. Try to sign up
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-
-        if (error) {
-          // Check if error is related to missing database schema/tables
-          if (
-            error.message.includes("relation") &&
-            error.message.includes("does not exist")
-          ) {
-            router.push("/setup");
-            return;
-          }
-
-          setError(error.message);
-        } else if (data.user?.identities && data.user.identities.length === 0) {
-          setError(
-            "Email này đã được đăng ký. Vui lòng đăng nhập hoặc dùng email khác.",
-          );
-        } else {
-          if (data.session) {
-            router.push("/dashboard");
-            router.refresh();
-          } else {
-            // Attempt to sign in immediately (catches auto-confirmed first admin)
-            const { data: signInData, error: signInError } =
-              await supabase.auth.signInWithPassword({
-                email,
-                password,
-              });
-
-            if (!signInError && signInData.session) {
-              router.push("/dashboard");
-              router.refresh();
-            } else {
-              setSuccessMessage(
-                "Đăng ký thành công! Vui lòng chờ admin kích hoạt tài khoản để xem nội dung.",
-              );
-              setIsLogin(true); // Switch back to login view
-              setConfirmPassword(""); // clear confirm password
-              setPassword(""); // clear password
-            }
-          }
+        formData.append("confirmPassword", confirmPassword);
+        const result = await signup(formData);
+        
+        if (result?.error) {
+          setError(result.error);
+        } else if (result?.success) {
+          setSuccessMessage(result.message ?? "Đăng ký thành công!");
+          setIsLogin(true); // Switch back to login view
+          setConfirmPassword(""); // clear confirm password
+          setPassword(""); // clear password
         }
       }
     } catch (err) {
-      setError("An unexpected error occurred");
+      // If it's a redirect error (from server action), we don't need to handle it
+      // but in Next.js 13+ client components, sometimes we need to be careful.
+      // However, server actions with redirect() usually work fine.
+      if (err instanceof Error && err.message === "NEXT_REDIRECT") {
+        throw err;
+      }
+      setError("Đã có lỗi không mong muốn xảy ra");
       console.error(err);
     } finally {
       setLoading(false);
@@ -157,17 +102,6 @@ export default function LoginPage() {
                 ? "Đăng nhập để truy cập gia phả."
                 : "Tạo tài khoản thành viên mới."}
             </p>
-            {isDemo && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 p-3 bg-amber-50 border border-amber-200/60 rounded-xl"
-              >
-                <p className="text-[13px] font-semibold text-amber-800">
-                  Website Demo. Dữ liệu đều không có thật.
-                </p>
-              </motion.div>
-            )}
           </div>
 
           <form className="space-y-5 relative z-10" onSubmit={handleSubmit}>
@@ -324,12 +258,6 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (isLogin && isDemo) {
-                    setError(
-                      "Đây là trang demo, bạn không cần phải tạo tài khoản. Hãy sử dụng tài khoản demo để truy cập với toàn bộ quyền.",
-                    );
-                    return;
-                  }
                   setIsLogin(!isLogin);
                   setError(null);
                   setSuccessMessage(null);

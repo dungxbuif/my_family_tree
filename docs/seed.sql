@@ -138,7 +138,7 @@ VALUES
   '40000000-0000-0000-0000-000000000001',
   'Vạn Trí Minh',
   'male', 1989, 3, 14, NULL, NULL, NULL, NULL, NULL, NULL, FALSE, FALSE, 4, 1,
-  'Con trai cả của anh Trí. Lập trình viên fullstack, yêu công nghệ mã nguồn mở. Tác giả dự án Gia Pha OS này! [Nhân vật hư cấu]'
+  'Con trai cả của anh Trí. Lập trình viên fullstack. [Nhân vật hư cấu]'
 ),
 (
   '40000000-0000-0000-0000-000000000002',

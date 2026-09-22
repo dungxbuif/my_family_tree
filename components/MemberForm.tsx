@@ -1,7 +1,8 @@
 "use client";
 
 import { Gender, Person } from "@/types";
-import { createClient } from "@/utils/supabase/client";
+import { saveMember } from "@/app/actions/member";
+import { uploadImage } from "@/utils/storage/client";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
   AlertCircle,
@@ -37,7 +38,6 @@ export default function MemberForm({
   onCancel,
 }: MemberFormProps) {
   const router = useRouter();
-  const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,18 +107,6 @@ export default function MemberForm({
   const [currentResidence, setCurrentResidence] = useState(
     initialData?.current_residence ?? "",
   );
-
-  const slugify = (str: string) => {
-    return str
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[đĐ]/g, "d")
-      .replace(/([^0-9a-z-\s])/g, "")
-      .replace(/(\s+)/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-+|-+$/g, "");
-  };
 
   const handleSolarDeathChange = (
     field: "day" | "month" | "year",
@@ -292,121 +280,51 @@ export default function MemberForm({
     }
 
     try {
-      let currentAvatarUrl = avatarUrl;
+      const uploadedAvatarUrl = avatarFile
+        ? await uploadImage(avatarFile, "avatars")
+        : avatarUrl;
+      const formData = new FormData();
+      if (initialData?.id) {
+        formData.append("id", initialData.id);
+      }
+      formData.append("full_name", fullName);
+      formData.append("gender", gender);
+      formData.append("birth_year", birthYear.toString());
+      formData.append("birth_month", birthMonth.toString());
+      formData.append("birth_day", birthDay.toString());
+      formData.append("is_deceased", isDeceased.toString());
+      formData.append("is_in_law", isInLaw.toString());
+      formData.append("birth_order", birthOrder.toString());
+      formData.append("generation", generation.toString());
+      formData.append("other_names", otherNames);
+      formData.append("note", note);
+      formData.append("avatar_url", uploadedAvatarUrl);
 
-      // Update person data helper to avoid duplication
-      const getPersonData = (url: string | null) => ({
-        full_name: fullName,
-        gender,
-        birth_year: birthYear === "" ? null : Number(birthYear),
-        birth_month: birthMonth === "" ? null : Number(birthMonth),
-        birth_day: birthDay === "" ? null : Number(birthDay),
-        death_year:
-          isDeceased && finalDeathYear !== "" ? Number(finalDeathYear) : null,
-        death_month:
-          isDeceased && finalDeathMonth !== "" ? Number(finalDeathMonth) : null,
-        death_day:
-          isDeceased && finalDeathDay !== "" ? Number(finalDeathDay) : null,
-        death_lunar_year:
-          isDeceased && finalDeathLunarYear !== ""
-            ? Number(finalDeathLunarYear)
-            : null,
-        death_lunar_month:
-          isDeceased && finalDeathLunarMonth !== ""
-            ? Number(finalDeathLunarMonth)
-            : null,
-        death_lunar_day:
-          isDeceased && finalDeathLunarDay !== ""
-            ? Number(finalDeathLunarDay)
-            : null,
-        is_deceased: isDeceased,
-        is_in_law: isInLaw,
-        birth_order: birthOrder === "" ? null : Number(birthOrder),
-        generation: generation === "" ? null : Number(generation),
-        other_names: otherNames || null,
-        avatar_url: url,
-        note: note || null,
-      });
-
-      let currentPersonId = initialData?.id;
-
-      // For a new member, we must insert first to get the ID for the avatar filename
-      if (!isEditing || !currentPersonId) {
-        const { data: newPerson, error: createError } = await supabase
-          .from("persons")
-          .insert(getPersonData(currentAvatarUrl || null))
-          .select()
-          .single();
-        if (createError) throw createError;
-        currentPersonId = newPerson.id;
-      } else {
-        // Update existing member info first
-        const { error: updateError } = await supabase
-          .from("persons")
-          .update(getPersonData(currentAvatarUrl || null))
-          .eq("id", currentPersonId);
-        if (updateError) throw updateError;
+      if (isDeceased) {
+        formData.append("death_year", finalDeathYear.toString());
+        formData.append("death_month", finalDeathMonth.toString());
+        formData.append("death_day", finalDeathDay.toString());
+        formData.append("death_lunar_year", finalDeathLunarYear.toString());
+        formData.append("death_lunar_month", finalDeathLunarMonth.toString());
+        formData.append("death_lunar_day", finalDeathLunarDay.toString());
       }
 
-      // 2. Handle Avatar Upload if a new file is selected (now we have currentPersonId)
-      if (avatarFile && currentPersonId) {
-        const fileExt = avatarFile.name.split(".").pop();
-        const slugName = slugify(fullName);
-        const fileName = `${currentPersonId}_${slugName}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(filePath, avatarFile, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("avatars").getPublicUrl(filePath);
-
-        currentAvatarUrl = publicUrl;
-
-        // Update the person with the final avatar URL
-        const { error: updateAvatarError } = await supabase
-          .from("persons")
-          .update({ avatar_url: currentAvatarUrl })
-          .eq("id", currentPersonId);
-        if (updateAvatarError) throw updateAvatarError;
+      if (isAdmin) {
+        formData.append("phone_number", phoneNumber);
+        formData.append("occupation", occupation);
+        formData.append("current_residence", currentResidence);
       }
 
-      // 3. Upsert private data (only if admin and currentPersonId exists)
-      if (isAdmin && currentPersonId) {
-        const normalizedData = {
-          person_id: currentPersonId,
-          phone_number: phoneNumber?.trim() || null,
-          occupation: occupation?.trim() || null,
-          current_residence: currentResidence?.trim() || null,
-        };
+      const result = await saveMember(formData);
 
-        const hasData =
-          normalizedData.phone_number ||
-          normalizedData.occupation ||
-          normalizedData.current_residence;
-
-        if (hasData) {
-          const { error } = await supabase
-            .from("person_details_private")
-            .upsert(normalizedData);
-
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from("person_details_private")
-            .delete()
-            .eq("person_id", currentPersonId);
-
-          if (error) throw error;
-        }
+      if (result.error) {
+        throw new Error(result.error);
       }
-      // After save: use callback if provided, otherwise fall back to page navigation
+
+      const currentPersonId = result.id;
       if (!currentPersonId)
         throw new Error("Không lấy được ID thành viên sau khi lưu.");
+
       if (onSuccess) {
         onSuccess(currentPersonId);
       } else {
@@ -615,37 +533,7 @@ export default function MemberForm({
                   {avatarPreview && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        // If there is an existing URL from Supabase, try to extract the file path to delete it
-                        if (
-                          initialData?.avatar_url &&
-                          avatarUrl === initialData.avatar_url
-                        ) {
-                          try {
-                            // Extract just the filename from the end of the URL
-                            const fileName = initialData.avatar_url
-                              .split("/")
-                              .pop();
-                            if (fileName) {
-                              const { error: removeError } =
-                                await supabase.storage
-                                  .from("avatars")
-                                  .remove([fileName]);
-                              if (removeError) {
-                                console.error(
-                                  "Error removing avatar from storage:",
-                                  removeError,
-                                );
-                              }
-                            }
-                          } catch (err) {
-                            console.error(
-                              "Failed to parse avatar URL for deletion",
-                              err,
-                            );
-                          }
-                        }
-
+                      onClick={() => {
                         setAvatarUrl("");
                         setAvatarFile(null);
                         setAvatarPreview(null);

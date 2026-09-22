@@ -39,5 +39,4 @@ DROP TYPE IF EXISTS public.gender_enum CASCADE;
 
 -- 6. RESET STORAGE (Optional)
 -- This will remove the avatars bucket and its policies
--- DELETE FROM storage.objects WHERE bucket_id = 'avatars';
--- DELETE FROM storage.buckets WHERE id = 'avatars';
+-- Uploaded files are stored on the application filesystem and are not removed by this SQL script.

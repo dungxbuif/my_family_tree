@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowLeft, Info, Mail, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Info, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import config from "@/app/config";
 
 export default function AboutPage() {
   return (
@@ -30,11 +31,11 @@ export default function AboutPage() {
 
             <div className="max-w-none">
               <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-                <strong className="text-stone-800">Gia Phả OS</strong> là một
-                giải pháp mã nguồn mở được thiết kế giúp các dòng họ, gia đình
-                tự xây dựng và quản lý cây phả hệ của riêng mình. Dự án giúp bảo
-                tồn và truyền đạt lại thông tin cội nguồn một cách trực quan,
-                hiện đại, và đặc biệt là an toàn.
+                <strong className="text-stone-800">{config.siteName}</strong> là
+                một giải pháp quản lý gia phả dòng họ cá nhân, được thiết kế để
+                giúp các gia đình tự xây dựng và bảo tồn cây phả hệ của riêng
+                mình. Dự án giúp lưu giữ thông tin cội nguồn một cách trực quan,
+                hiện đại và hoàn toàn riêng tư.
               </p>
 
               <div className="mt-8 mb-4 border-t border-stone-100 pt-8 flex items-center gap-3">
@@ -42,14 +43,14 @@ export default function AboutPage() {
                   <ShieldAlert className="size-5" />
                 </div>
                 <h2 className="text-xl font-bold text-stone-900">
-                  Tuyên bố từ chối trách nhiệm & Quyền riêng tư
+                  Quyền riêng tư & Bảo mật
                 </h2>
               </div>
 
               <div className="bg-stone-50 border border-stone-200/60 rounded-2xl p-6 text-[14.5px] leading-relaxed">
                 <p className="font-bold text-stone-800 mb-4 bg-white py-2 px-3 rounded-lg border border-stone-200 shadow-sm inline-block">
-                  Dự án này chỉ cung cấp mã nguồn (source code). Không có bất kỳ
-                  dữ liệu cá nhân nào được thu thập hay lưu trữ bởi tác giả.
+                  Dữ liệu của bạn thuộc về bạn. Hệ thống được thiết kế để hoạt
+                  động hoàn toàn trên máy chủ riêng của gia đình.
                 </p>
 
                 <ul className="space-y-4 text-stone-600 list-disc pl-5">
@@ -57,61 +58,28 @@ export default function AboutPage() {
                     <strong className="text-stone-800">
                       Tự lưu trữ hoàn toàn (Self-hosted):
                     </strong>{" "}
-                    Khi bạn triển khai ứng dụng, toàn bộ dữ liệu gia phả (tên,
-                    ngày sinh, quan hệ, thông tin liên hệ...) được lưu trữ{" "}
-                    <strong className="text-stone-800">
-                      trong tài khoản Supabase của chính bạn
-                    </strong>
-                    . Tác giả dự án không có quyền truy cập vào database đó.
+                    Toàn bộ dữ liệu gia phả (tên, ngày sinh, quan hệ, thông tin
+                    liên hệ...) và hình ảnh được lưu trữ trực tiếp trong cơ sở
+                    dữ liệu và hệ thống tệp tin trên máy chủ mà bạn quản lý.
                   </li>
                   <li>
                     <strong className="text-stone-800">
                       Không thu thập dữ liệu:
                     </strong>{" "}
-                    Không có analytics, không có tracking, không có telemetry,
-                    không có bất kỳ hình thức thu thập thông tin người dùng nào
-                    được tích hợp trong mã nguồn.
+                    Ứng dụng không tích hợp bất kỳ mã theo dõi, analytics hay
+                    telemetry nào. Không có thông tin người dùng nào được gửi ra
+                    ngoài máy chủ của bạn.
                   </li>
                   <li>
                     <strong className="text-stone-800">
-                      Bạn kiểm soát dữ liệu của bạn:
+                      Kiểm soát tuyệt đối:
                     </strong>{" "}
-                    Mọi dữ liệu gia đình, thông tin thành viên đều nằm hoàn toàn
-                    trong cơ sở dữ liệu Supabase mà bạn tạo và quản lý. Bạn có
-                    thể xóa, xuất hoặc di chuyển dữ liệu bất cứ lúc nào.
-                  </li>
-                  <li>
-                    <strong className="text-stone-800">Demo công khai:</strong>{" "}
-                    Trang demo tại{" "}
-                    <code className="bg-white border border-stone-200 px-1 py-0.5 rounded text-[13px] text-amber-700">
-                      giapha-os.homielab.com
-                    </code>{" "}
-                    sử dụng dữ liệu mẫu hư cấu, không chứa thông tin của người
-                    thật. Không nên nhập thông tin cá nhân thật vào trang demo.
+                    Bạn có toàn quyền truy cập, sao lưu, xuất hoặc xóa toàn bộ
+                    dữ liệu bất cứ lúc nào mà không phụ thuộc vào bất kỳ nhà
+                    cung cấp dịch vụ đám mây nào.
                   </li>
                 </ul>
               </div>
-
-              <div className="mt-8 mb-4 border-t border-stone-100 pt-8 flex items-center gap-3">
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <Mail className="size-5" />
-                </div>
-                <h2 className="text-xl font-bold text-stone-900">
-                  Liên hệ & Góp ý
-                </h2>
-              </div>
-
-              <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-                Nếu bạn có bất kỳ thắc mắc, đề xuất tính năng, báo lỗi khi sử
-                dụng phần mềm, hoặc muốn thảo luận thì xin vui lòng gửi email về
-                địa chỉ:{` `}
-                <a
-                  href="mailto:giaphaos@homielab.com"
-                  className="font-semibold text-amber-700 hover:text-amber-600 transition-colors inline-flex items-center gap-1.5 mt-2"
-                >
-                  giaphaos@homielab.com
-                </a>
-              </p>
             </div>
           </div>
         </motion.div>

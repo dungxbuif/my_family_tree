@@ -120,6 +120,43 @@ function sanitizeCustomEvent(
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
+export async function saveCustomEvent(data: { id?: string; name: string; event_date: string; location: string | null; content: string | null }) {
+  const isAdmin = await getIsAdmin();
+  if (!isAdmin) return { error: "Từ chối truy cập." };
+
+  const db = getDataClient();
+  try {
+    if (data.id) {
+      const { error } = await db.from("custom_events").update(data).eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await db.from("custom_events").insert(data);
+      if (error) throw new Error(error.message);
+    }
+    revalidatePath("/dashboard/events");
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: message };
+  }
+}
+
+export async function deleteCustomEvent(id: string) {
+  const isAdmin = await getIsAdmin();
+  if (!isAdmin) return { error: "Từ chối truy cập." };
+
+  const db = getDataClient();
+  try {
+    const { error } = await db.from("custom_events").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    revalidatePath("/dashboard/events");
+    return { success: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: message };
+  }
+}
+
 export async function exportData(
   exportRootId?: string,
 ): Promise<BackupPayload | { error: string }> {

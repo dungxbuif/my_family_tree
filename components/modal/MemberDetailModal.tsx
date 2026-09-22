@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchMemberDetail } from "@/app/actions/member";
 import MemberDetailContent from "@/context/MemberDetailContent";
 import MemberForm from "@/components/MemberForm";
 import { Person } from "@/types";
@@ -18,7 +19,7 @@ export default function MemberDetailModal() {
     showCreateMember,
     setShowCreateMember,
   } = useMemberListView();
-  const { isAdmin, isEditor: canEdit, supabase } = useUser();
+  const { isAdmin, isEditor: canEdit } = useUser();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -43,29 +44,9 @@ export default function MemberDetailModal() {
       setLoading(true);
       setError(null);
       try {
-        // 1. Fetch Person Public Data
-        const { data: personData, error: personError } = await supabase
-          .from("persons")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (personError || !personData) {
-          throw new Error("Không thể tải thông tin thành viên.");
-        }
-        setPerson(personData);
-
-        // 2. Fetch Private Data if Admin
-        if (isAdmin) {
-          const { data: privData } = await supabase
-            .from("person_details_private")
-            .select("*")
-            .eq("person_id", id)
-            .single();
-          setPrivateData(privData || {});
-        } else {
-          setPrivateData(null);
-        }
+        const { person, privateData } = await fetchMemberDetail(id);
+        setPerson(person);
+        setPrivateData(privateData || {});
       } catch (err) {
         console.error("Error fetching member details:", err);
         // @ts-expect-error - err is caught as unknown, but we check for message
@@ -74,7 +55,7 @@ export default function MemberDetailModal() {
         setLoading(false);
       }
     },
-    [isAdmin, supabase],
+    [],
   );
 
   // Sync state with URL parameter or create mode

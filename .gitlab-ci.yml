@@ -14,6 +14,7 @@ stages:
 
 variables:
   RELEASE_BRANCH: main
+  LAB_REGISTRY_HOST: registry-gitlab.dungxbuif.com
   DOCKER_HOST: tcp://docker:2376
   DOCKER_TLS_CERTDIR: /certs
   DOCKER_TLS_VERIFY: "1"
@@ -59,19 +60,21 @@ build_image:
     - when: never
   script:
     - docker info
-    - export IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" --username "$CI_REGISTRY_USER" --password-stdin
+    - export IMAGE="$LAB_REGISTRY_HOST/$CI_PROJECT_PATH:$CI_COMMIT_TAG"
+    - test -n "$LAB_REGISTRY_PUSH_USER"
+    - test -n "$LAB_REGISTRY_PUSH_PASSWORD"
+    - echo "$LAB_REGISTRY_PUSH_PASSWORD" | docker login "$LAB_REGISTRY_HOST" --username "$LAB_REGISTRY_PUSH_USER" --password-stdin
     - docker build --pull --platform linux/amd64 -t "$IMAGE" .
     - docker push "$IMAGE"
     - export IMAGE_DIGEST="$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")"
-    - test "$IMAGE_DIGEST" = "$CI_REGISTRY_IMAGE@${IMAGE_DIGEST##*@}"
+    - test "$IMAGE_DIGEST" = "$LAB_REGISTRY_HOST/$CI_PROJECT_PATH@${IMAGE_DIGEST##*@}"
     - printf 'IMAGE_DIGEST=%s\n' "$IMAGE_DIGEST" > release.env
   artifacts:
     reports:
       dotenv: release.env
     expire_in: 30 days
   after_script:
-    - docker logout "$CI_REGISTRY" >/dev/null 2>&1 || true
+    - docker logout "$LAB_REGISTRY_HOST" >/dev/null 2>&1 || true
 
 deploy_prod:
   stage: deploy
@@ -101,11 +104,13 @@ deploy_prod:
     - printf '%s\n' "$FAMILY_TREE_KNOWN_HOSTS" > known-hosts
     - export SSH_OPTS="-i $CI_PROJECT_DIR/deploy-key -o UserKnownHostsFile=$CI_PROJECT_DIR/known-hosts -o StrictHostKeyChecking=yes -o ConnectTimeout=10"
     - export TARGET="$FAMILY_TREE_DEPLOY_USER@$FAMILY_TREE_DEPLOY_HOST"
+    - test -n "$LAB_REGISTRY_PULL_USER"
+    - test -n "$LAB_REGISTRY_PULL_PASSWORD"
     - ssh $SSH_OPTS "$TARGET" "test -f '$FAMILY_TREE_DEPLOY_DIR/.env' && mkdir -p '$FAMILY_TREE_DEPLOY_DIR/uploads'"
     - scp $SSH_OPTS deployment/production/docker-compose.yml deployment/production/migrate.sh deployment/production/schema.sql "$TARGET:$FAMILY_TREE_DEPLOY_DIR/"
-    - printf '%s' "$CI_REGISTRY_PASSWORD" | ssh $SSH_OPTS "$TARGET" "docker login '$CI_REGISTRY' --username '$CI_REGISTRY_USER' --password-stdin"
+    - printf '%s' "$LAB_REGISTRY_PULL_PASSWORD" | ssh $SSH_OPTS "$TARGET" "docker login '$LAB_REGISTRY_HOST' --username '$LAB_REGISTRY_PULL_USER' --password-stdin"
     - ssh $SSH_OPTS "$TARGET" "set -a; . '$FAMILY_TREE_DEPLOY_DIR/.env'; set +a; export FAMILY_TREE_IMAGE='$IMAGE_DIGEST'; '$FAMILY_TREE_DEPLOY_DIR/migrate.sh'; docker compose -f '$FAMILY_TREE_DEPLOY_DIR/docker-compose.yml' --env-file '$FAMILY_TREE_DEPLOY_DIR/.env' up -d --no-build"
-    - ssh $SSH_OPTS "$TARGET" "docker logout '$CI_REGISTRY' >/dev/null 2>&1 || true"
+    - ssh $SSH_OPTS "$TARGET" "docker logout '$LAB_REGISTRY_HOST' >/dev/null 2>&1 || true"
 
 verify_prod:
   stage: verify

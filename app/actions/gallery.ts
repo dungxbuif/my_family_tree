@@ -19,7 +19,7 @@ export async function uploadGalleryItem(formData: FormData) {
 
   try {
     const db = getDataClient();
-    let imageUrl = formData.get("imageUrl")?.toString();
+    const imageUrl = formData.get("imageUrl")?.toString();
 
 
     if (!imageUrl) return { error: "Ảnh là bắt buộc." };

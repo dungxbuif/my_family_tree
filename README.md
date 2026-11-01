@@ -102,6 +102,21 @@ http:
 Sau khi Traefik nạp lại cấu hình, mở `https://family.dungxbuif.com/login` để tạo tài khoản
 Admin đầu tiên và kiểm tra đăng nhập, thành viên, quan hệ, ảnh và export/import.
 
+## GitLab delivery
+
+GitLab CI installs the locked Bun dependencies, runs lint and builds the Next
+application on branches and merge requests. Release tags are accepted only
+when their commit is reachable from protected `main`; a protected manual
+`prod-*` job builds and publishes an immutable image, runs the existing
+production schema migration on the Mac host, restarts the Compose app, and
+checks `/login`. Configure the project-scoped masked/protected variables before
+enabling that job:
+
+- `FAMILY_TREE_DEPLOY_HOST`, `FAMILY_TREE_DEPLOY_USER`, `FAMILY_TREE_DEPLOY_DIR`
+- `FAMILY_TREE_SSH_PRIVATE_KEY`, `FAMILY_TREE_KNOWN_HOSTS`
+
+The production `.env` remains on the Mac host and is never copied through CI.
+
 ## Phân quyền người dùng
 1. **Admin**: Toàn quyền hệ thống, quản lý người dùng và dữ liệu riêng tư.
 2. **Editor**: Thêm, sửa, xóa thành viên và quan hệ.

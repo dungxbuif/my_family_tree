@@ -20,7 +20,7 @@ def main() -> None:
         raise SystemExit("source commit must be a full SHA")
     if not re.fullmatch(r"family-tree-prod-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?", args.promotion_tag):
         raise SystemExit("invalid promotion tag")
-    if not re.fullmatch(r"registry-gitlab\.dungxbuif\.com/dungxbuif/my-family-tree@sha256:[0-9a-f]{64}", args.image):
+    if not re.fullmatch(r"registry-gitlab\.dungxbuif\.com/homelab/my-family-tree@sha256:[0-9a-f]{64}", args.image):
         raise SystemExit("image must be an immutable lab registry digest")
 
     manifest_path = args.ops_root / "environments/prod/family-tree.json"
@@ -47,7 +47,7 @@ def main() -> None:
         "  - id: family-tree\n"
         "    target: {host: vm100, mode: swarm}\n"
         "    image:\n"
-        "      repository: registry-gitlab.dungxbuif.com/dungxbuif/my-family-tree\n"
+        "      repository: registry-gitlab.dungxbuif.com/homelab/my-family-tree\n"
         f"      digest: {args.image.rsplit('@sha256:', 1)[1]}\n"
         f"      source_commit: {args.source_commit}\n"
         "    data_mounts: [/app/uploads]\n"

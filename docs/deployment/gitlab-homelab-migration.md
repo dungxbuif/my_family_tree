@@ -29,6 +29,8 @@ into each project. The repository remote is the group path
   backed by the `homelab-ops` project access token. Registry login prefers
   approved group push credentials and falls back to GitLab's job credentials or
   the existing protected pull credentials when those are not configured.
+- Promotion validation and the ops catalog use the moved image path
+  `registry-gitlab.dungxbuif.com/homelab/my-family-tree`.
 - `homelab-ops` and `homelab-automation` cannot be transferred while tagged
   container images exist in their registries; deleting those images is not part
   of this migration.

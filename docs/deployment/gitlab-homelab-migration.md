@@ -20,6 +20,8 @@ into each project. The repository remote is the group path
   invented or copied. Masked values cannot be recovered from a project UI.
 - The project pipeline still requires the protected `homelab-mac` runner and
   approved group-scoped credentials before a production release can run.
+- GitLab job `#3046` (commit `23f1b5c`) is pending with the explicit reason:
+  no runner matches the `homelab-mac` tag.
 - `homelab-ops` and `homelab-automation` cannot be transferred while tagged
   container images exist in their registries; deleting those images is not part
   of this migration.

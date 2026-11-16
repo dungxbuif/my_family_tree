@@ -48,3 +48,12 @@ into each project. The repository remote is the group path
    immutable digest promotion into `homelab-ops/main`.
 4. Verify the matching internal ops receipt tag, VM100 health check, and
    rollback metadata.
+
+## Latest deployment verification
+
+The group runner and app-side pipeline are operational. VM100 validation
+exposed two contract issues: the Alpine validation image needed Bash and
+`py3-yaml`, and the promotion helper was writing a bare digest into the ops
+catalog while the verifier requires the immutable `sha256:` form. Both fixes
+are now committed; the next protected release tag is the acceptance run for
+the full validate → deploy → `/readyz` flow.

@@ -48,7 +48,7 @@ def main() -> None:
         "    target: {host: vm100, mode: swarm}\n"
         "    image:\n"
         "      repository: registry-gitlab.dungxbuif.com/homelab/my-family-tree\n"
-        f"      digest: {args.image.rsplit('@sha256:', 1)[1]}\n"
+        f"      digest: {args.image.rsplit('@', 1)[1]}\n"
         f"      source_commit: {args.source_commit}\n"
         "    data_mounts: [/app/uploads]\n"
         "    networks: [edge-http-net, family-data-net]\n"

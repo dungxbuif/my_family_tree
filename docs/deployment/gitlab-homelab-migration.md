@@ -22,6 +22,9 @@ into each project. The repository remote is the group path
   approved group-scoped credentials before a production release can run.
 - GitLab job `#3046` (commit `23f1b5c`) is pending with the explicit reason:
   no runner matches the `homelab-mac` tag.
+- The group runner is now online as `homelab-mac`; the first release attempt
+  exposed a Docker Desktop dind TLS-mount mismatch, so the pipeline uses the
+  rootless dind non-TLS listener on port 2375.
 - `homelab-ops` and `homelab-automation` cannot be transferred while tagged
   container images exist in their registries; deleting those images is not part
   of this migration.

@@ -17,10 +17,10 @@ variables:
   OPS_REPOSITORY: dungxbuif/homelab-ops
   OPS_MANIFEST: environments/prod/family-tree.json
   OPS_CATALOG: automation/stacks/catalog.yml
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: /certs
-  DOCKER_TLS_VERIFY: "1"
-  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  # The group Mac runner uses Docker Desktop. The rootless dind service does
+  # not mount a TLS cert directory, so use its non-TLS listener explicitly.
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: "1"
 

@@ -3,6 +3,9 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --page-gutter: clamp(1rem, 3vw, 2rem);
+  --mobile-nav-height: 4.75rem;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {
@@ -36,6 +39,51 @@ body {
     --color-neutral
   ); /* Use neutral as default background per design */
   color: var(--color-primary); /* Use primary for text */
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+*:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-tertiary) 70%, white);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dashboard-shell {
+  min-height: 100dvh;
+  padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
+}
+
+.content-gutter {
+  padding-inline: var(--page-gutter);
+}
+
+.mobile-safe-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+
+@media (min-width: 768px) {
+  .dashboard-shell {
+    padding-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Fix iOS auto-zoom when focusing on inputs */
@@ -56,6 +104,17 @@ select {
 /* Design System Buttons */
 .btn-primary {
   @apply inline-flex items-center justify-center shrink-0 gap-1.5 px-4 py-4 bg-primary text-surface rounded-xl hover:bg-[#292524] transition-all duration-300 font-medium hover:-translate-y-1 hover:shadow-soft-hover;
+}
+
+@media (hover: none) {
+  .btn-primary:hover,
+  .btn-amber:hover,
+  .btn-outline:hover,
+  .btn:hover,
+  .btn-secondary:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 .btn-amber {

@@ -37,7 +37,9 @@ export default function HeaderMenu() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 pl-2 pr-4 py-1.5 rounded-full hover:bg-stone-100 transition-all duration-200 border border-transparent hover:border-stone-200"
+        aria-label={isOpen ? "Đóng menu tài khoản" : "Mở menu tài khoản"}
+        aria-expanded={isOpen}
+        className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-transparent px-2 py-1.5 transition-all duration-200 hover:border-stone-200 hover:bg-stone-100 sm:min-w-0 sm:pl-2 sm:pr-4"
       >
         <div className="size-8 rounded-full bg-linear-to-br from-amber-200 to-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-sm ring-1 ring-amber-300/50">
           {userEmail ? (

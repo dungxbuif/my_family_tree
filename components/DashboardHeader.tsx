@@ -5,8 +5,8 @@ import Link from "next/link";
 
 export default function DashboardHeader() {
   return (
-    <header className="sticky top-0 z-30 bg-surface/80 backdrop-blur-xl border-b border-border shadow-soft transition-all duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-xl border-b border-border shadow-soft transition-all duration-200">
+      <div className="max-w-7xl mx-auto content-gutter h-16 flex items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <Link
             href="/dashboard"
@@ -21,7 +21,7 @@ export default function DashboardHeader() {
                 sizes="32px"
               />
             </div>
-            <h1 className="text-xl sm:text-2xl font-serif font-bold text-stone-800 group-hover:text-amber-700 transition-colors">
+            <h1 className="text-base sm:text-2xl font-serif font-bold text-stone-800 group-hover:text-amber-700 transition-colors truncate">
               {config.siteName}
             </h1>
           </Link>

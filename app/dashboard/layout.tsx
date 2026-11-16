@@ -74,7 +74,7 @@ export default async function DashboardLayout({
 
   return (
     <UserProvider user={user} profile={profile}>
-      <div className="min-h-screen bg-neutral text-primary flex flex-col font-sans">
+      <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
         <DashboardHeader />
         {children}
         <Footer

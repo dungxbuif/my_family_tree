@@ -100,7 +100,7 @@ promote_ops:
     - git -C ops config user.name "family-tree release bot"
     - git -C ops config user.email "family-tree-release-bot@dungxbuif.com"
     - git -C ops add "$OPS_MANIFEST" "$OPS_CATALOG"
-    - git -C ops commit -m "chore(release): promote family-tree ${CI_COMMIT_TAG#prod-}"
+    - 'git -C ops commit -m "chore(release): promote family-tree ${CI_COMMIT_TAG#prod-}"'
     - git -C ops push origin main
     - git -C ops tag -a "family-tree-${CI_COMMIT_TAG}" -m "family-tree ${CI_COMMIT_TAG} promotion receipt"
     - git -C ops push origin "family-tree-${CI_COMMIT_TAG}"

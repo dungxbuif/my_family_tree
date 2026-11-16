@@ -1,7 +1,7 @@
 "use client";
 
 import { Person } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown, Database, Search } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -42,7 +42,10 @@ export default function PersonSelector({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const currentPerson = persons.find((p) => p.id === selectedId);
 
@@ -57,6 +60,7 @@ export default function PersonSelector({
     onSelect(personId);
     setIsOpen(false);
     setSearchTerm("");
+    setHighlightedIndex(0);
   };
 
   useEffect(() => {
@@ -70,15 +74,28 @@ export default function PersonSelector({
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isOpen) {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        aria-controls="person-selector-options"
+        role="combobox"
         className={`w-full min-h-12 flex items-center gap-3 bg-white/60 border rounded-2xl px-3 py-2 text-sm shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 group
           ${isOpen ? "border-amber-300 bg-white shadow-md ring-2 ring-amber-500/10" : "border-stone-200/60 hover:border-amber-300 hover:bg-white/90 hover:shadow-md"}`}
       >
@@ -142,7 +159,7 @@ export default function PersonSelector({
 
         <motion.div
           animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
+          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.3, ease: "easeInOut" }}
         >
           <ChevronDown
             className={`size-4 shrink-0 transition-colors ${isOpen ? "text-amber-600" : "text-stone-400 group-hover:text-stone-600"}`}
@@ -156,7 +173,8 @@ export default function PersonSelector({
             initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+            id="person-selector-options"
             role="listbox"
             className="absolute z-50 mt-2 w-full min-w-[min(20rem,calc(100vw-2rem))] bg-white/95 backdrop-blur-xl border border-stone-200/80 rounded-2xl shadow-xl max-h-[min(24rem,60vh)] flex flex-col overflow-hidden ring-1 ring-black/5"
           >
@@ -169,7 +187,24 @@ export default function PersonSelector({
                   className="w-full min-h-11 text-stone-900 placeholder-stone-400 bg-white border border-stone-200/80 rounded-xl pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all shadow-sm"
                   placeholder="Tìm thành viên..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setHighlightedIndex(0);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setHighlightedIndex((index) => Math.min(index + 1, filteredPersons.length - 1));
+                    }
+                    if (event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setHighlightedIndex((index) => Math.max(index - 1, 0));
+                    }
+                    if (event.key === "Enter" && filteredPersons[highlightedIndex]) {
+                      event.preventDefault();
+                      handleSelect(filteredPersons[highlightedIndex].id);
+                    }
+                  }}
                   autoFocus
                 />
               </div>
@@ -207,7 +242,7 @@ export default function PersonSelector({
 
               {filteredPersons.length > 0 ? (
                 <div className="space-y-0.5">
-                  {filteredPersons.map((person) => {
+                  {filteredPersons.map((person, index) => {
                     const isSelected = person.id === selectedId;
                     return (
                       <button
@@ -219,7 +254,9 @@ export default function PersonSelector({
                           ${
                             isSelected
                               ? "bg-amber-50 text-amber-900 border border-amber-200/50 shadow-sm"
-                              : "text-stone-700 hover:bg-stone-100/80 border border-transparent"
+                              : index === highlightedIndex
+                                ? "bg-stone-100/80 text-stone-900 border border-stone-200"
+                                : "text-stone-700 hover:bg-stone-100/80 border border-transparent"
                           }`}
                       >
                         <div className="relative shrink-0">

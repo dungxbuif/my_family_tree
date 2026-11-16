@@ -4,7 +4,7 @@ import { fetchMemberDetail } from "@/app/actions/member";
 import MemberDetailContent from "@/context/MemberDetailContent";
 import MemberForm from "@/components/MemberForm";
 import { Person } from "@/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, ArrowLeft, Edit2, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ export default function MemberDetailModal() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +168,7 @@ export default function MemberDetailModal() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
           className="fixed inset-0 z-100 flex items-end justify-center bg-stone-900/40 backdrop-blur-sm sm:items-center sm:p-6"
           role="dialog"
           aria-modal="true"
@@ -187,7 +188,7 @@ export default function MemberDetailModal() {
             initial={{ scale: 0.96, opacity: 0, y: 15 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.25, ease: "easeOut" }}
             layoutDependency={false}
             className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 pb-[var(--safe-bottom)] shadow-2xl backdrop-blur-2xl sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl sm:pb-0"
             ref={modalRef}

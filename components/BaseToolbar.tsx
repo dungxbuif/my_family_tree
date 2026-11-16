@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Filter, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -52,6 +52,7 @@ export default function BaseToolbar({
   const [showFilters, setShowFilters] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     // defer state init to avoid hydration mismatch checks with strict mode
@@ -116,10 +117,10 @@ export default function BaseToolbar({
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.15, ease: "easeOut" }}
               role="dialog"
               aria-label="Bộ lọc hiển thị"
-              className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex max-h-[70dvh] flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-64 md:max-h-none"
+              className="fixed inset-x-3 top-[4.5rem] bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-64 md:max-h-none"
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-stone-900">Bộ lọc hiển thị</p>

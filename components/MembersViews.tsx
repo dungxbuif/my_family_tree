@@ -151,7 +151,7 @@ export default function MembersViews({
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 w-full flex-col relative z-10">
+        <div className="relative z-10 flex min-h-0 flex-1 w-full flex-col">
           {currentView === "tree" && (
             <FamilyTree
               personsMap={personsMap}

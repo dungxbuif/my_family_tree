@@ -334,7 +334,7 @@ export default function BubbleMapTree({
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-stone-50 rounded-2xl border border-stone-200/60 shadow-inner">
+    <div className="relative h-full min-h-0 w-full overflow-hidden rounded-2xl border border-stone-200/60 bg-stone-50 shadow-inner">
       <div
         id="tree-toolbar-portal"
         className="absolute top-4 left-4 z-50"

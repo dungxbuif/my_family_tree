@@ -75,3 +75,4 @@ Migrate the existing Family Tree dashboard to a cohesive new visual system with 
 - The tree canvas is bounded to its own scroll region and supports touch drag panning in addition to pointer panning.
 - Member detail surfaces become bottom sheets on small screens and centered dialogs on larger screens.
 - Repository lint passes with three pre-existing image optimization warnings in `GalleryGrid.tsx` and `UploadModal.tsx`. The unrelated `prefer-const` error in `app/actions/gallery.ts` was corrected so the check is green.
+- The tree viewport uses a viewport-relative height so large trees scroll inside their canvas instead of expanding the document. Mobile filter sheets stay clear of the bottom navigation, and member dialogs support Escape, initial focus, and tab wrapping.

@@ -130,19 +130,19 @@ export default function MembersViews({
 
   return (
     <>
-      <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col">
+      <main className="flex-1 overflow-hidden bg-stone-50/50 flex flex-col">
         {currentView !== "list" && persons.length > 0 && activeRootId && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 w-full flex flex-col sm:flex-row flex-wrap items-center sm:justify-between gap-4 relative z-20">
+          <div className="content-gutter max-w-7xl mx-auto pt-4 pb-2 sm:pt-6 w-full flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center sm:justify-between gap-3 relative z-20">
             <RootSelector persons={persons} currentRootId={activeRootId} />
             <div
               id="tree-toolbar-portal"
-              className="flex items-center gap-2 flex-wrap justify-center"
+              className="flex items-center gap-2 flex-wrap justify-stretch sm:justify-center"
             />
           </div>
         )}
 
         {currentView === "list" && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full relative z-10">
+          <div className="content-gutter max-w-7xl mx-auto py-6 sm:py-8 w-full relative z-10 overflow-y-auto">
             <MemberList
               initialPersons={persons}
               relationships={relationships}

@@ -77,7 +77,9 @@ export default function PersonSelector({
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center gap-3 bg-white/60 border rounded-xl px-3 py-2 text-sm shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 group
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        className={`w-full min-h-12 flex items-center gap-3 bg-white/60 border rounded-2xl px-3 py-2 text-sm shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 group
           ${isOpen ? "border-amber-300 bg-white shadow-md ring-2 ring-amber-500/10" : "border-stone-200/60 hover:border-amber-300 hover:bg-white/90 hover:shadow-md"}`}
       >
         <div className="relative shrink-0">
@@ -155,14 +157,16 @@ export default function PersonSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute z-50 w-full mt-2 bg-white/95 backdrop-blur-xl border border-stone-200/80 rounded-xl shadow-xl max-h-80 flex flex-col overflow-hidden ring-1 ring-black/5"
+            role="listbox"
+            className="absolute z-50 mt-2 w-full min-w-[min(20rem,calc(100vw-2rem))] bg-white/95 backdrop-blur-xl border border-stone-200/80 rounded-2xl shadow-xl max-h-[min(24rem,60vh)] flex flex-col overflow-hidden ring-1 ring-black/5"
           >
             <div className="p-2 border-b border-stone-100/80 bg-stone-50/50 backdrop-blur-sm sticky top-0 z-10">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
                 <input
                   type="text"
-                  className="w-full text-stone-900 placeholder-stone-400 bg-white border border-stone-200/80 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all shadow-sm"
+                  aria-label="Tìm thành viên"
+                  className="w-full min-h-11 text-stone-900 placeholder-stone-400 bg-white border border-stone-200/80 rounded-xl pl-9 pr-3 py-2 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all shadow-sm"
                   placeholder="Tìm thành viên..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -174,7 +178,9 @@ export default function PersonSelector({
               {showAllOption && searchTerm.toLowerCase() === "" && (
                 <button
                   onClick={() => handleSelect(null)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all duration-200 group/item mb-1
+                        role="option"
+                        aria-selected={selectedId === null}
+                        className={`w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-all duration-200 group/item mb-1
                      ${
                        selectedId === null
                          ? "bg-amber-50 text-amber-900 border border-amber-200/50 shadow-sm"
@@ -207,7 +213,9 @@ export default function PersonSelector({
                       <button
                         key={person.id}
                         onClick={() => handleSelect(person.id)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all duration-200 group/item
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`w-full min-h-11 flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-all duration-200 group/item
                           ${
                             isSelected
                               ? "bg-amber-50 text-amber-900 border border-amber-200/50 shadow-sm"

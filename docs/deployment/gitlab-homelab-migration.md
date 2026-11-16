@@ -25,6 +25,10 @@ into each project. The repository remote is the group path
 - The group runner is now online as `homelab-mac`. Docker image builds use the
   Mac runner's mounted Docker Desktop socket; rootless dind was incompatible
   with this runner's service networking and TLS mount.
+- Group variable `HOMELAB_OPS_PUSH_TOKEN` is now present as masked/protected,
+  backed by the `homelab-ops` project access token. Registry login prefers
+  approved group push credentials and falls back to GitLab's job credentials or
+  the existing protected pull credentials when those are not configured.
 - `homelab-ops` and `homelab-automation` cannot be transferred while tagged
   container images exist in their registries; deleting those images is not part
   of this migration.

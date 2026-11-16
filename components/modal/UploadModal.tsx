@@ -5,6 +5,7 @@ import { uploadImage } from "@/utils/storage/client";
 import { X, UploadCloud, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 
 import { GalleryItem } from "@/types";
 
@@ -202,10 +203,14 @@ export default function UploadModal({
                 >
                   {preview ? (
                     <div className="relative inline-block w-full">
-                      <img
+                      <Image
+                        unoptimized
                         src={preview}
                         alt="Preview"
+                        width={1200}
+                        height={800}
                         className="max-h-64 object-contain mx-auto rounded-lg shadow-sm"
+                        sizes="(min-width: 768px) 672px, calc(100vw - 32px)"
                       />
                       <button
                         type="button"

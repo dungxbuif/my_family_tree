@@ -4,6 +4,7 @@ import { GalleryItem } from "@/types";
 import { useState } from "react";
 import { X, CalendarDays, Maximize2 } from "lucide-react";
 import dayjs from "dayjs";
+import Image from "next/image";
 
 import { deleteGalleryItem } from "@/app/actions/gallery";
 
@@ -67,11 +68,14 @@ export default function GalleryGrid({
             onClick={() => setSelectedItem(item)}
           >
             {/* Image */}
-            <img
+            <Image
+              unoptimized
               src={item.image_url}
               alt={item.title}
-              className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
-              loading="lazy"
+              width={1200}
+              height={900}
+              className="h-auto w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
             />
 
             {/* Overlay */}
@@ -112,10 +116,14 @@ export default function GalleryGrid({
           <div className="flex flex-col lg:flex-row w-full max-w-6xl max-h-[90vh] bg-stone-950 rounded-2xl overflow-hidden shadow-2xl">
             {/* Image Section */}
             <div className="flex-1 relative flex items-center justify-center bg-black/50 p-4 min-h-[50vh] lg:min-h-0">
-              <img
+              <Image
+                unoptimized
                 src={selectedItem.image_url}
                 alt={selectedItem.title}
+                width={1600}
+                height={1200}
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                sizes="(min-width: 1024px) 65vw, 100vw"
               />
             </div>
 

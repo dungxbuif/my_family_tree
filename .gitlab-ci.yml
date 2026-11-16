@@ -1,0 +1,106 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - when: never
+
+stages:
+  - validate
+  - release_guard
+  - registry
+  - promote
+
+variables:
+  RELEASE_BRANCH: main
+  LAB_REGISTRY_HOST: registry-gitlab.dungxbuif.com
+  OPS_REPOSITORY: dungxbuif/homelab-ops
+  OPS_MANIFEST: environments/prod/family-tree.json
+  OPS_CATALOG: automation/stacks/catalog.yml
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: /certs
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: "1"
+
+validate:
+  stage: validate
+  image: oven/bun:1.3.5
+  tags: [homelab-mac]
+  script:
+    - bun install --frozen-lockfile
+    - bun test utils/storage/s3.test.ts
+    - bun run lint
+    - bun run build
+
+release_branch_guard:
+  stage: release_guard
+  image: alpine:3.20
+  tags: [homelab-mac]
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$/'
+    - when: never
+  script:
+    - apk add --no-cache git
+    - git fetch --no-tags origin "$RELEASE_BRANCH"
+    - git merge-base --is-ancestor "$CI_COMMIT_SHA" "origin/$RELEASE_BRANCH"
+
+build_image:
+  stage: registry
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind-rootless
+      alias: docker
+  tags: [homelab-mac]
+  needs:
+    - job: validate
+    - job: release_branch_guard
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$/'
+    - when: never
+  script:
+    - docker info
+    - export IMAGE="$LAB_REGISTRY_HOST/$CI_PROJECT_PATH:$CI_COMMIT_TAG"
+    - test -n "$LAB_REGISTRY_PUSH_USER"
+    - test -n "$LAB_REGISTRY_PUSH_PASSWORD"
+    - printf '%s' "$LAB_REGISTRY_PUSH_PASSWORD" | docker login "$LAB_REGISTRY_HOST" --username "$LAB_REGISTRY_PUSH_USER" --password-stdin
+    - docker build --pull --platform linux/amd64 -t "$IMAGE" .
+    - docker push "$IMAGE"
+    - export IMAGE_DIGEST="$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")"
+    - test "$IMAGE_DIGEST" = "$LAB_REGISTRY_HOST/$CI_PROJECT_PATH@${IMAGE_DIGEST##*@}"
+    - printf 'IMAGE_DIGEST=%s\n' "$IMAGE_DIGEST" > release.env
+  artifacts:
+    reports:
+      dotenv: release.env
+    expire_in: 30 days
+  after_script:
+    - docker logout "$LAB_REGISTRY_HOST" >/dev/null 2>&1 || true
+
+promote_ops:
+  stage: promote
+  image:
+    name: alpine/git:2.47.2
+    entrypoint: [""]
+  tags: [homelab-mac]
+  needs:
+    - job: build_image
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^prod-(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$/'
+    - when: never
+  script:
+    - test -n "$HOMELAB_OPS_PUSH_TOKEN"
+    - git clone "https://oauth2:${HOMELAB_OPS_PUSH_TOKEN}@gitlab.dungxbuif.com/${OPS_REPOSITORY}.git" ops
+    - git -C ops fetch origin main
+    - git -C ops checkout -B main origin/main
+    - apk add --no-cache python3
+    - python3 scripts/promote-family-tree-ops.py --ops-root ops --source-tag "$CI_COMMIT_TAG" --source-commit "$CI_COMMIT_SHA" --promotion-tag "family-tree-${CI_COMMIT_TAG}" --image "$IMAGE_DIGEST"
+    - git -C ops config user.name "family-tree release bot"
+    - git -C ops config user.email "family-tree-release-bot@dungxbuif.com"
+    - git -C ops add "$OPS_MANIFEST" "$OPS_CATALOG"
+    - git -C ops commit -m "chore(release): promote family-tree ${CI_COMMIT_TAG#prod-}"
+    - git -C ops push origin main
+    - git -C ops tag -a "family-tree-${CI_COMMIT_TAG}" -m "family-tree ${CI_COMMIT_TAG} promotion receipt"
+    - git -C ops push origin "family-tree-${CI_COMMIT_TAG}"

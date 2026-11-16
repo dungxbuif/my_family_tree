@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Circle, List, ListTree, Network } from "lucide-react";
 import { useMemberListView } from "@/context/MemberListContext";
 
@@ -8,6 +8,7 @@ export type ViewMode = "list" | "tree" | "mindmap" | "bubble";
 
 export default function ViewToggle() {
   const { view: currentView, setView } = useMemberListView();
+  const prefersReducedMotion = useReducedMotion();
 
   const tabs = [
     {
@@ -53,7 +54,11 @@ export default function ViewToggle() {
               <motion.div
                 layoutId="activeTab"
                 className="absolute inset-0 rounded-2xl border border-stone-200/60 bg-white shadow-sm z-[-1] md:rounded-full"
-                transition={{ type: "spring", stiffness: 450, damping: 30 }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 450, damping: 30 }
+                }
               />
             )}
             <span
@@ -61,8 +66,7 @@ export default function ViewToggle() {
             >
               {tab.icon}
             </span>
-            <span className="block max-w-full truncate tracking-wide md:hidden">{tab.label.split(" ")[0]}</span>
-            <span className="hidden tracking-wide md:block">{tab.label}</span>
+            <span className="block max-w-full truncate tracking-wide">{tab.label}</span>
           </button>
         );
       })}

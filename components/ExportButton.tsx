@@ -101,7 +101,8 @@ export default function ExportButton() {
       <button
         onClick={() => setShowMenu(!showMenu)}
         disabled={isExporting}
-        className={`flex items-center gap-2 px-4 h-10 rounded-full font-semibold text-sm shadow-sm border transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${
+        aria-label={isExporting ? "Đang xuất file" : "Xuất file"}
+        className={`flex min-h-11 items-center gap-2 rounded-full border px-4 font-semibold text-sm shadow-sm transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
           showMenu
             ? "bg-amber-100/90 text-amber-800 border-amber-200"
             : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
@@ -124,7 +125,7 @@ export default function ExportButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full right-0 sm:right-auto sm:left-0 mt-2 w-48 bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-stone-200/60 py-2 z-50 overflow-hidden"
+            className="absolute left-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-stone-200/60 bg-white/90 py-2 shadow-xl backdrop-blur-xl"
           >
             <button
               onClick={() => handleExport("png")}

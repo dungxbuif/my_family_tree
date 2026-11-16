@@ -130,9 +130,9 @@ export default function MembersViews({
 
   return (
     <>
-      <main className="flex-1 overflow-hidden bg-stone-50/50 flex flex-col">
+      <main className="flex-1 overflow-visible bg-stone-50/50 flex min-h-0 flex-col">
         {currentView !== "list" && persons.length > 0 && activeRootId && (
-          <div className="sticky top-16 z-30 content-gutter max-w-7xl mx-auto pt-4 pb-2 sm:pt-6 w-full flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center sm:justify-between gap-3 border-b border-stone-200/60 bg-stone-50/90 backdrop-blur-xl">
+          <div className="sticky top-16 z-30 content-gutter max-w-7xl mx-auto pt-4 pb-2 sm:pt-6 w-full flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center sm:justify-between gap-3 border-b border-stone-200/60 bg-stone-50/95">
             <RootSelector persons={persons} currentRootId={activeRootId} />
             <div
               id="tree-toolbar-portal"

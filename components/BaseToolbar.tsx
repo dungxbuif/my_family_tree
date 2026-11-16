@@ -119,7 +119,7 @@ export default function BaseToolbar({
               transition={{ duration: 0.15, ease: "easeOut" }}
               role="dialog"
               aria-label="Bộ lọc hiển thị"
-              className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex max-h-[70dvh] flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 sm:max-h-none"
+              className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex max-h-[70dvh] flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-64 md:max-h-none"
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-stone-900">Bộ lọc hiển thị</p>

@@ -266,7 +266,7 @@ export default function FamilyTree({
                     toggleCollapse(personId);
                   }
                 }}
-                className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-white border border-stone-200/80 rounded-full size-6 flex items-center justify-center shadow-md z-100 text-stone-500 hover:text-amber-600 hover:border-amber-300 transition-colors cursor-pointer"
+                className="absolute -bottom-5 left-1/2 z-100 flex min-h-11 min-w-11 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-stone-200/80 bg-white text-stone-500 shadow-md transition-colors hover:border-amber-300 hover:text-amber-600"
                 title={isCollapsed ? "Mở rộng" : "Thu gọn"}
               >
                 {isCollapsed ? (
@@ -301,7 +301,7 @@ export default function FamilyTree({
     );
 
   return (
-    <div className="relative flex min-h-0 w-full flex-1 flex-col">
+    <div className="relative flex h-[calc(100dvh-10.5rem)] min-h-0 w-full flex-1 flex-col">
       <TreeToolbar
         scale={scale}
         handleZoomIn={handleZoomIn}
@@ -329,7 +329,7 @@ export default function FamilyTree({
 
       <div
         ref={containerRef}
-        className={`min-h-[28rem] w-full flex-1 overflow-auto overscroll-contain bg-stone-50 touch-none ${isPressed ? "cursor-grabbing" : "cursor-grab"}`}
+        className={`min-h-0 w-full flex-1 overflow-auto overscroll-contain bg-stone-50 touch-none ${isPressed ? "cursor-grabbing" : "cursor-grab"}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUpOrLeave}
@@ -338,6 +338,7 @@ export default function FamilyTree({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleMouseUpOrLeave}
+        onTouchCancel={handleMouseUpOrLeave}
         onDragStart={(e) => e.preventDefault()} // Prevent browser default dragging of links/images
       >
         {/* We use a style block to inject the CSS logic for the family tree lines */}

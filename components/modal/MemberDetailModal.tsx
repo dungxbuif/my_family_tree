@@ -33,6 +33,7 @@ export default function MemberDetailModal() {
     unknown
   > | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const closeModal = useCallback(() => {
     setMemberModalId(null);
@@ -90,13 +91,14 @@ export default function MemberDetailModal() {
 
   // Prevent background scrolling when modal is open
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
     if (isOpen) {
       document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = previousOverflow;
     }
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
 
@@ -106,6 +108,21 @@ export default function MemberDetailModal() {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isEditing && !showCreateMember) {
         closeModal();
+      }
+      if (event.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener("keydown", handleEscape);
@@ -173,6 +190,7 @@ export default function MemberDetailModal() {
             transition={{ duration: 0.25, ease: "easeOut" }}
             layoutDependency={false}
             className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 pb-[var(--safe-bottom)] shadow-2xl backdrop-blur-2xl sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl sm:pb-0"
+            ref={modalRef}
           >
             {/* Sticky Header Actions */}
             <div className="absolute right-3 top-3 z-20 flex items-center gap-2 sm:right-5 sm:top-5">

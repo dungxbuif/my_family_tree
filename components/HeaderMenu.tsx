@@ -93,7 +93,7 @@ export default function HeaderMenu() {
               <Link
                 href="/dashboard/kinship"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
               >
                 <GitMerge className="size-4" />
                 Tra cứu danh xưng
@@ -102,7 +102,7 @@ export default function HeaderMenu() {
               <Link
                 href="/dashboard/stats"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
               >
                 <BarChart2 className="size-4" />
                 Thống kê
@@ -111,7 +111,7 @@ export default function HeaderMenu() {
               {isAdmin && (
                 <>
                   <div className="px-4 py-2 mt-1">
-                    <p className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
                       Quản trị viên
                     </p>
                   </div>
@@ -119,7 +119,7 @@ export default function HeaderMenu() {
                   <Link
                     href="/dashboard/users"
                     onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
                   >
                     <Users className="size-4" />
                     Quản lý Người dùng
@@ -128,7 +128,7 @@ export default function HeaderMenu() {
                   <Link
                     href="/dashboard/lineage"
                     onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
                   >
                     <Network className="size-4" />
                     Thứ tự gia phả
@@ -150,7 +150,7 @@ export default function HeaderMenu() {
               <Link
                 href="/about"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
               >
                 <Info className="size-4" />
                 Giới thiệu

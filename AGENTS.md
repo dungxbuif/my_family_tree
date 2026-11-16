@@ -1,4 +1,4 @@
 # AGENTS.md
 
 ## UI
-For any UI work, follow @DESIGN.md strictly. Don't invent new tokens.
+For any UI work, follow @docs/design/DESIGN.md strictly. Don't invent new tokens.

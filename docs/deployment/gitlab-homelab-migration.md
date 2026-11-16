@@ -1,6 +1,6 @@
 # GitLab homelab group migration
 
-Status: release verification in progress (2026-11-17)
+Status: blocked by VM100 host outage during release verification (2026-11-17)
 
 ## Intended behavior
 
@@ -50,12 +50,13 @@ into each project. The repository remote is the group path
 
 ## Latest deployment verification
 
-The group runner and app-side pipeline are operational. App pipeline `#1031`
-passed for source tag `prod-0.1.31`, and ops receipt pipeline `#1033`
-converged the VM100 Swarm service. The public `/about` endpoint returns 200,
-but the first verify attempt still returned 404 for `/readyz`; the readiness
-handler is now explicitly dynamic and will be re-released before declaring
-production ready. Do not report production deployment complete until the ops
+The group runner and app-side pipeline are operational. App pipeline `#1035`
+passed for source tag `prod-0.1.32`, and receipt pipeline `#1037` started the
+VM100 rollout. The prior rollout converged the Swarm service but failed its
+`/readyz` verification; the readiness handler is now explicitly dynamic. During
+the new rollout, VM100 (`10.10.0.31`) became unreachable from both the local
+host and Pi5, and the public GitLab and Family Tree endpoints returned 502.
+Production is not considered complete until VM100 recovers and the matching ops
 verify job passes `/readyz`.
 
 The Mac runner also uses `if-not-present` image pulls so transient Docker Hub

@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, ArrowLeft, Edit2, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMemberListView } from "@/context/MemberListContext";
 import { useUser } from "@/components/UserProvider";
 
@@ -32,12 +32,13 @@ export default function MemberDetailModal() {
     string,
     unknown
   > | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setMemberModalId(null);
     setShowCreateMember(false);
     setIsEditing(false);
-  };
+  }, [setMemberModalId, setShowCreateMember]);
 
   const fetchData = useCallback(
     async (id: string) => {
@@ -99,6 +100,21 @@ export default function MemberDetailModal() {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isEditing && !showCreateMember) {
+        closeModal();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeModal, isOpen, isEditing, showCreateMember]);
+
   // Called by MemberForm after a successful save
   const handleEditSuccess = (savedPersonId: string) => {
     // Clear stale data first so the loading state is shown while refetching
@@ -136,6 +152,9 @@ export default function MemberDetailModal() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-100 flex items-end justify-center bg-stone-900/40 backdrop-blur-sm sm:items-center sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chi tiết thành viên"
         >
           {/* Click-away backdrop (disabled while editing/creating to avoid accidental close) */}
           {!isEditing && !showCreateMember && (
@@ -174,6 +193,7 @@ export default function MemberDetailModal() {
                   <>
                     <Link
                       href={`/dashboard/members/${person.id}`}
+                      aria-label={`Mở trang ${person.full_name}`}
                       className="btn-amber text-sm"
                     >
                       <ExternalLink className="size-4" />
@@ -181,6 +201,7 @@ export default function MemberDetailModal() {
                     </Link>
                     <button
                       onClick={() => setIsEditing(true)}
+                      aria-label={`Chỉnh sửa ${person.full_name}`}
                       className="btn-amber text-sm"
                     >
                       <Edit2 className="size-4" />
@@ -191,6 +212,7 @@ export default function MemberDetailModal() {
               )}
               <button
                 onClick={closeModal}
+                ref={closeButtonRef}
                   className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/50 bg-stone-100/80 text-stone-600 shadow-sm transition-colors hover:bg-stone-200 hover:text-stone-900"
                 aria-label="Đóng"
               >

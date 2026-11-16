@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Filter } from "lucide-react";
+import { Filter, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMemberListView } from "@/context/MemberListContext";
@@ -65,10 +65,15 @@ export default function BaseToolbar({
         setShowFilters(false);
       }
     };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowFilters(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, []);
 
@@ -94,6 +99,7 @@ export default function BaseToolbar({
           onClick={() => setShowFilters(!showFilters)}
           aria-expanded={showFilters}
           aria-haspopup="dialog"
+          aria-label={showFilters ? "Đóng bộ lọc hiển thị" : "Mở bộ lọc hiển thị"}
           className={`flex min-h-11 items-center gap-2 rounded-full border px-4 font-semibold text-sm shadow-sm transition-all duration-300 ${
             showFilters
               ? "bg-amber-100/90 text-amber-800 border-amber-200"
@@ -115,6 +121,17 @@ export default function BaseToolbar({
               aria-label="Bộ lọc hiển thị"
               className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex max-h-[70dvh] flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 sm:max-h-none"
             >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-stone-900">Bộ lọc hiển thị</p>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(false)}
+                  aria-label="Đóng bộ lọc"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              </div>
               <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
                 HIỂN THỊ
               </div>

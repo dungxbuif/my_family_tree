@@ -17,10 +17,8 @@ variables:
   OPS_REPOSITORY: dungxbuif/homelab-ops
   OPS_MANIFEST: environments/prod/family-tree.json
   OPS_CATALOG: automation/stacks/catalog.yml
-  # The group Mac runner uses Docker Desktop. The rootless dind service does
-  # not mount a TLS cert directory, so use its non-TLS listener explicitly.
-  DOCKER_HOST: tcp://docker:2375
-  DOCKER_TLS_CERTDIR: ""
+  # The group Mac runner uses Docker Desktop and exposes its host socket.
+  DOCKER_HOST: unix:///var/run/docker.sock
   DOCKER_DRIVER: overlay2
   DOCKER_BUILDKIT: "1"
 
@@ -49,9 +47,6 @@ release_branch_guard:
 build_image:
   stage: registry
   image: docker:27.5.1-cli
-  services:
-    - name: docker:27.5.1-dind-rootless
-      alias: docker
   tags: [homelab-mac]
   needs:
     - job: validate

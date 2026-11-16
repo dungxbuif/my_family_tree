@@ -1,6 +1,6 @@
 # GitLab homelab group migration
 
-Status: in progress (2026-11-17)
+Status: blocked on VM100 registry pull (2026-11-17)
 
 ## Intended behavior
 
@@ -16,12 +16,11 @@ into each project. The repository remote is the group path
   `https://gitlab.dungxbuif.com/homelab/my-family-tree`.
 - Homelab application projects transferred successfully: `mezonhook`,
   `mypocket`, `couchloom`, and `devtool`.
-- Group CI/CD variables currently show zero entries; no secret values were
-  invented or copied. Masked values cannot be recovered from a project UI.
-- The project pipeline still requires the protected `homelab-mac` runner and
-  approved group-scoped credentials before a production release can run.
-- GitLab job `#3046` (commit `23f1b5c`) is pending with the explicit reason:
-  no runner matches the `homelab-mac` tag.
+- Group CI/CD variables now contain masked/protected `HOMELAB_OPS_PUSH_TOKEN`,
+  registry pull variables, and family-tree deploy-token variables.
+- The protected `homelab-mac` runner is online and app pipeline `#995`
+  (`prod-0.1.22`) passed end-to-end; later acceptance tags were used while
+  repairing the VM100 registry pull contract.
 - The group runner is now online as `homelab-mac`. Docker image builds use the
   Mac runner's mounted Docker Desktop socket; rootless dind was incompatible
   with this runner's service networking and TLS mount.
@@ -51,12 +50,12 @@ into each project. The repository remote is the group path
 
 ## Latest deployment verification
 
-The group runner and app-side pipeline are operational. VM100 validation
-exposed two contract issues: the Alpine validation image needed Bash and
-`py3-yaml`, and the promotion helper was writing a bare digest into the ops
-catalog while the verifier requires the immutable `sha256:` form. Both fixes
-are now committed; the next protected release tag is the acceptance run for
-the full validate → deploy → `/readyz` flow.
+The group runner and app-side pipeline are operational. The app is reachable at
+`https://family.dungxbuif.com/about`, but `/readyz` is not yet passing in
+production. Ops pipeline `#1009` (`family-tree-prod-0.1.25`) authenticated to
+the registry and converged the Swarm update, then rolled back because the VM100
+node reported `pull access denied` for the group image. Do not report
+production deployment complete until the ops verify job passes `/readyz`.
 
 The Mac runner also uses `if-not-present` image pulls so transient Docker Hub
 anonymous-pull limits do not block validation when the pinned toolchain image is

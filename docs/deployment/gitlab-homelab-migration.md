@@ -14,6 +14,8 @@ into each project. The repository remote is the group path
 - GitLab group `homelab` exists (private, group ID 49).
 - `my-family-tree` has been transferred successfully to
   `https://gitlab.dungxbuif.com/homelab/my-family-tree`.
+- Homelab application projects transferred successfully: `mezonhook`,
+  `mypocket`, `couchloom`, and `devtool`.
 - Group CI/CD variables currently show zero entries; no secret values were
   invented or copied. Masked values cannot be recovered from a project UI.
 - The project pipeline still requires the protected `homelab-mac` runner and
@@ -21,6 +23,9 @@ into each project. The repository remote is the group path
 - `homelab-ops` and `homelab-automation` cannot be transferred while tagged
   container images exist in their registries; deleting those images is not part
   of this migration.
+- The same registry-tag restriction currently blocks `Homepage`, `k8s-syntax`,
+  `db-management`, and `RelayHub`; these remain in the user namespace until
+  their registry retention/migration is handled deliberately.
 
 ## Verification plan
 

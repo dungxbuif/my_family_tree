@@ -61,3 +61,7 @@ the full validate → deploy → `/readyz` flow.
 The Mac runner also uses `if-not-present` image pulls so transient Docker Hub
 anonymous-pull limits do not block validation when the pinned toolchain image is
 already cached on the runner.
+
+The image build likewise avoids forcing a remote base-image refresh on every
+release; the pinned Bun base remains runner-cached and the immutable application
+digest is still verified after push.

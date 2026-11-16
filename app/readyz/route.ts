@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Lightweight process readiness probe for the homelab deploy contract.
  * Storage and database credentials are intentionally not exposed here; the

@@ -1,6 +1,6 @@
 # GitLab homelab group migration
 
-Status: blocked on VM100 registry pull (2026-11-17)
+Status: release verification in progress (2026-11-17)
 
 ## Intended behavior
 
@@ -50,12 +50,13 @@ into each project. The repository remote is the group path
 
 ## Latest deployment verification
 
-The group runner and app-side pipeline are operational. The app is reachable at
-`https://family.dungxbuif.com/about`, but `/readyz` is not yet passing in
-production. Ops pipeline `#1009` (`family-tree-prod-0.1.25`) authenticated to
-the registry and converged the Swarm update, then rolled back because the VM100
-node reported `pull access denied` for the group image. Do not report
-production deployment complete until the ops verify job passes `/readyz`.
+The group runner and app-side pipeline are operational. App pipeline `#1031`
+passed for source tag `prod-0.1.31`, and ops receipt pipeline `#1033`
+converged the VM100 Swarm service. The public `/about` endpoint returns 200,
+but the first verify attempt still returned 404 for `/readyz`; the readiness
+handler is now explicitly dynamic and will be re-released before declaring
+production ready. Do not report production deployment complete until the ops
+verify job passes `/readyz`.
 
 The Mac runner also uses `if-not-present` image pulls so transient Docker Hub
 anonymous-pull limits do not block validation when the pinned toolchain image is

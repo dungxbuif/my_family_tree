@@ -57,3 +57,7 @@ exposed two contract issues: the Alpine validation image needed Bash and
 catalog while the verifier requires the immutable `sha256:` form. Both fixes
 are now committed; the next protected release tag is the acceptance run for
 the full validate → deploy → `/readyz` flow.
+
+The Mac runner also uses `if-not-present` image pulls so transient Docker Hub
+anonymous-pull limits do not block validation when the pinned toolchain image is
+already cached on the runner.

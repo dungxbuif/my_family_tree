@@ -5,6 +5,9 @@ workflow:
     - if: '$CI_COMMIT_BRANCH'
     - when: never
 
+default:
+  pull_policy: if-not-present
+
 stages:
   - validate
   - release_guard

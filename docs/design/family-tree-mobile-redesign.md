@@ -13,3 +13,6 @@ states without spatial animation.
 
 The implementation preserves the current PostgreSQL schema, permissions,
 relationship semantics, storage routes, and export formats.
+
+Deployment exposes `GET /readyz` as a minimal process-readiness probe. It does
+not return storage credentials or replace authenticated database/S3 checks.

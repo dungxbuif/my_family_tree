@@ -1,4 +1,4 @@
-import { MouseEvent, useRef, useState } from "react";
+import { MouseEvent, TouchEvent, useRef, useState } from "react";
 
 export function usePanZoom(
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -63,6 +63,36 @@ export function usePanZoom(
     }
   };
 
+  const handleTouchStart = (e: TouchEvent<HTMLElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    setIsPressed(true);
+    hasDraggedRef.current = false;
+    setDragStart({ x: touch.pageX, y: touch.pageY });
+    if (containerRef.current) {
+      setScrollStart({
+        left: containerRef.current.scrollLeft,
+        top: containerRef.current.scrollTop,
+      });
+    }
+  };
+
+  const handleTouchMove = (e: TouchEvent<HTMLElement>) => {
+    const touch = e.touches[0];
+    if (!isPressed || !touch || !containerRef.current) return;
+    const dx = touch.pageX - dragStart.x;
+    const dy = touch.pageY - dragStart.y;
+    if (!hasDraggedRef.current && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      setIsDragging(true);
+      hasDraggedRef.current = true;
+    }
+    if (hasDraggedRef.current) {
+      e.preventDefault();
+      containerRef.current.scrollLeft = scrollStart.left - dx;
+      containerRef.current.scrollTop = scrollStart.top - dy;
+    }
+  };
+
   return {
     scale,
     isPressed,
@@ -72,6 +102,8 @@ export function usePanZoom(
       handleMouseMove,
       handleMouseUpOrLeave,
       handleClickCapture,
+      handleTouchStart,
+      handleTouchMove,
       handleZoomIn,
       handleZoomOut,
       handleResetZoom,

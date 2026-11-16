@@ -135,7 +135,7 @@ export default function MemberDetailModal() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-100 flex items-end justify-center bg-stone-900/40 backdrop-blur-sm sm:items-center sm:p-6"
         >
           {/* Click-away backdrop (disabled while editing/creating to avoid accidental close) */}
           {!isEditing && !showCreateMember && (
@@ -153,10 +153,10 @@ export default function MemberDetailModal() {
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
             layoutDependency={false}
-            className="relative bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
+            className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 pb-[var(--safe-bottom)] shadow-2xl backdrop-blur-2xl sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl sm:pb-0"
           >
             {/* Sticky Header Actions */}
-            <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
+            <div className="absolute right-3 top-3 z-20 flex items-center gap-2 sm:right-5 sm:top-5">
               {isEditing ? (
                 /* In edit mode — show back button */
                 <button
@@ -191,7 +191,7 @@ export default function MemberDetailModal() {
               )}
               <button
                 onClick={closeModal}
-                className="size-10 flex items-center justify-center bg-stone-100/80 text-stone-600 rounded-full hover:bg-stone-200 hover:text-stone-900 shadow-sm border border-stone-200/50 transition-colors"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/50 bg-stone-100/80 text-stone-600 shadow-sm transition-colors hover:bg-stone-200 hover:text-stone-900"
                 aria-label="Đóng"
               >
                 <X className="size-5" />

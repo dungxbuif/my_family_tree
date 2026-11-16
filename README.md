@@ -17,6 +17,15 @@ Dự án này giúp gia đình bạn nắm trọn quyền kiểm soát dữ li�
 - **Bảo mật**: Hệ thống đăng nhập và phân quyền (Admin, Editor, Member) tích hợp sẵn.
 - **Sao lưu & Phục hồi**: Xuất/nhập file JSON, CSV, GEDCOM dễ dàng.
 
+## Giao diện responsive
+
+Dashboard dùng cùng một giao diện trên web và mobile. Trên màn hình nhỏ, bốn
+chế độ xem thành viên nằm trong thanh điều hướng cố định phía dưới, bộ lọc mở
+trong vùng thao tác rộng theo chiều ngang, còn sơ đồ cây hỗ trợ kéo chạm,
+phóng to và thu nhỏ trong vùng canvas riêng. Các thẻ thành viên và cửa sổ chi
+tiết có vùng chạm tối thiểu 44px, giữ khoảng đệm an toàn trên thiết bị có
+notch, và tắt chuyển động không cần thiết khi người dùng bật reduced motion.
+
 ## Cài đặt và Chạy dự án
 
 Cách tốt nhất để chạy ứng dụng là sử dụng **Docker Compose**.

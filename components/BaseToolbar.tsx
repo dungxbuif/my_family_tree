@@ -82,7 +82,7 @@ export default function BaseToolbar({
 
   return createPortal(
     <div
-      className="flex flex-wrap justify-center items-center gap-2 w-max"
+      className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-max"
       ref={filtersRef}
     >
       {/* Custom Controls (Zoom or Expand/Collapse) */}
@@ -92,7 +92,9 @@ export default function BaseToolbar({
       <div className="relative">
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`flex items-center gap-2 px-4 h-10 rounded-full font-semibold text-sm shadow-sm border transition-all duration-300 ${
+          aria-expanded={showFilters}
+          aria-haspopup="dialog"
+          className={`flex min-h-11 items-center gap-2 rounded-full border px-4 font-semibold text-sm shadow-sm transition-all duration-300 ${
             showFilters
               ? "bg-amber-100/90 text-amber-800 border-amber-200"
               : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
@@ -109,7 +111,9 @@ export default function BaseToolbar({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
               transition={{ duration: 0.15, ease: "easeOut" }}
-              className="absolute top-full right-0 mt-2 w-48 bg-surface/95 backdrop-blur-xl shadow-soft border border-border rounded-3xl p-4 flex flex-col gap-3 z-50"
+              role="dialog"
+              aria-label="Bộ lọc hiển thị"
+              className="fixed inset-x-3 bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex max-h-[70dvh] flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-64 sm:max-h-none"
             >
               <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
                 HIỂN THỊ

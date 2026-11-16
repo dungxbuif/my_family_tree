@@ -5,6 +5,7 @@ import { getAvatarBg } from "@/utils/styleHelprs";
 import Image from "next/image";
 import { useMemberListView } from "@/context/MemberListContext";
 import DefaultAvatar from "./DefaultAvatar";
+import { HeartHandshake, Plus } from "lucide-react";
 
 interface FamilyNodeCardProps {
   person: Person;
@@ -31,8 +32,8 @@ export default function FamilyNodeCard({
   const content = (
     <div
       onClick={onClickCard}
-      className={`
-        group py-2 px-1 flex flex-col items-center justify-start transition-all duration-300 hover:-translate-y-1 rounded-3xl relative h-full
+        className={`
+        group min-h-11 py-2 px-1 flex flex-col items-center justify-start transition-all duration-300 hover:-translate-y-1 rounded-3xl relative h-full
         ${isDeceased ? "grayscale-[0.4] opacity-80" : ""}
         ${showAvatar ? "w-20 sm:w-24 md:w-28 bg-surface/70 backdrop-blur-xl hover:shadow-soft-hover" : "px-3"}
       `}
@@ -44,7 +45,7 @@ export default function FamilyNodeCard({
             ${showAvatar ? "shadow-sm bg-white" : ""}
           `}
         >
-          <span className="leading-none">💍</span>
+          <HeartHandshake aria-hidden="true" className="size-3.5" />
         </div>
       )}
       {isPlusVisible && (
@@ -54,7 +55,7 @@ export default function FamilyNodeCard({
             ${showAvatar ? "shadow-sm bg-white" : ""}
           `}
         >
-          <span className="leading-none">+</span>
+          <Plus aria-hidden="true" className="size-3.5" />
         </div>
       )}
 
@@ -115,8 +116,13 @@ export default function FamilyNodeCard({
     return content;
   }
 
-  return (
-    <button onClick={() => setMemberModalId(person.id)} className="block w-fit">
+    return (
+    <button
+      type="button"
+      onClick={() => setMemberModalId(person.id)}
+      aria-label={`Xem thông tin ${person.full_name}`}
+      className="block min-h-11 w-fit"
+    >
       {content}
     </button>
   );

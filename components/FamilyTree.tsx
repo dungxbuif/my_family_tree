@@ -59,6 +59,8 @@ export default function FamilyTree({
       handleZoomIn,
       handleZoomOut,
       handleResetZoom,
+      handleTouchStart,
+      handleTouchMove,
     },
   } = usePanZoom(containerRef);
 
@@ -299,7 +301,7 @@ export default function FamilyTree({
     );
 
   return (
-    <div className="w-full h-full relative">
+    <div className="relative flex min-h-0 w-full flex-1 flex-col">
       <TreeToolbar
         scale={scale}
         handleZoomIn={handleZoomIn}
@@ -327,12 +329,15 @@ export default function FamilyTree({
 
       <div
         ref={containerRef}
-        className={`w-full h-full overflow-auto bg-stone-50 ${isPressed ? "cursor-grabbing" : "cursor-grab"}`}
+        className={`min-h-[28rem] w-full flex-1 overflow-auto overscroll-contain bg-stone-50 touch-none ${isPressed ? "cursor-grabbing" : "cursor-grab"}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
         onClickCapture={handleClickCapture}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleMouseUpOrLeave}
         onDragStart={(e) => e.preventDefault()} // Prevent browser default dragging of links/images
       >
         {/* We use a style block to inject the CSS logic for the family tree lines */}
@@ -421,7 +426,7 @@ export default function FamilyTree({
       */}
         <div
           id="export-container"
-          className={`w-max min-w-full mx-auto p-4 css-tree transition-all duration-200 ${isDragging ? "opacity-90" : ""}`}
+          className={`mx-auto w-max min-w-full p-6 sm:p-8 css-tree transition-all duration-200 ${isDragging ? "opacity-90" : ""}`}
           style={{
             transform: `scale(${scale})`,
             transformOrigin: "top center",

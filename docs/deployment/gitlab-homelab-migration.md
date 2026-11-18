@@ -38,9 +38,15 @@ For a pipeline change, check GitLab CI YAML and shell syntax, run the promoter a
 - `scripts/backup.sh` captures the local Compose database and local uploads only. For production, confirm recent PostgreSQL, RustFS objects for `family-tree/family-tree/`, and any legacy upload-volume backup and restore evidence. During first cutover also retain the legacy `mac-ocr/family-tree/` objects and its rollback configuration.
 - `/readyz` checks the Next.js process. A production verification must also exercise authenticated PostgreSQL reads and S3 upload and retrieval. Swarm rollback restores the previous service specification. Record its image and configuration for the first release and maintain a separate restore procedure for data.
 
-### Ops enrollment pending
+### Ops enrollment complete
 
-As of the read-only check on 2026-11-19, `homelab-ops/main` does not have a production manifest or release jobs for `my-family-tree`. The existing `family-tree` catalog entry has `deployable: false` and describes a source bind mount. The shared validator needs to accept `my-family-tree` and its distinct `family-tree` service and catalog ID. Ops enrollment must also preserve runtime environment, networks and data mounts, switch from the source bind mount to the immutable image, and exercise production health and rollback. Runner scope and protections were not verified during app preparation.
+`homelab-ops/main` commit `7a82f82` owns the production manifest and protected
+receipt-only validate/deploy/verify jobs for `my-family-tree`. Delivery removes
+only the legacy `/opt/apps/family-tree/src:/app` bind, preserves uploads,
+networks and database configuration, switches to the dedicated `family-tree`
+bucket and file-backed Swarm secrets, and restores the exact prior task
+specification if rollout verification fails. The release remains tag-driven;
+an ops main push does not create a pipeline.
 
 ## Historical group migration
 
@@ -105,6 +111,6 @@ The current runner permits only `always` image pulls; all job and service image
 policies use `always`. The source release guard requires the tag commit to equal
 the current `main` commit.
 
-The image build likewise avoids forcing a remote base-image refresh on every
-release; the pinned Bun base remains runner-cached and the immutable application
-digest is still verified after push.
+The release job builds and smokes the image before publishing it by immutable
+digest. Runner pull policy remains `always`; availability of a cached base image
+is not treated as release evidence.

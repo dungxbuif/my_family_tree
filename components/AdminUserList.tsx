@@ -1,24 +1,26 @@
 "use client";
 
-import { adminCreateUser, deleteUser, toggleUserStatus } from "@/app/actions/user";
+import { deleteUser, toggleUserStatus } from "@/app/actions/user";
 import type { AdminUserData } from "@/types";
 import type { AccountMutationResult } from "@/utils/auth/account-administration";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
 
 interface AdminUserListProps {
   users: AdminUserData[];
   currentUserId: string;
+  createUserAction: (previous: AccountMutationResult | null, fields: FormData) => Promise<AccountMutationResult>;
 }
 
-export default function AdminUserList({ users, currentUserId }: AdminUserListProps) {
+export default function AdminUserList({ users, currentUserId, createUserAction }: AdminUserListProps) {
   const [pending, startTransition] = useTransition();
-  const [creation, createAccount, creating] = useActionState(adminCreateUser, null);
+  const [creation, createAccount, creating] = useActionState(createUserAction, null);
   const [notice, setNotice] = useState<{ message: string; isError: boolean } | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
   const busy = pending || creating;
+  const shouldGuard = hasDraft || creating;
 
   useEffect(() => {
-    if (!hasDraft) return;
+    if (!shouldGuard) return;
 
     function warnBeforeUnload(event: BeforeUnloadEvent) {
       event.preventDefault();
@@ -45,11 +47,12 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
       window.removeEventListener("beforeunload", warnBeforeUnload);
       document.removeEventListener("click", confirmNavigation, true);
     };
-  }, [hasDraft]);
+  }, [shouldGuard]);
 
   function submit(
     operation: () => Promise<AccountMutationResult>,
     successMessage: string,
+    onSuccess?: () => void,
   ) {
     setNotice(null);
     startTransition(async () => {
@@ -58,11 +61,25 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
         if ("error" in result) {
           setNotice({ message: result.error, isError: true });
         } else {
+          onSuccess?.();
           setNotice({ message: successMessage, isError: false });
         }
       } catch {
         setNotice({ message: "Không thể cập nhật tài khoản. Vui lòng thử lại.", isError: true });
       }
+    });
+  }
+
+  function submitCreation(event: FormEvent<HTMLFormElement>) {
+    // The action attribute provides native POST. After hydration we reset
+    // explicitly so React's automatic action reset cannot discard a failed draft.
+    event.preventDefault();
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    setHasDraft(true);
+    submit(() => createUserAction(null, fields), "Đã tạo tài khoản.", () => {
+      form.reset();
+      setHasDraft(false);
     });
   }
 
@@ -74,7 +91,7 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
         </p>
       )}
       {busy && <p role="status" className="body-sm text-secondary">Đang cập nhật…</p>}
-      {!creating && creation && (
+      {!busy && !notice && creation && (
         "error" in creation
           ? <p role="alert" className="body-sm text-error">{creation.error}</p>
           : <p role="status" className="body-sm text-success">Đã tạo tài khoản.</p>
@@ -88,7 +105,7 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
             const fields = new FormData(event.currentTarget);
             setHasDraft(Boolean(fields.get("email") || fields.get("password") || fields.get("is_active") === "false"));
           }}
-          onSubmit={() => setHasDraft(false)}
+          onSubmit={submitCreation}
           className="pt-2"
         >
           <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2">

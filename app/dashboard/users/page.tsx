@@ -1,3 +1,4 @@
+import { adminCreateUser } from "@/app/actions/user";
 import AdminUserList from "@/components/AdminUserList";
 import type { AdminUserData } from "@/types";
 import { getProfile } from "@/utils/auth/session";
@@ -29,7 +30,7 @@ export default async function AdminUsersPage() {
       </Link>
       <h1 className="mb-4 font-sans text-[26px] font-bold leading-[34px] text-primary">Quản lý người dùng</h1>
       {users ? (
-        <AdminUserList users={users} currentUserId={profile.id} />
+        <AdminUserList users={users} currentUserId={profile.id} createUserAction={adminCreateUser} />
       ) : (
         <p role="alert" className="body-sm text-error">Không thể tải danh sách tài khoản. Vui lòng tải lại trang.</p>
       )}

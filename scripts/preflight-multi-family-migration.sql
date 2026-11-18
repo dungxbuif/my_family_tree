@@ -1,9 +1,12 @@
 -- Read-only. Run on the legacy database; also called inside the migration lock.
+\ir email-normalization.sql
+SELECT EXISTS (SELECT FROM public.users GROUP BY :normalize_email_sql HAVING count(*) > 1) AS email_collision \gset
+\if :email_collision
+DO $$ BEGIN RAISE EXCEPTION 'Normalized email collision among System Users'; END $$;
+\endif
+
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.users GROUP BY lower(btrim(email)) HAVING count(*) > 1) THEN
-    RAISE EXCEPTION 'Normalized email collision among System Users';
-  END IF;
   IF EXISTS (SELECT FROM public.users u FULL JOIN public.profiles p ON p.id=u.id WHERE u.id IS NULL OR p.id IS NULL)
     OR EXISTS (SELECT FROM public.sessions s LEFT JOIN public.users u ON u.id=s.user_id WHERE u.id IS NULL)
     OR EXISTS (SELECT FROM public.relationships r LEFT JOIN public.persons a ON a.id=r.person_a LEFT JOIN public.persons b ON b.id=r.person_b WHERE a.id IS NULL OR b.id IS NULL OR r.person_a=r.person_b)
@@ -18,4 +21,5 @@ BEGIN
   END IF;
 END $$;
 
-\ir multi-family-row-counts.sql
+\set migrated_access false
+\ir multi-family-snapshot.sql

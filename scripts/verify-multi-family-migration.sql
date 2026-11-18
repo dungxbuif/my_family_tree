@@ -21,4 +21,5 @@ BEGIN
   END LOOP;
 END $$;
 
-\ir multi-family-row-counts.sql
+\set migrated_access true
+\ir multi-family-snapshot.sql

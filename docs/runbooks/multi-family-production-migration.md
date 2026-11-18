@@ -5,6 +5,14 @@ The protected Family Tree receipt deploy job on VM100 runs the promoted digest�
 service update. The entry point uses `psql -X -v ON_ERROR_STOP=1` and the
 service’s database connection. Deploy the companion ops change that accepts
 `migration.enabled: true` before promoting the first multi-family image.
+The first protected production tag must include the completed tree-context
+authorization and tree-scoped family writes, including imports, exports and
+private details. The protected-tag job `validate_tree_scope` runs
+`scripts/verify-tree-scope.sh` against an ephemeral migrated PostgreSQL
+database. It requires passing `utils/auth/tree-access.test.ts` and
+`tests/tree-isolation.test.ts` at that same source commit. The image build
+depends on this job, and ops promotion depends on the build. Keep the first
+cutover on hold until both suites and the operator rehearsal below pass.
 The application slug is `my-family-tree`, and the Swarm service is `family-tree`.
 
 ## Rehearse and capture a recovery point
@@ -17,10 +25,17 @@ below, start in the application checkout. Use an access-controlled backup
 directory with capacity for a full logical backup. Retain the previous
 immutable service specification and existing verified object/upload backups.
 
-Quiesce application traffic at ingress and stop background database writers
-before capturing the final preflight and dump. Keep the current Swarm task
-running so the ops migration can use its network. Resume traffic after the
-service, database, and access checks succeed.
+Before the final preflight and dump, stop background writers and place user
+routes in maintenance mode. Keep the current Swarm task running. Permit
+`GET /readyz` over public HTTPS from the protected ops runner throughout
+cutover and allow the operator’s read-only SQL checks. At ingress, withhold
+all other user traffic, including browser server actions, REST/MCP requests
+and session mutations. Use an existing operator session for read-only
+application verification through a restricted operator route. Confirm that
+the ops runner can read `/readyz` while writes are paused. Ops checks
+this route after updating the service.
+Resume writers and general traffic after the service, database and access
+checks succeed.
 
 ```sh
 set -eu
@@ -44,7 +59,11 @@ or family references, and populated databases lacking a legacy admin.
 Resolve the reported condition in the source with the data owner and repeat
 the preflight, backup and rehearsal. The SQL runs those checks again under a
 write lock. Source email spelling and existing row timestamps are preserved.
-The unique System User email index compares `lower(btrim(email))`.
+The email constraint and the unique System User email index use
+`public.normalize_email(text)`, which removes the surrounding Unicode
+whitespace accepted by JavaScript `String.trim()` and lowercases the result.
+Use `public.normalize_email(users.email) = public.normalize_email($1)` for
+exact account lookup.
 
 ## Release and verify
 
@@ -60,16 +79,20 @@ The first successful migration assigns all pre-existing family records to
 and Owners, editors become Editors, and members become Viewers. Inactive
 accounts keep their inactive status. A fresh database starts with zero trees.
 
-Before re-enabling writes, verify the migrated production counts against the
-captured backup and exercise the updated application as an existing user.
+Before re-enabling writes, compare the migrated counts and per-user access snapshot with
+the preflight snapshot and exercise the updated application as an existing user.
 
 ```sh
 PGSERVICE="$PROD_SERVICE" psql -XqAt -v ON_ERROR_STOP=1 -f scripts/verify-multi-family-migration.sql > "$snapshot/after.json"
 diff -u "$snapshot/before.json" "$snapshot/after.json"
 ```
 
-The verification SQL checks the original access mapping, legacy tree count,
-and tree assignment. Run this one-time check during cutover while original
+Each snapshot contains row counts and a user-ID-ordered access list with
+tree ID, owner/editor/viewer role, Super Admin status and account activation.
+Preflight derives expected access from legacy profiles. Verification reads
+the migrated flags and memberships. The two `diff` commands require an exact
+match for every user. Keep these files in the protected backup directory.
+The verification SQL also checks legacy tree count and tree assignment. Run this one-time check during cutover while original
 memberships and counts are expected to match. Later releases use the migration
 ledger. The release also verifies the running digest, readiness, DB and object
 storage through the existing ops checks.
@@ -78,8 +101,8 @@ storage through the existing ops checks.
 
 If the migration transaction failed, keep writes paused and inspect the
 credential-free failure and the database migration ledger before retrying.
-If the transaction committed and the release must revert, keep ingress and
-background writers paused. Swarm restores a service specification only.
+If the transaction committed and the release must revert, keep user writes and
+background writers paused while maintaining the readiness and operator routes. Swarm restores a service specification only.
 Recover the legacy database into the separate empty recovery database and
 verify its counts before routing the old service to it.
 

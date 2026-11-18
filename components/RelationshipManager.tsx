@@ -124,6 +124,8 @@ export default function RelationshipManager({
   }, [personId, onStatsLoaded]);
 
   useEffect(() => {
+    // This callback synchronizes client state with the relationship API.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchRelationships();
   }, [fetchRelationships]);
 

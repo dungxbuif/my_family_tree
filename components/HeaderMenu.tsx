@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart2,
+  Bell,
   ChevronDown,
   Database,
   GitMerge,
@@ -39,18 +40,10 @@ export default function HeaderMenu() {
         onClick={() => setIsOpen(!isOpen)}
         aria-label={isOpen ? "Đóng menu tài khoản" : "Mở menu tài khoản"}
         aria-expanded={isOpen}
-        className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-transparent px-2 py-1.5 transition-all duration-200 hover:border-stone-200 hover:bg-stone-100 sm:min-w-0 sm:pl-2 sm:pr-4"
+        className="relative flex size-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-white text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary-soft)]"
       >
-        <div className="size-8 rounded-full bg-linear-to-br from-amber-200 to-amber-100 text-amber-800 flex items-center justify-center font-bold shadow-sm ring-1 ring-amber-300/50">
-          {userEmail ? (
-            userEmail.charAt(0).toUpperCase()
-          ) : (
-            <UserCircle className="size-5" />
-          )}
-        </div>
-        <ChevronDown
-          className={`size-4 text-stone-500 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
-        />
+        <Bell className="size-5" aria-hidden="true" />
+        <span className="absolute right-2.5 top-2.5 size-2 rounded-full border border-white bg-red-500" />
       </button>
 
       <AnimatePresence>
@@ -63,12 +56,16 @@ export default function HeaderMenu() {
             className="absolute right-0 mt-2 w-56 bg-surface rounded-3xl shadow-soft border border-border py-2 z-50 overflow-hidden"
           >
             <div className="px-4 py-3 border-b border-stone-100 bg-stone-50/50">
-              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-0.5">
-                Tài khoản
-              </p>
-              <p className="text-sm font-medium text-stone-900 truncate">
-                {userEmail}
-              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary-soft)] font-bold text-[var(--color-primary)]">
+                  {userEmail ? userEmail.charAt(0).toUpperCase() : <UserCircle className="size-5" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-stone-400">Tài khoản</p>
+                  <p className="truncate text-sm font-medium text-stone-900">{userEmail}</p>
+                </div>
+                <ChevronDown className={`size-4 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </div>
             </div>
 
             <div className="py-1">

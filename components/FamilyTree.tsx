@@ -183,6 +183,8 @@ export default function FamilyTree({
     };
 
     roots.forEach((root) => walk(root.id, new Set(), 0));
+    // Reconcile the interactive collapse state after the external tree inputs change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsedNodes(autoCollapsed);
 
     // Double rAF: wait for React to re-render with collapsed state, then center
@@ -365,12 +367,12 @@ export default function FamilyTree({
         .css-tree li::before, .css-tree li::after {
           content: '';
           position: absolute; top: 0; right: 50%;
-          border-top: 2px solid #d6d3d1;
+          border-top: 2px solid var(--gp-border-subtle);
           width: 50%; height: 30px;
         }
         .css-tree li::after {
           right: auto; left: 50%;
-          border-left: 2px solid #d6d3d1;
+          border-left: 2px solid var(--gp-border-subtle);
         }
 
         /* Remove left-right connectors from elements without siblings */
@@ -382,7 +384,7 @@ export default function FamilyTree({
           position: absolute;
           top: 0;
           left: 50%;
-          border-left: 2px solid #d6d3d1;
+          border-left: 2px solid var(--gp-border-subtle);
           width: 0;
           height: 30px;
         }
@@ -402,7 +404,7 @@ export default function FamilyTree({
 
         /* Add back the vertical connector to the last nodes */
         .css-tree li:last-child::before {
-          border-right: 2px solid #d6d3d1;
+          border-right: 2px solid var(--gp-border-subtle);
           border-radius: 0 12px 0 0;
         }
         .css-tree li:first-child::after {
@@ -413,7 +415,7 @@ export default function FamilyTree({
         .css-tree ul ul::before {
           content: '';
           position: absolute; top: 0; left: 50%;
-          border-left: 2px solid #d6d3d1;
+          border-left: 2px solid var(--gp-border-subtle);
           width: 0; height: 30px;
         }
       `,

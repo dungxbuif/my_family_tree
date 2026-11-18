@@ -26,6 +26,14 @@ phóng to và thu nhỏ trong vùng canvas riêng. Các thẻ thành viên và c
 tiết có vùng chạm tối thiểu 44px, giữ khoảng đệm an toàn trên thiết bị có
 notch, và tắt chuyển động không cần thiết khi người dùng bật reduced motion.
 
+Giao diện dùng hệ thống **Heritage Modern**: nền kem ấm, xanh rừng làm màu
+thương hiệu và vàng cổ làm điểm nhấn. Tài liệu thiết kế, token máy đọc được,
+icon, illustration và mockup tham chiếu được lưu đầy đủ tại
+[`docs/design/`](docs/design/README.md).
+
+Ứng dụng không có landing page công khai; truy cập `/` sẽ chuyển thẳng tới
+`/login` để người trong gia đình đăng nhập.
+
 ## Cài đặt và Chạy dự án
 
 Cách tốt nhất để chạy ứng dụng là sử dụng **Docker Compose**.

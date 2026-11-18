@@ -1,8 +1,7 @@
 import MemberForm from "@/components/MemberForm";
+import { HeritagePageHero } from "@/components/heritage";
 import { Person } from "@/types";
 import { getProfile, getDataClient } from "@/utils/data/queries";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 interface PageProps {
@@ -64,25 +63,13 @@ export default async function EditMemberPage({ params }: PageProps) {
   const initialData = isAdmin ? { ...person, ...(privateData ?? {}) } : person;
 
   return (
-    <div className="flex-1 w-full relative flex flex-col pb-8">
-      {/* Decorative background blurs */}
-      {/* <div className="absolute -top-[20%] -left-[10%] w-[500px] h-[500px] bg-amber-200/20 rounded-full blur-[120px] pointer-events-none" /> */}
-      {/* <div className="absolute top-[40%] -right-[10%] w-[400px] h-[400px] bg-stone-300/20 rounded-full blur-[100px] pointer-events-none" /> */}
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-28 pt-4 sm:px-6 md:pb-8 lg:px-8">
+      <HeritagePageHero
+        title="Chỉnh sửa thành viên"
+        backHref={`/dashboard/members/${id}`}
+      />
 
-      <div className="w-full relative z-20 py-4 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/dashboard/members/${id}`}
-            className="p-2 -ml-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
-            title="Quay lại danh sách"
-          >
-            <ArrowLeft className="size-5" />
-          </Link>
-          <h1 className="title">Chỉnh Sửa Thành Viên</h1>
-        </div>
-      </div>
-
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 w-full flex-1">
+      <main className="relative z-10 w-full flex-1 py-4 sm:py-6">
         <MemberForm initialData={initialData} isEditing={true} isAdmin={isAdmin} />
       </main>
     </div>

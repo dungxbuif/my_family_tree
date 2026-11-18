@@ -48,6 +48,7 @@ export default function CustomEventModal({
 
   useEffect(() => {
     if (isOpen) {
+      /* eslint-disable react-hooks/set-state-in-effect -- Opening the modal intentionally hydrates its draft from the selected event. */
       if (eventToEdit) {
         setName(eventToEdit.name);
         setEventDate(eventToEdit.event_date);
@@ -70,6 +71,7 @@ export default function CustomEventModal({
       setLunarMonth("");
       setLunarYear("");
       setLunarConvertError(null);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen, eventToEdit]);
 
@@ -92,6 +94,8 @@ export default function CustomEventModal({
         const y = solar.getYear();
         const m = String(solar.getMonth()).padStart(2, "0");
         const d = String(solar.getDay()).padStart(2, "0");
+        // Keep the submitted solar value synchronized with lunar inputs.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setEventDate(`${y}-${m}-${d}`);
         setLunarConvertError(null);
       } catch {
@@ -187,7 +191,7 @@ export default function CustomEventModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40"
         >
           {/* Click-away backdrop */}
           <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
@@ -198,7 +202,7 @@ export default function CustomEventModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="relative bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
+            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
           >
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
@@ -236,7 +240,7 @@ export default function CustomEventModal({
                   variants={formSectionVariants}
                   initial="hidden"
                   animate="show"
-                  className="bg-white/80 p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200/80 space-y-5"
+                  className="bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200/80 space-y-5"
                 >
                   <div>
                     <label className="block text-sm font-semibold text-stone-700 mb-1.5">

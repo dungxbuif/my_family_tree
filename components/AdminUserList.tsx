@@ -240,7 +240,7 @@ export default function AdminUserList({
         </button>
       </div>
 
-      <div className="bg-white/60 backdrop-blur-xl rounded-2xl shadow-sm border border-stone-200/60 overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-sm border border-stone-200/60 overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="uppercase tracking-wider border-b border-stone-200/60 bg-stone-50/50">
@@ -366,8 +366,8 @@ export default function AdminUserList({
 
       {/* Create User Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm transition-opacity duration-300">
-          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-stone-200/60 w-full max-w-md overflow-hidden transform transition-all">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-stone-900/40 transition-opacity duration-300">
+          <div className="bg-surface rounded-2xl shadow-soft border border-stone-200/60 w-full max-w-md overflow-hidden transform transition-all">
             <div className="px-6 py-5 border-b border-stone-100/80 flex justify-between items-center bg-stone-50/50">
               <h3 className="text-xl font-serif font-bold text-stone-800">
                 Tạo Người Dùng Mới

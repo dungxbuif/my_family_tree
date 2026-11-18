@@ -16,9 +16,9 @@ const getGenderStyle = (gender: string) => {
 };
 
 const getAvatarBg = (gender: string) => {
-  if (gender === "male") return "bg-linear-to-br from-sky-400 to-sky-700";
-  if (gender === "female") return "bg-linear-to-br from-rose-400 to-rose-700";
-  return "bg-linear-to-br from-stone-400 to-stone-600";
+  if (gender === "male") return "bg-primary";
+  if (gender === "female") return "bg-tertiary";
+  return "bg-secondary";
 };
 
 export default function PersonSelector({
@@ -96,8 +96,8 @@ export default function PersonSelector({
         aria-haspopup="listbox"
         aria-controls="person-selector-options"
         role="combobox"
-        className={`w-full min-h-12 flex items-center gap-3 bg-white/60 border rounded-2xl px-3 py-2 text-sm shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 group
-          ${isOpen ? "border-amber-300 bg-white shadow-md ring-2 ring-amber-500/10" : "border-stone-200/60 hover:border-amber-300 hover:bg-white/90 hover:shadow-md"}`}
+        className={`w-full min-h-12 flex items-center gap-3 bg-surface border rounded-2xl px-3 py-2 text-sm shadow-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-amber-500/20 group
+          ${isOpen ? "border-amber-300 bg-white shadow-md ring-2 ring-amber-500/10" : "border-stone-200/60 hover:border-amber-300 hover:bg-surface hover:shadow-md"}`}
       >
         <div className="relative shrink-0">
           <div
@@ -176,9 +176,9 @@ export default function PersonSelector({
             transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
             id="person-selector-options"
             role="listbox"
-            className="absolute z-50 mt-2 w-full min-w-[min(20rem,calc(100vw-2rem))] bg-white/95 backdrop-blur-xl border border-stone-200/80 rounded-2xl shadow-xl max-h-[min(24rem,60vh)] flex flex-col overflow-hidden ring-1 ring-black/5"
+            className="absolute z-50 mt-2 w-full min-w-[min(20rem,calc(100vw-2rem))] bg-surface border border-stone-200/80 rounded-2xl shadow-soft max-h-[min(24rem,60vh)] flex flex-col overflow-hidden ring-1 ring-black/5"
           >
-            <div className="p-2 border-b border-stone-100/80 bg-stone-50/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="p-2 border-b border-stone-100/80 bg-stone-50/50 sticky top-0 z-10">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
                 <input

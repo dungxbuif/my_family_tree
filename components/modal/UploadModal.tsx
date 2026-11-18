@@ -35,10 +35,12 @@ export default function UploadModal({
   // Sync initialData when modal opens
   useEffect(() => {
     if (isOpen && initialData) {
+      /* eslint-disable react-hooks/set-state-in-effect -- Opening an edit modal intentionally hydrates its local draft. */
       setTitle(initialData.title);
       setDescription(initialData.description || "");
       setEventDate(initialData.event_date || "");
       setPreview(initialData.image_url);
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [isOpen, initialData]);
 
@@ -153,7 +155,7 @@ export default function UploadModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40 backdrop-blur-sm"
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40"
         >
           {/* Click-away backdrop */}
           <div
@@ -167,7 +169,7 @@ export default function UploadModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="relative bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
+            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
           >
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
@@ -219,7 +221,7 @@ export default function UploadModal({
                           setFile(null);
                           setPreview(null);
                         }}
-                        className="absolute top-2 right-2 p-1.5 bg-white/90 text-stone-700 hover:text-rose-600 rounded-full shadow-md backdrop-blur-sm"
+                        className="absolute top-2 right-2 p-1.5 bg-surface text-stone-700 hover:text-rose-600 rounded-full shadow-md"
                       >
                         <X className="size-4" />
                       </button>

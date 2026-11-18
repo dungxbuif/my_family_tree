@@ -11,7 +11,7 @@ export default function Footer({
 }: FooterProps) {
   return (
     <footer
-      className={`py-8 text-center text-sm text-stone-500 ${className} backdrop-blur-sm`}
+      className={`py-8 text-center text-sm text-stone-500 ${className}`}
     >
       <div className="max-w-7xl mx-auto px-4">
         {showDisclaimer && (

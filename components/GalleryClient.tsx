@@ -21,6 +21,8 @@ export default function GalleryClient({
 
   // Sync with server items when they change
   useEffect(() => {
+    // Server-component refreshes replace the authoritative gallery snapshot.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(initialItems);
   }, [initialItems]);
 

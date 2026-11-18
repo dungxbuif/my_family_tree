@@ -212,7 +212,7 @@ export default function DataImportExport() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Export Card */}
-        <div className="bg-white/80 border border-stone-200/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+        <div className="bg-surface border border-stone-200/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
           {/* Background Decor */}
           <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
             <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full blur-2xl -mr-16 -mt-16 group-hover:bg-amber-300/30 transition-colors" />
@@ -288,7 +288,7 @@ export default function DataImportExport() {
         </div>
 
         {/* Import Card */}
-        <div className="bg-white/80 border border-stone-200/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
+        <div className="bg-surface border border-stone-200/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
           {/* Background Decor */}
           <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
             <div className="absolute top-0 right-0 w-32 h-32 bg-rose-200/20 rounded-full blur-2xl -mr-16 -mt-16 group-hover:bg-rose-300/30 transition-colors" />
@@ -337,14 +337,14 @@ export default function DataImportExport() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm cursor-pointer"
+              className="absolute inset-0 bg-stone-900/40 cursor-pointer"
               onClick={() => setShowConfirm(false)}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl shadow-xl border border-stone-200/60 p-6 w-full max-w-md relative z-10"
+              className="bg-white rounded-2xl shadow-soft border border-stone-200/60 p-6 w-full max-w-md relative z-10"
             >
               <div className="flex items-start gap-4 mb-5">
                 <div className="p-3 bg-rose-100/50 rounded-full text-rose-600 shrink-0 mt-1">

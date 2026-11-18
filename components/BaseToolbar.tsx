@@ -104,7 +104,7 @@ export default function BaseToolbar({
           className={`flex min-h-11 items-center gap-2 rounded-full border px-4 font-semibold text-sm shadow-sm transition-all duration-300 ${
             showFilters
               ? "bg-amber-100/90 text-amber-800 border-amber-200"
-              : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
+              : "bg-surface text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md"
           }`}
         >
           <Filter className="size-4" />
@@ -120,7 +120,7 @@ export default function BaseToolbar({
               transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.15, ease: "easeOut" }}
               role="dialog"
               aria-label="Bộ lọc hiển thị"
-              className="fixed inset-x-3 top-[4.5rem] bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft backdrop-blur-xl md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-64 md:max-h-none"
+              className="fixed inset-x-3 top-[4.5rem] bottom-[calc(var(--mobile-nav-height)+var(--safe-bottom)+0.75rem)] z-50 flex flex-col gap-3 overflow-y-auto rounded-3xl border border-border bg-surface/95 p-4 shadow-soft md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-full md:mt-2 md:w-64 md:max-h-none"
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-stone-900">Bộ lọc hiển thị</p>

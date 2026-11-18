@@ -25,7 +25,7 @@ export default function PersonCard({ person }: PersonCardProps) {
   return (
     <button
       onClick={() => setMemberModalId(person.id)}
-      className={`group block relative bg-white/60 p-2 sm:p-4 rounded-3xl shadow-soft border border-border hover:border-tertiary hover:-translate-y-1 hover:shadow-soft-hover hover:bg-surface/90 transition-all duration-300 overflow-hidden
+      className={`group block relative bg-surface p-2 sm:p-4 rounded-3xl shadow-soft border border-border hover:border-tertiary hover:-translate-y-1 hover:shadow-soft-hover hover:bg-surface/90 transition-all duration-300 overflow-hidden
         ${isDeceased ? "opacity-80 grayscalePer-[0.3]" : ""}`}
     >
       {/* Decorative gradient blob */}

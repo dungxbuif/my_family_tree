@@ -1,8 +1,8 @@
-import DeleteMemberButton from "@/components/DeleteMemberButton";
+import { HeritagePageHero } from "@/components/heritage";
 import MemberDetailContent from "@/context/MemberDetailContent";
 import { Person } from "@/types";
 import { getProfile, getDataClient } from "@/utils/data/queries";
-import { ArrowLeft } from "lucide-react";
+import { GitBranch, Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -50,37 +50,15 @@ export default async function MemberDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex-1 w-full relative flex flex-col pb-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-28 pt-4 sm:px-6 md:pb-8 lg:px-8">
       {/* Decorative background blurs */}
       {/* <div className="absolute -top-[20%] left-0 w-[500px] h-[500px] bg-amber-200/20 rounded-full blur-[120px] pointer-events-none" /> */}
       {/* <div className="absolute top-[40%] right-0 w-[400px] h-[400px] bg-stone-300/20 rounded-full blur-[100px] pointer-events-none" /> */}
 
-      <div className="w-full relative z-20 py-4 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard/members"
-            className="p-2 -ml-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-colors"
-            title="Quay lại danh sách"
-          >
-            <ArrowLeft className="size-5" />
-          </Link>
-          <h1 className="title">Chi Tiết Thành Viên</h1>
-        </div>
-        {canEdit && (
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
-            <Link
-              href={`/dashboard/members/${id}/edit`}
-              className="btn flex-1 sm:flex-none w-full sm:w-auto"
-            >
-              Chỉnh sửa
-            </Link>
-            <DeleteMemberButton memberId={id} className="flex-1 sm:flex-none" />
-          </div>
-        )}
-      </div>
+      <HeritagePageHero title="Hồ sơ thành viên" backHref="/dashboard/members?view=list" />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 w-full flex-1">
-        <div className="bg-white/60 rounded-2xl shadow-sm border border-stone-200/60 overflow-hidden hover:shadow-md transition-shadow duration-300">
+      <main className="relative z-10 w-full flex-1 py-4 sm:py-6">
+        <div className="overflow-hidden rounded-[20px] border border-border bg-surface shadow-soft">
           <MemberDetailContent
             person={person}
             privateData={privateData}
@@ -88,6 +66,12 @@ export default async function MemberDetailPage({ params }: PageProps) {
             canEdit={canEdit}
           />
         </div>
+        {canEdit && (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href={`/dashboard/members/${id}/edit`} className="btn min-h-13 border-amber-500 text-primary"><Pencil className="size-5" />Chỉnh sửa</Link>
+            <Link href={`/dashboard/members/${id}/edit#relationships`} className="btn-primary min-h-13"><GitBranch className="size-5" />Thêm quan hệ</Link>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -133,10 +133,10 @@ function EventCard({
         : isPast
           ? "bg-stone-50/60 border-stone-200/50"
           : isBirthday
-            ? "bg-white/80 border-stone-200/60 hover:border-blue-200"
+            ? "bg-surface border-stone-200/60 hover:border-blue-200"
             : isCustom
-              ? "bg-white/80 border-stone-200/60 hover:border-purple-200"
-              : "bg-white/80 border-stone-200/60 hover:border-rose-200"
+              ? "bg-surface border-stone-200/60 hover:border-purple-200"
+              : "bg-surface border-stone-200/60 hover:border-rose-200"
         }`}
     >
       {/* Icon */}
@@ -409,7 +409,7 @@ export default function EventsList({
                 ? filter === "past"
                   ? "bg-stone-600 text-white shadow-sm"
                   : "bg-amber-500 text-white shadow-sm"
-                : "bg-white/80 text-stone-600 border border-stone-200/60 hover:border-amber-200 hover:text-amber-700"
+                : "bg-surface text-stone-600 border border-stone-200/60 hover:border-amber-200 hover:text-amber-700"
                 }`}
             >
               {tab.label}

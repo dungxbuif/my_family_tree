@@ -202,7 +202,7 @@ export default function BubbleMapTree({
         .selectAll("line")
         .data(links)
         .join("line")
-        .attr("stroke", "#d6d3d1")
+        .attr("stroke", "var(--gp-border-subtle)")
         .attr("stroke-width", 2);
 
       // Draw nodes (Family Units)
@@ -243,10 +243,8 @@ export default function BubbleMapTree({
         .attr("ry", (d) => d.radius)
         .attr("width", (d) => d.width)
         .attr("height", (d) => d.radius * 2)
-        .attr("fill", "white")
-        .attr("stroke", (d) =>
-          d.people[0].gender === "male" ? "#3b82f6" : "#ec4899",
-        )
+        .attr("fill", "var(--gp-surface-card)")
+        .attr("stroke", "var(--gp-brand-primary)")
         .attr("stroke-width", (d) => (d.isRoot ? 4 : 2))
         .attr("class", "shadow-md transition-all hover:scale-105 cursor-pointer");
 
@@ -296,7 +294,7 @@ export default function BubbleMapTree({
         .append("text")
         .attr("dy", (d) => d.radius + 18)
         .attr("text-anchor", "middle")
-        .attr("fill", "#44403c")
+        .attr("fill", "var(--gp-text-primary)")
         .attr("font-size", (d) => (d.isRoot ? "14px" : "12px"))
         .attr("font-weight", (d) => (d.isRoot ? "bold" : "normal"))
         .style("pointer-events", "none")
@@ -319,6 +317,8 @@ export default function BubbleMapTree({
       };
     } catch (err) {
       console.error("D3 rendering error:", err);
+      // D3 is an external renderer; surface a render failure to React.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(err instanceof Error ? err : new Error("Unknown error"));
     }
   }, [nodes, links]);

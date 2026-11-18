@@ -65,6 +65,7 @@ export default function MemberDetailModal() {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null;
 
+    /* eslint-disable react-hooks/set-state-in-effect -- URL state is the external source of truth for this modal. */
     if (memberId) {
       setIsOpen(true);
       setIsEditing(false); // always start on detail view when opening
@@ -84,6 +85,7 @@ export default function MemberDetailModal() {
         setIsEditing(false);
       }, 300);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
@@ -169,7 +171,7 @@ export default function MemberDetailModal() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-end justify-center bg-stone-900/40 backdrop-blur-sm sm:items-center sm:p-6"
+          className="fixed inset-0 z-100 flex items-end justify-center bg-stone-900/40 sm:items-center sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Chi tiết thành viên"
@@ -190,7 +192,7 @@ export default function MemberDetailModal() {
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.25, ease: "easeOut" }}
             layoutDependency={false}
-            className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 pb-[var(--safe-bottom)] shadow-2xl backdrop-blur-2xl sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl sm:pb-0"
+            className="relative flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-surface pb-[var(--safe-bottom)] shadow-soft sm:max-h-[90vh] sm:max-w-4xl sm:rounded-3xl sm:pb-0"
             ref={modalRef}
           >
             {/* Sticky Header Actions */}

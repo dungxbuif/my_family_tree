@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 220" fill="none" role="img" aria-labelledby="title desc">
+ <title id="title">Cây gia phả trống</title><desc id="desc">Một cây gia phả cách điệu với ba thẻ người chưa được điền</desc>
+ <rect x="1" y="1" width="358" height="218" rx="22" fill="#FBF7F0" stroke="#E6DFD2"/>
+ <path d="M180 78v36M91 114h178M91 114v22M269 114v22" stroke="#A47B24" stroke-width="3" stroke-linecap="round"/>
+ <rect x="128" y="24" width="104" height="58" rx="16" fill="#FFFDF9" stroke="#E6DFD2"/>
+ <circle cx="180" cy="44" r="11" fill="#EAF0E4"/><path d="M159 70c4-16 38-16 42 0" fill="#EAF0E4"/>
+ <rect x="37" y="137" width="108" height="62" rx="16" fill="#FFFDF9" stroke="#E6DFD2"/>
+ <rect x="215" y="137" width="108" height="62" rx="16" fill="#FFFDF9" stroke="#E6DFD2"/>
+ <g fill="#EAF0E4"><circle cx="91" cy="159" r="11"/><path d="M70 188c4-17 38-17 42 0"/><circle cx="269" cy="159" r="11"/><path d="M248 188c4-17 38-17 42 0"/></g>
+</svg>

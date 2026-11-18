@@ -45,7 +45,7 @@ export default function ExportButton() {
 
       const exportOptions = {
         cacheBust: true,
-        backgroundColor: "#f5f5f4",
+        backgroundColor: "#FBF7F0",
         pixelRatio: 2,
         width: element.scrollWidth,
         height: element.scrollHeight,
@@ -105,7 +105,7 @@ export default function ExportButton() {
         className={`flex min-h-11 items-center gap-2 rounded-full border px-4 font-semibold text-sm shadow-sm transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
           showMenu
             ? "bg-amber-100/90 text-amber-800 border-amber-200"
-            : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
+            : "bg-surface text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md"
         }`}
       >
         {isExporting ? (
@@ -125,7 +125,7 @@ export default function ExportButton() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute left-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-stone-200/60 bg-white/90 py-2 shadow-xl backdrop-blur-xl"
+            className="absolute left-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-stone-200/60 bg-surface py-2 shadow-soft"
           >
             <button
               onClick={() => handleExport("png")}

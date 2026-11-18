@@ -20,7 +20,7 @@ export default function TreeToolbar({
   return (
     <BaseToolbar {...baseProps}>
       {/* Zoom Controls */}
-      <div className="flex min-h-11 items-center overflow-hidden rounded-full border border-stone-200/60 bg-white/80 shadow-sm backdrop-blur-md transition-opacity">
+      <div className="flex min-h-11 items-center overflow-hidden rounded-full border border-stone-200/60 bg-surface shadow-sm transition-opacity">
         <button
           onClick={handleZoomOut}
           aria-label="Thu nhỏ sơ đồ"
@@ -53,7 +53,7 @@ export default function TreeToolbar({
       <button
         onClick={handleCenter}
         aria-label="Căn giữa sơ đồ"
-        className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/60 bg-white/80 text-stone-600 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-stone-900 hover:shadow-md"
+        className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/60 bg-surface text-stone-600 shadow-sm transition-all hover:bg-white hover:text-stone-900 hover:shadow-md"
         title="Căn giữa"
       >
         <Crosshair className="size-4" />

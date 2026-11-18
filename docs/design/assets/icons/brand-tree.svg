@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Gia Phả — cây gia đình</title>
+  <g fill="none" stroke="#A47B24" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M63 111V62M63 78C51 70 45 58 43 45M63 69C79 63 88 51 90 36M63 93C48 87 32 82 25 69M63 87C79 81 99 76 108 62"/>
+    <path d="M48 111h31M39 118h49"/>
+  </g>
+  <g fill="#174D2A">
+    <ellipse cx="26" cy="39" rx="9" ry="15" transform="rotate(-39 26 39)"/>
+    <ellipse cx="43" cy="27" rx="9" ry="14" transform="rotate(-18 43 27)"/>
+    <ellipse cx="65" cy="20" rx="9" ry="14"/>
+    <ellipse cx="86" cy="28" rx="9" ry="14" transform="rotate(18 86 28)"/>
+    <ellipse cx="105" cy="40" rx="9" ry="15" transform="rotate(39 105 40)"/>
+    <ellipse cx="17" cy="62" rx="9" ry="13" transform="rotate(-55 17 62)"/>
+    <ellipse cx="111" cy="62" rx="9" ry="13" transform="rotate(55 111 62)"/>
+    <ellipse cx="37" cy="58" rx="8" ry="12" transform="rotate(-35 37 58)"/>
+    <ellipse cx="88" cy="54" rx="8" ry="12" transform="rotate(35 88 54)"/>
+    <ellipse cx="24" cy="83" rx="8" ry="12" transform="rotate(-55 24 83)"/>
+    <ellipse cx="101" cy="81" rx="8" ry="12" transform="rotate(55 101 81)"/>
+  </g>
+</svg>

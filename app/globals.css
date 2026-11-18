@@ -1,8 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gp-brand-primary: #174d2a;
+  --gp-brand-primary-dark: #103c23;
+  --gp-brand-primary-soft: #eaf0e4;
+  --gp-accent-gold: #a47b24;
+  --gp-accent-gold-soft: #f7eacf;
+  --gp-surface-canvas: #fbf7f0;
+  --gp-surface-card: #fffdf9;
+  --gp-surface-muted: #f4ede2;
+  --gp-text-primary: #1d2720;
+  --gp-text-secondary: #61675e;
+  --gp-border-subtle: #e6dfd2;
+  --gp-status-error: #b43d31;
+  --gp-status-success: #267347;
+  --gp-status-warning: #94640c;
+  --background: var(--gp-surface-canvas);
+  --foreground: var(--gp-text-primary);
   --page-gutter: clamp(1rem, 3vw, 2rem);
   --mobile-nav-height: 4.75rem;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -13,16 +27,102 @@
   --color-foreground: var(--foreground);
 
   /* Typography */
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-playfair);
+  --font-sans: var(--font-be-vietnam-pro);
+  --font-serif: var(--font-noto-serif);
 
-  --color-primary: #1c1917;
-  --color-secondary: #57534e;
-  --color-tertiary: #d97706;
-  --color-neutral: #fafaf9;
-  --color-surface: #ffffff;
-  --color-border: #e7e5e4;
-  --color-error: #dc2626;
+  --color-primary: var(--gp-brand-primary);
+  --color-primary-dark: var(--gp-brand-primary-dark);
+  --color-primary-soft: var(--gp-brand-primary-soft);
+  --color-secondary: var(--gp-text-secondary);
+  --color-tertiary: var(--gp-accent-gold);
+  --color-neutral: var(--gp-surface-canvas);
+  --color-surface: var(--gp-surface-card);
+  --color-border: var(--gp-border-subtle);
+  --color-error: var(--gp-status-error);
+  --color-success: var(--gp-status-success);
+  --color-warning: var(--gp-status-warning);
+
+  /*
+   * Compatibility aliases for the existing component library. These keep the
+   * current utility class API while making every route render Heritage Modern.
+   */
+  --color-stone-50: var(--gp-surface-canvas);
+  --color-stone-100: var(--gp-surface-muted);
+  --color-stone-200: var(--gp-border-subtle);
+  --color-stone-300: #d7cebf;
+  --color-stone-400: #92988f;
+  --color-stone-500: var(--gp-text-secondary);
+  --color-stone-600: #4a554c;
+  --color-stone-700: #34463a;
+  --color-stone-800: var(--gp-text-primary);
+  --color-stone-900: var(--gp-brand-primary-dark);
+  --color-stone-950: #0a2a18;
+
+  --color-amber-50: var(--gp-accent-gold-soft);
+  --color-amber-100: #f4e2bd;
+  --color-amber-200: #e8cd94;
+  --color-amber-300: #d9b865;
+  --color-amber-400: #c69b3d;
+  --color-amber-500: #b4882c;
+  --color-amber-600: var(--gp-accent-gold);
+  --color-amber-700: #805e16;
+  --color-amber-800: #684a10;
+  --color-amber-900: #51390e;
+
+  --color-orange-50: var(--gp-accent-gold-soft);
+  --color-orange-100: #f4e2bd;
+  --color-orange-200: #e8cd94;
+  --color-orange-300: #d9b865;
+  --color-orange-400: #c69b3d;
+  --color-orange-500: #b4882c;
+  --color-orange-600: var(--gp-accent-gold);
+  --color-orange-700: #805e16;
+  --color-orange-800: #684a10;
+
+  /* Component variants: ancestry/selection use green, kinship uses gold. */
+  --color-sky-50: var(--gp-brand-primary-soft);
+  --color-sky-100: var(--gp-brand-primary-soft);
+  --color-sky-200: #cddccf;
+  --color-sky-300: #a6c0aa;
+  --color-sky-400: #5d8d69;
+  --color-sky-500: #34764b;
+  --color-sky-600: var(--gp-brand-primary);
+  --color-sky-700: var(--gp-brand-primary-dark);
+  --color-sky-800: #0d321d;
+
+  --color-rose-50: var(--gp-accent-gold-soft);
+  --color-rose-100: #f4e2bd;
+  --color-rose-200: #e8cd94;
+  --color-rose-300: #d9b865;
+  --color-rose-400: #c69b3d;
+  --color-rose-500: #b4882c;
+  --color-rose-600: var(--gp-accent-gold);
+  --color-rose-700: #805e16;
+  --color-rose-800: #684a10;
+
+  --color-pink-50: var(--gp-accent-gold-soft);
+  --color-pink-100: #f4e2bd;
+  --color-pink-200: #e8cd94;
+  --color-pink-400: #c69b3d;
+  --color-pink-500: #b4882c;
+  --color-pink-600: var(--gp-accent-gold);
+
+  /* Success variants retain semantic green rather than inventing new hues. */
+  --color-emerald-50: #edf7f1;
+  --color-emerald-100: #d7ede0;
+  --color-emerald-200: #b3dac2;
+  --color-emerald-400: #4d976a;
+  --color-emerald-500: #378356;
+  --color-emerald-600: var(--gp-status-success);
+  --color-emerald-700: #1f5f3a;
+  --color-emerald-800: #194b30;
+
+  --color-teal-50: #edf7f1;
+  --color-teal-100: #d7ede0;
+  --color-teal-200: #b3dac2;
+  --color-teal-600: var(--gp-status-success);
+  --color-teal-700: #1f5f3a;
+  --color-teal-800: #194b30;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -30,8 +130,8 @@
   --radius-xl: 16px;
   --radius-3xl: 24px;
 
-  --shadow-soft: 0 8px 30px rgb(0 0 0 / 0.04);
-  --shadow-soft-hover: 0 20px 40px rgb(0 0 0 / 0.08);
+  --shadow-soft: 0 4px 16px rgb(25 43 25 / 0.08);
+  --shadow-soft-hover: 0 12px 30px rgb(16 60 35 / 0.14);
 }
 
 body {
@@ -103,7 +203,7 @@ select {
 
 /* Design System Buttons */
 .btn-primary {
-  @apply inline-flex items-center justify-center shrink-0 gap-1.5 px-4 py-4 bg-primary text-surface rounded-xl hover:bg-[#292524] transition-all duration-300 font-medium hover:-translate-y-1 hover:shadow-soft-hover;
+  @apply inline-flex items-center justify-center shrink-0 gap-1.5 px-4 py-4 bg-primary text-surface rounded-xl hover:bg-stone-900 transition-all duration-300 font-medium hover:-translate-y-1 hover:shadow-soft-hover;
 }
 
 @media (hover: none) {
@@ -135,7 +235,7 @@ select {
 }
 
 .card-feature {
-  @apply bg-white/70 backdrop-blur-xl rounded-3xl p-[32px] shadow-soft hover:-translate-y-1 hover:shadow-soft-hover transition-all duration-300;
+  @apply bg-surface rounded-3xl p-[32px] shadow-soft hover:-translate-y-1 hover:shadow-soft-hover transition-all duration-300;
 }
 
 .title {

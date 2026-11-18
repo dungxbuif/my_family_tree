@@ -64,7 +64,7 @@ export default function GalleryGrid({
         {items.map((item) => (
           <div
             key={item.id}
-            className="break-inside-avoid relative group rounded-2xl overflow-hidden bg-stone-100 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-500"
+            className="break-inside-avoid relative group rounded-2xl overflow-hidden bg-stone-100 cursor-pointer shadow-sm hover:shadow-soft transition-all duration-500"
             onClick={() => setSelectedItem(item)}
           >
             {/* Image */}
@@ -95,7 +95,7 @@ export default function GalleryGrid({
 
             {/* Top Right Icon */}
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100">
-              <div className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white">
+              <div className="p-2 bg-white/20 rounded-full text-white">
                 <Maximize2 className="size-4" />
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function GalleryGrid({
 
       {/* Lightbox Modal */}
       {selectedItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 animate-in fade-in duration-200">
           <button
             onClick={() => setSelectedItem(null)}
             className="absolute top-4 right-4 sm:top-8 sm:right-8 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
@@ -113,7 +113,7 @@ export default function GalleryGrid({
             <X className="size-6" />
           </button>
 
-          <div className="flex flex-col lg:flex-row w-full max-w-6xl max-h-[90vh] bg-stone-950 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="flex flex-col lg:flex-row w-full max-w-6xl max-h-[90vh] bg-stone-950 rounded-2xl overflow-hidden shadow-soft">
             {/* Image Section */}
             <div className="flex-1 relative flex items-center justify-center bg-black/50 p-4 min-h-[50vh] lg:min-h-0">
               <Image

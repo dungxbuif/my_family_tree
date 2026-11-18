@@ -1,5 +1,5 @@
 import config from "@/app/config";
-import DashboardHeader from "@/components/DashboardHeader";
+import { HeritageBottomNav, HeritageHeader } from "@/components/heritage";
 import Footer from "@/components/Footer";
 import LogoutButton from "@/components/LogoutButton";
 import { UserProvider } from "@/components/UserProvider";
@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   if (!profile?.is_active) {
     return (
       <div className="min-h-screen bg-neutral text-primary flex flex-col font-sans">
-        <header className="sticky top-0 z-30 bg-white/80 border-b border-stone-200 shadow-sm transition-all duration-200">
+        <header className="sticky top-0 z-30 bg-surface border-b border-stone-200 shadow-sm transition-all duration-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/" className="group flex items-center gap-2">
@@ -75,12 +75,13 @@ export default async function DashboardLayout({
   return (
     <UserProvider user={user} profile={profile}>
       <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
-        <DashboardHeader />
+        <HeritageHeader />
         {children}
         <Footer
-          className="mt-auto bg-white border-t border-stone-200"
+          className="mt-auto hidden bg-white border-t border-stone-200 md:block"
           showDisclaimer={true}
         />
+        <HeritageBottomNav />
       </div>
     </UserProvider>
   );

@@ -349,7 +349,7 @@ export default function MemberForm({
   };
 
   const inputClasses =
-    "bg-white text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
+    "bg-white text-stone-900 placeholder-stone-500 block min-h-[52px] w-full rounded-2xl border border-stone-300 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[color:var(--color-primary-soft)] focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
@@ -357,7 +357,7 @@ export default function MemberForm({
         variants={formSectionVariants}
         initial="hidden"
         animate="show"
-        className="bg-white/80 p-5 sm:p-8 rounded-2xl shadow-sm border border-stone-200/80"
+        className="rounded-[20px] border border-[var(--color-border)] bg-surface p-5 sm:p-8"
       >
         <h3 className="text-lg sm:text-xl font-serif font-bold text-stone-800 mb-6 border-b border-stone-100 pb-4 flex items-center gap-2">
           <User className="size-5 text-amber-600" />
@@ -492,7 +492,7 @@ export default function MemberForm({
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 bg-stone-50/50 p-4 rounded-xl border border-stone-100">
               <div
                 className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-xl font-bold text-white overflow-hidden shrink-0 shadow-md border-4 border-white
-                  ${!avatarPreview ? (gender === "male" ? "bg-linear-to-br from-sky-400 to-sky-700" : gender === "female" ? "bg-linear-to-br from-rose-400 to-rose-700" : "bg-linear-to-br from-stone-400 to-stone-600") : ""}`}
+                  ${!avatarPreview ? (gender === "male" ? "bg-primary" : gender === "female" ? "bg-tertiary" : "bg-secondary") : ""}`}
               >
                 {avatarPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -760,7 +760,7 @@ export default function MemberForm({
           initial="hidden"
           animate="show"
           transition={{ delay: 0.1 }}
-          className="bg-linear-to-br from-amber-50/80 to-stone-50/80 p-5 sm:p-8 rounded-2xl border border-amber-200/50 shadow-sm relative overflow-hidden"
+          className="relative overflow-hidden rounded-[20px] border border-amber-200/50 bg-amber-50 p-5 sm:p-8"
         >
           {/* Decorative Background Icon */}
           <Lock className="absolute -right-6 -bottom-6 w-32 h-32 text-amber-500/5 rotate-12" />
@@ -843,16 +843,16 @@ export default function MemberForm({
         initial="hidden"
         animate="show"
         transition={{ delay: 0.2 }}
-        className="flex justify-end gap-3 sm:gap-4 pt-6"
+        className="grid grid-cols-2 gap-3 pt-2 sm:flex sm:justify-end sm:gap-4"
       >
         <button
           type="button"
           onClick={() => (onCancel ? onCancel() : router.back())}
-          className="btn"
+          className="btn min-h-[52px] rounded-2xl"
         >
           Hủy bỏ
         </button>
-        <button type="submit" disabled={loading} className="btn-primary">
+        <button type="submit" disabled={loading} className="btn-primary min-h-[52px] rounded-2xl">
           {loading && <Loader2 className="size-4 animate-spin" />}
           {loading
             ? "Đang lưu..."

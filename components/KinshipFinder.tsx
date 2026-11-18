@@ -85,7 +85,7 @@ function PersonSelector({
         onClick={() => setOpen((v) => !v)}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all ${selected
           ? "bg-amber-50 border-amber-300 text-stone-800"
-          : "bg-white/80 border-stone-200 text-stone-400 hover:border-amber-200"
+          : "bg-surface border-stone-200 text-stone-400 hover:border-amber-200"
           }`}
       >
         <div className="relative shrink-0">
@@ -140,7 +140,7 @@ function PersonSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full mt-2 left-0 right-0 z-50 bg-white rounded-2xl shadow-xl border border-stone-200/60 overflow-hidden"
+            className="absolute top-full mt-2 left-0 right-0 z-50 bg-white rounded-2xl shadow-soft border border-stone-200/60 overflow-hidden"
           >
             <div className="p-3 border-b border-stone-100">
               <div className="relative">
@@ -364,7 +364,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
   return (
     <div className="space-y-6">
       {/* ── Selector row ── */}
-      <div className="bg-white/80 border border-stone-200/60 rounded-2xl p-4 sm:p-6 shadow-sm">
+      <div className="bg-surface border border-stone-200/60 rounded-2xl p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4">
           <PersonSelector
             label="Thành viên A"
@@ -430,7 +430,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white/90 border border-stone-200/60 rounded-2xl p-5 shadow-sm"
+                className="bg-surface border border-stone-200/60 rounded-2xl p-5 shadow-sm"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-3">
                   {personA.full_name} gọi {personB.full_name} là
@@ -444,7 +444,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.15 }}
-                className="bg-white/90 border border-stone-200/60 rounded-2xl p-5 shadow-sm"
+                className="bg-surface border border-stone-200/60 rounded-2xl p-5 shadow-sm"
               >
                 <p className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-3">
                   {personB.full_name} gọi {personA.full_name} là
@@ -628,7 +628,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
             >
               <div className="space-y-5 pb-2">
                 {/* Reference table */}
-                <div className="bg-white/80 border border-stone-200/60 rounded-2xl overflow-hidden">
+                <div className="bg-surface border border-stone-200/60 rounded-2xl overflow-hidden">
                   <div className="px-5 py-3 border-b border-stone-100 bg-stone-50/50">
                     <p className="text-sm font-bold text-stone-600">
                       Bảng danh xưng tham khảo
@@ -668,7 +668,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
             >
               <div className="space-y-5 pb-2">
                 {/* Regional Reference table */}
-                <div className="bg-white/80 border border-stone-200/60 rounded-2xl overflow-hidden">
+                <div className="bg-surface border border-stone-200/60 rounded-2xl overflow-hidden">
                   <div className="px-5 py-3 border-b border-stone-100 bg-stone-50/50">
                     <p className="text-sm font-bold text-stone-600">
                       Danh xưng các khu vực ở Việt Nam vô cùng phong phú và đa dạng, dưới đây là một số ví dụ:

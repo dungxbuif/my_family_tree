@@ -105,7 +105,7 @@ export default function MemberDetailContent({
       className="bg-stone-50/50"
     >
       {/* Header / Cover */}
-      <div className="h-28 sm:h-36 bg-linear-to-r from-stone-200 via-stone-100 to-stone-200 relative shrink-0">
+      <div className="h-28 sm:h-36 bg-stone-100 relative shrink-0">
         {/* Decorative blur in cover */}
         <div
           className={`absolute right-0 -top-20 w-64 h-64 rounded-full blur-[60px] opacity-40 ${person.gender === "male" ? "bg-sky-300" : person.gender === "female" ? "bg-rose-300" : "bg-stone-300"}`}
@@ -117,12 +117,12 @@ export default function MemberDetailContent({
           className="absolute -bottom-12 sm:-bottom-16 left-6 sm:left-8 z-10"
         >
           <div
-            className={`h-24 w-24 sm:h-32 sm:w-32 rounded-full border-4 sm:border-[6px] border-white flex items-center justify-center text-3xl sm:text-4xl font-bold text-white overflow-hidden shadow-xl shrink-0
+            className={`h-24 w-24 sm:h-32 sm:w-32 rounded-full border-4 sm:border-[6px] border-white flex items-center justify-center text-3xl sm:text-4xl font-bold text-white overflow-hidden shadow-soft shrink-0
              ${person.gender === "male"
-                ? "bg-linear-to-br from-sky-400 to-sky-700"
+                ? "bg-primary"
                 : person.gender === "female"
-                  ? "bg-linear-to-br from-rose-400 to-rose-700"
-                  : "bg-linear-to-br from-stone-400 to-stone-600"
+                  ? "bg-tertiary"
+                  : "bg-secondary"
               }`}
           >
             {person.avatar_url ? (
@@ -211,7 +211,7 @@ export default function MemberDetailContent({
               {/* Birth Card */}
               <motion.div
                 variants={itemVariants}
-                className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60"
+                className="bg-surface rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export default function MemberDetailContent({
               {isDeceased && (
                 <motion.div
                   variants={itemVariants}
-                  className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60"
+                  className="bg-surface rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span className="size-2 rounded-full bg-stone-400 shadow-[0_0_8px_rgba(156,163,175,0.5)]"></span>
@@ -342,7 +342,7 @@ export default function MemberDetailContent({
                 return (
                   <motion.div
                     variants={itemVariants}
-                    className="bg-linear-to-br from-amber-50 to-orange-50/40 rounded-2xl p-4 border border-amber-200/50 shadow-sm transition-all hover:shadow-md flex flex-col justify-center relative overflow-hidden"
+                    className="bg-amber-50 rounded-2xl p-4 border border-amber-200/50 shadow-sm transition-all hover:shadow-md flex flex-col justify-center relative overflow-hidden"
                   >
                     <Leaf className="absolute -bottom-4 -right-4 w-20 h-20 text-amber-500/10 rotate-12" />
                     <div className="flex items-center gap-2 mb-1.5 relative z-10">
@@ -358,7 +358,7 @@ export default function MemberDetailContent({
                       </p>
                     </div>
                     <div className="pl-4 relative z-10">
-                      <p className="text-3xl sm:text-4xl font-black text-transparent bg-clip-text bg-linear-to-br from-amber-700 to-amber-900 tracking-tight">
+                      <p className="text-3xl sm:text-4xl font-black text-amber-800 tracking-tight">
                         {ageData.age}
                         <span className="text-xs sm:text-sm font-bold text-amber-700/60 ml-1.5 uppercase tracking-wider">
                           tuổi
@@ -379,7 +379,7 @@ export default function MemberDetailContent({
                   <motion.div
                     layout
                     variants={itemVariants}
-                    className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60 sm:col-span-2 md:col-span-3"
+                    className="bg-surface rounded-2xl p-4 border border-stone-200/60 shadow-sm transition-all hover:shadow-md hover:border-amber-200/60 sm:col-span-2 md:col-span-3"
                   >
                     <div className="flex items-center gap-2 mb-3">
                       <span className="size-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></span>
@@ -512,7 +512,7 @@ export default function MemberDetailContent({
                 <Info className="size-5 text-amber-600" />
                 Ghi chú
               </h2>
-              <div className="bg-white/80 backdrop-blur-sm p-5 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative overflow-hidden">
+              <div className="bg-surface p-5 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative overflow-hidden">
                 {note ? (
                   <div className="flex flex-col">
                     <motion.div
@@ -568,7 +568,7 @@ export default function MemberDetailContent({
                 <Users className="size-5 text-amber-600" />
                 Gia đình
               </h2>
-              <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative z-0">
+              <div className="bg-surface p-4 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative z-0">
                 <RelationshipManager
                   person={person}
                   isAdmin={isAdmin}

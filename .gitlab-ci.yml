@@ -33,7 +33,7 @@ validate_tree_scope:
     - apt-get update && apt-get install -y --no-install-recommends postgresql-client
     - bun install --frozen-lockfile
     - ./scripts/migrate-release.mjs
-    - bun test tests/release-tree-scope.test.ts
+    - bun test tests/release-tree-scope.test.ts tests/public-login.test.tsx tests/account-administration.test.ts
     - sh scripts/verify-tree-scope.sh
 
 release_branch_guard:

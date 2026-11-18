@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Database,
   GitMerge,
-  Info,
   Network,
   UserCircle,
   Users,
@@ -18,7 +17,8 @@ import LogoutButton from "./LogoutButton";
 import { useUser } from "./UserProvider";
 
 export default function HeaderMenu() {
-  const { user, isAdmin } = useUser();
+  const { user, profile, isAdmin } = useUser();
+  const isSuperAdmin = profile?.is_active && profile.is_super_admin;
   const userEmail = user?.email;
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -105,23 +105,19 @@ export default function HeaderMenu() {
                 Thống kê
               </Link>
 
+              {isSuperAdmin && (
+                <Link
+                  href="/dashboard/users"
+                  onClick={() => setIsOpen(false)}
+                  className="flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
+                >
+                  <Users className="size-4" aria-hidden="true" />
+                  Quản lý người dùng
+                </Link>
+              )}
+
               {isAdmin && (
                 <>
-                  <div className="px-4 py-2 mt-1">
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">
-                      Quản trị viên
-                    </p>
-                  </div>
-
-                  <Link
-                    href="/dashboard/users"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                  >
-                    <Users className="size-4" />
-                    Quản lý Người dùng
-                  </Link>
-
                   <Link
                     href="/dashboard/lineage"
                     onClick={() => setIsOpen(false)}
@@ -143,15 +139,6 @@ export default function HeaderMenu() {
               )}
 
               <div className="h-px bg-stone-100 my-1 mx-4" />
-
-              <Link
-                href="/about"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-stone-700 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-              >
-                <Info className="size-4" />
-                Giới thiệu
-              </Link>
 
               <LogoutButton />
             </div>

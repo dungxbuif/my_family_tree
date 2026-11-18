@@ -41,7 +41,7 @@ export interface Profile {
 export interface AdminUserData {
   id: string;
   email: string;
-  role: UserRole;
+  is_super_admin: boolean;
   is_active: boolean;
   created_at: string;
 }

@@ -8,7 +8,7 @@ const items = [
   { label: "Trang chủ", href: "/dashboard", icon: Home, id: "home" },
   { label: "Cây gia phả", href: "/dashboard/members?view=tree", icon: Trees, id: "tree" },
   { label: "Thành viên", href: "/dashboard/members?view=list", icon: Users, id: "members" },
-  { label: "Tài khoản", href: "/about", icon: UserRound, id: "account" },
+  { label: "Tài khoản", href: "/dashboard/account", icon: UserRound, id: "account" },
 ] as const;
 
 export default function HeritageBottomNav() {
@@ -18,7 +18,7 @@ export default function HeritageBottomNav() {
 
   const active = pathname === "/dashboard"
     ? "home"
-    : pathname === "/about"
+    : pathname === "/dashboard/account" || pathname === "/dashboard/users"
       ? "account"
       : pathname.startsWith("/dashboard/members")
         ? view === "list" ? "members" : "tree"

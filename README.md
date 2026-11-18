@@ -14,7 +14,7 @@ Dự án này giúp gia đình bạn nắm trọn quyền kiểm soát dữ li�
 - **Tìm danh xưng**: Tự động xác định cách gọi tên chính xác.
 - **Quản lý thành viên**: Lưu trữ thông tin, avatar và sắp xếp thứ tự nhánh dòng họ.
 - **Lưu trữ nội bộ**: Tất cả dữ liệu và hình ảnh được lưu trữ trực tiếp trong cơ sở dữ liệu PostgreSQL và hệ thống tệp của bạn.
-- **Bảo mật**: Hệ thống đăng nhập và phân quyền (Admin, Editor, Member) tích hợp sẵn.
+- **Bảo mật**: Đăng nhập bằng tài khoản do Quản trị viên hệ thống cấp.
 - **Sao lưu & Phục hồi**: Xuất/nhập file JSON, CSV, GEDCOM dễ dàng.
 
 ## Giao diện responsive
@@ -59,13 +59,26 @@ docker-compose up -d
 ### 4. Khởi tạo Database
 Lần đầu tiên chạy, bạn cần khởi tạo cấu trúc bảng:
 ```bash
-docker-compose exec app bun scripts/migrate-local-dev.sh
+bash scripts/migrate-local-dev.sh
 ```
 
-## Tài khoản đầu tiên
-- Truy cập vào trang web và chọn **Đăng ký**.
-- Người đăng ký đầu tiên sẽ tự động được cấp quyền **Admin**.
-- Các tài khoản sau đó sẽ cần được Admin kích hoạt trong mục **Quản lý Người dùng**.
+## Đăng nhập và quản lý tài khoản
+
+Trang `/login` dành cho người đã có tài khoản. Quản trị viên hệ thống đang hoạt
+động có thể tạo, kích hoạt, khóa hoặc xóa tài khoản trong **Tài khoản → Quản lý
+người dùng**. Tài khoản mới được tạo ở trạng thái đang hoạt động theo mặc định.
+Khi bị khóa, các phiên đăng nhập hiện tại kết thúc. Người dùng đăng nhập lại
+sau khi tài khoản được kích hoạt.
+
+Quản trị viên hệ thống không thể tự khóa hoặc tự xóa tài khoản đang đăng nhập.
+Trước khi xóa tài khoản còn liên kết với hồ sơ thành viên, cần gỡ liên kết.
+Nếu tài khoản là Chủ sở hữu duy nhất của một cây gia phả, cần bổ sung Chủ sở hữu
+khác trước khi xóa.
+
+Khi nâng cấp, cơ sở dữ liệu giữ quyền Quản trị viên hệ thống cho những tài khoản
+Admin đã có. Với cơ sở dữ liệu mới hoặc khi không còn Quản trị viên hệ thống
+đang hoạt động, người vận hành khởi tạo tài khoản từ máy quản trị sau khi chạy
+migration. [Quy trình khởi tạo Quản trị viên hệ thống](docs/runbooks/bootstrap-super-admin.md)
 
 ## Triển khai Homelab
 
@@ -95,9 +108,9 @@ RustFS trước khi chuyển dịch vụ sang image mới.
 [Quy trình phát hành và kiểm tra dữ liệu](docs/deployment/gitlab-homelab-migration.md)
 
 ## Phân quyền người dùng
-1. **Admin**: Toàn quyền hệ thống, quản lý người dùng và dữ liệu riêng tư.
-2. **Editor**: Thêm, sửa, xóa thành viên và quan hệ.
-3. **Member**: Chỉ xem thông tin công khai và sơ đồ.
+
+Quản trị viên hệ thống quản lý vòng đời tài khoản. Quyền truy cập dữ liệu gia
+phả do tư cách thành viên trong từng cây quyết định.
 
 ## Quyền riêng tư
 - **Dữ liệu của bạn thuộc về bạn**: Toàn bộ thông tin được lưu trữ cục bộ trên máy chủ của bạn.

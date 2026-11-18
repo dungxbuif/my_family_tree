@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
 import { buildObjectKey, presignUpload, validateUpload } from "./s3";
+import { mkdtempSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 test("creates a safe avatar key from a permitted image", () => {
   expect(
@@ -58,5 +61,45 @@ test("keeps uploaded objects private behind the app storage proxy", async () => 
     if (previous.secretKey === undefined)
       delete process.env.S3_SECRET_ACCESS_KEY;
     else process.env.S3_SECRET_ACCESS_KEY = previous.secretKey;
+  }
+});
+
+test("uses Swarm secret files before direct environment credentials", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "family-s3-secret-"));
+  const names = ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_ACCESS_KEY_ID_FILE", "S3_SECRET_ACCESS_KEY_FILE"];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  try {
+    process.env.S3_ENDPOINT = "http://rustfs.test:9000";
+    process.env.S3_BUCKET = "family-tree";
+    process.env.S3_ACCESS_KEY_ID = "legacy-access";
+    process.env.S3_SECRET_ACCESS_KEY = "legacy-secret";
+    const access = join(folder, "access");
+    const secret = join(folder, "secret");
+    writeFileSync(access, "dedicated-access\n", { mode: 0o600 });
+    writeFileSync(secret, "dedicated-secret\n", { mode: 0o600 });
+    process.env.S3_ACCESS_KEY_ID_FILE = access;
+    process.env.S3_SECRET_ACCESS_KEY_FILE = secret;
+    const result = await presignUpload("avatars", "photo.png", "image/png", 128);
+    expect(new URL(result.uploadUrl).searchParams.get("X-Amz-Credential")).toStartWith("dedicated-access/");
+
+    for (const invalid of ["", join(folder, "missing"), folder]) {
+      process.env.S3_SECRET_ACCESS_KEY_FILE = invalid;
+      await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    }
+    process.env.S3_SECRET_ACCESS_KEY_FILE = secret;
+    writeFileSync(secret, " \n");
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    writeFileSync(secret, "x".repeat(65537));
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    const link = join(folder, "link");
+    symlinkSync(access, link);
+    process.env.S3_SECRET_ACCESS_KEY_FILE = link;
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+  } finally {
+    for (const name of names) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+    rmSync(folder, { recursive: true, force: true });
   }
 });

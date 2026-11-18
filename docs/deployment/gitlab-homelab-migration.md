@@ -1,8 +1,29 @@
 # GitLab homelab group migration
 
+## Dedicated storage credential rollout (2026-11-19)
+
+The production storage target is the private `family-tree` bucket with prefix
+`family-tree/`. Before cutover, copy the legacy `mac-ocr/family-tree/` objects
+to the same keys in the dedicated bucket and compare every object's checksum.
+Keep the legacy objects and service specification during the rollback window.
+Changing the bucket preserves stored `/api/storage/family-tree/...` URLs.
+
+Store the dedicated credential in the `Homelab Secret` 1Password vault.
+Runtime uses Swarm secret files through `S3_ACCESS_KEY_ID_FILE` and
+`S3_SECRET_ACCESS_KEY_FILE`. A configured file takes precedence over the direct
+environment variable and an unreadable, empty or oversized file fails closed;
+credentials and file contents are never included in errors. Local development
+and rollback may retain `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` when the
+corresponding file variable is unset. Build and promotion need no S3 keys.
+
+Verification: focused storage tests cover file precedence and invalid files,
+then a Linux amd64 image build and isolated `/readyz` smoke verify the artifact.
+The ops release must separately verify DB/object access, preserve uploads, and
+restore the previous service specification on a failed health check.
+
 ## Release preparation (2026-11-19)
 
-The canonical repository is `homelab/my-family-tree` on GitLab. The owner creates a protected `prod-<semver>` tag from its `main`. The `ci-build` release job uses the existing shared Docker builder to build a `linux/amd64` image. Next.js compilation and TypeScript checking run inside the Docker build. A smoke check starts the image and checks `/readyz` over HTTP before publishing to the shared registry. Existing branch and merge-request checks still run.
+The canonical repository is `homelab/my-family-tree` on GitLab. The owner creates a protected `prod-<semver>` tag from its `main`. The `ci-build` release job uses the existing shared Docker builder to build a `linux/amd64` image. Next.js compilation and TypeScript checking run inside the Docker build. A smoke check starts the image and checks `/readyz` over HTTP before publishing to the shared registry. Branch pushes, merges to main and merge requests create no pipeline; workflow ends with `when: never`.
 
 App promotion uses protected `HOMELAB_OPS_PUSH_USER` and masked/protected `HOMELAB_OPS_PUSH_TOKEN` to atomically write the digest to `homelab-ops/main` and create `my-family-tree-prod-<semver>`. The shared YAML manifest follows the GitLab slug `my-family-tree`; the runtime service and catalog entry remain `family-tree`. Promotion updates the catalog image metadata while preserving operational fields. The ops runner tagged `cd-production` owns production deployment, health verification, and rollback.
 
@@ -12,9 +33,9 @@ For a pipeline change, check GitLab CI YAML and shell syntax, run the promoter a
 
 - The target is VM100 Swarm service `family-tree` with `edge-http-net` and `family-data-net`. The image runs Next.js under Bun as an unprivileged user on port 3000. The canonical app slug and the Swarm service name differ.
 - GitLab build and promotion consume `LAB_REGISTRY_HOST`, `LAB_REGISTRY_PUSH_USER`, `LAB_REGISTRY_PUSH_PASSWORD`, `HOMELAB_OPS_PUSH_USER`, and `HOMELAB_OPS_PUSH_TOKEN`. Ops needs its shared registry pull configuration. Keep credentials in protected CI variables and the runtime environment as appropriate.
-- PostgreSQL uses `DATABASE_URL`. The image declares `/app/uploads` for legacy data. The unused local storage helper honors `UPLOAD_DIR`. The live upload and image routes use S3. They require `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. `S3_REGION` defaults to `us-east-1`. Image delivery accepts keys with an empty prefix or `family-tree`. Verify the chosen endpoint is reachable by browsers and its CORS policy permits the app origin to PUT presigned uploads. `SITE_NAME` configures the displayed site name. App code reads these environment variables directly.
+- PostgreSQL uses `DATABASE_URL`. The image declares `/app/uploads` for legacy data. The unused local storage helper honors `UPLOAD_DIR`. The live upload and image routes use S3. Set `S3_ENDPOINT`, `S3_BUCKET=family-tree`, `S3_PREFIX=family-tree`, and credential file variables `S3_ACCESS_KEY_ID_FILE` / `S3_SECRET_ACCESS_KEY_FILE` mapped to app-specific Swarm secrets. `S3_REGION` defaults to `us-east-1`. Direct credential environment variables remain local/rollback fallbacks only when the matching file variable is unset. Image delivery accepts keys with an empty prefix or `family-tree`. Verify the chosen endpoint is reachable by browsers and its CORS policy permits the app origin to PUT presigned uploads. `SITE_NAME` configures the displayed site name.
 - `docs/schema.sql` bootstraps a fresh database. The versioned SQL under `docs/migrations/` covers the lunar death date columns on older databases. The app has no automatic production migration, and the promoted manifest declares `migration.enabled: false`. Verify the production schema before the first image rollout.
-- `scripts/backup.sh` captures the local Compose database and local uploads only. For production, confirm recent PostgreSQL, RustFS objects for the actual configured bucket and prefix, and any legacy upload-volume backup and restore evidence. The legacy app example names `mac-ocr/family-tree`, while the ops inventory lists a dedicated `family-tree` bucket. Check which storage the live service uses.
+- `scripts/backup.sh` captures the local Compose database and local uploads only. For production, confirm recent PostgreSQL, RustFS objects for `family-tree/family-tree/`, and any legacy upload-volume backup and restore evidence. During first cutover also retain the legacy `mac-ocr/family-tree/` objects and its rollback configuration.
 - `/readyz` checks the Next.js process. A production verification must also exercise authenticated PostgreSQL reads and S3 upload and retrieval. Swarm rollback restores the previous service specification. Record its image and configuration for the first release and maintain a separate restore procedure for data.
 
 ### Ops enrollment pending
@@ -80,9 +101,9 @@ host and Pi5, and the public GitLab and Family Tree endpoints returned 502.
 Production is not considered complete until VM100 recovers and the matching ops
 verify job passes `/readyz`.
 
-The Mac runner also uses `if-not-present` image pulls so transient Docker Hub
-anonymous-pull limits do not block validation when the pinned toolchain image is
-already cached on the runner.
+The current runner permits only `always` image pulls; all job and service image
+policies use `always`. The source release guard requires the tag commit to equal
+the current `main` commit.
 
 The image build likewise avoids forcing a remote base-image refresh on every
 release; the pinned Bun base remains runner-cached and the immutable application

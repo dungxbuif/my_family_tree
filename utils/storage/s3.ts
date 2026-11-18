@@ -1,13 +1,34 @@
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 
 export type UploadFolder = "avatars" | "gallery";
 const maxBytes = 10 * 1024 * 1024;
 const types: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" };
 
+function credential(name: "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY") {
+  const file = process.env[`${name}_FILE`];
+  if (file === undefined) return process.env[name];
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const info = fstatSync(descriptor);
+    if (!info.isFile() || info.size < 1 || info.size > 65536) throw new Error();
+    const value = readFileSync(descriptor, "utf8").trim();
+    if (!value) throw new Error();
+    return value;
+  } catch {
+    throw new Error(`Không đọc được secret ${name}.`);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function config() {
-  const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
+  const { S3_ENDPOINT, S3_BUCKET } = process.env;
+  const S3_ACCESS_KEY_ID = credential("S3_ACCESS_KEY_ID");
+  const S3_SECRET_ACCESS_KEY = credential("S3_SECRET_ACCESS_KEY");
   if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) throw new Error("S3 chưa được cấu hình.");
   return { bucket: S3_BUCKET, prefix: process.env.S3_PREFIX || "", client: new S3Client({ endpoint: S3_ENDPOINT, region: process.env.S3_REGION || "us-east-1", forcePathStyle: true, credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY } }) };
 }

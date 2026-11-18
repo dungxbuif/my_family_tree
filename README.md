@@ -73,9 +73,13 @@ Production chạy dịch vụ Swarm `family-tree` trên VM100 tại
    đăng nhập, dữ liệu thành viên và tải ảnh. `/readyz` kiểm tra tiến trình
    Next.js, còn các thao tác sau khi đăng nhập kiểm tra PostgreSQL và RustFS.
 
-Cấu hình runtime cần `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`,
-`S3_ACCESS_KEY_ID` và `S3_SECRET_ACCESS_KEY`. Thêm `S3_PREFIX` và `S3_REGION`
-khi cần. Chọn prefix rỗng hoặc `family-tree`. Avatar và ảnh thư viện được tải
+Cấu hình runtime cần `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET=family-tree`,
+`S3_PREFIX=family-tree` và `S3_REGION=us-east-1`. Production dùng credential riêng
+qua `S3_ACCESS_KEY_ID_FILE` và `S3_SECRET_ACCESS_KEY_FILE` trỏ tới Swarm secrets.
+Mỗi biến file được ưu tiên hơn biến trực tiếp; file thiếu, rỗng hoặc không đọc
+được sẽ báo lỗi. Local có thể dùng `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`
+khi không đặt biến file. Push/merge `main` không chạy CI; chỉ protected tag
+`prod-<semver>` kích hoạt phát hành. Avatar và ảnh thư viện được tải
 lên bằng URL ký và phục vụ qua `/api/storage/...`. Nếu còn dữ liệu ảnh cũ
 trong `/app/uploads`, giữ bản sao và xác nhận kế hoạch chuyển dữ liệu sang
 RustFS trước khi chuyển dịch vụ sang image mới.

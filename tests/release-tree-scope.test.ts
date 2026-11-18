@@ -18,6 +18,9 @@ test("release validation requires passing authorization and scoped writes", () =
     expect(run().status).not.toBe(0);
     writeFileSync(join(root, "tests/tree-isolation.test.ts"), passing.replace('test("scope"', 'test.skip("scope"'));
     expect(run().status).not.toBe(0);
+    // A source file with no test definitions exits successfully on Bun 1.3.5.
+    writeFileSync(join(root, "tests/tree-isolation.test.ts"), "export {};");
+    expect(run().status).not.toBe(0);
     writeFileSync(join(root, "tests/tree-isolation.test.ts"), passing);
     expect(run().status).toBe(0);
   } finally {

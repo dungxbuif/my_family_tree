@@ -106,14 +106,14 @@ export default function HeaderMenu() {
               </Link>
 
               {isSuperAdmin && (
-                <Link
+                // Open a document so browser Back also triggers the form's unload guard.
+                <a
                   href="/dashboard/users"
-                  onClick={() => setIsOpen(false)}
                   className="flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-medium text-primary hover:bg-primary-soft"
                 >
-                  <Users className="size-4" aria-hidden="true" />
+                  <Users className="size-5" aria-hidden="true" />
                   Quản lý người dùng
-                </Link>
+                </a>
               )}
 
               {isAdmin && (

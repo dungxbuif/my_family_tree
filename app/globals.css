@@ -158,7 +158,6 @@ textarea {
 
 .dashboard-shell {
   min-height: 100dvh;
-  padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
 }
 
 .content-gutter {
@@ -169,9 +168,9 @@ textarea {
   padding-bottom: var(--safe-bottom);
 }
 
-@media (min-width: 768px) {
-  .dashboard-shell {
-    padding-bottom: 0;
+@media (width < 768px) {
+  .dashboard-shell:has(.dashboard-bottom-nav) {
+    padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
   }
 }
 

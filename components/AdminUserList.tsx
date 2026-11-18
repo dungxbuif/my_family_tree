@@ -3,7 +3,7 @@
 import { adminCreateUser, deleteUser, toggleUserStatus } from "@/app/actions/user";
 import type { AdminUserData } from "@/types";
 import type { AccountMutationResult } from "@/utils/auth/account-administration";
-import { useState, useTransition, type FormEvent } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 
 interface AdminUserListProps {
   users: AdminUserData[];
@@ -12,12 +12,44 @@ interface AdminUserListProps {
 
 export default function AdminUserList({ users, currentUserId }: AdminUserListProps) {
   const [pending, startTransition] = useTransition();
+  const [creation, createAccount, creating] = useActionState(adminCreateUser, null);
   const [notice, setNotice] = useState<{ message: string; isError: boolean } | null>(null);
+  const [hasDraft, setHasDraft] = useState(false);
+  const busy = pending || creating;
+
+  useEffect(() => {
+    if (!hasDraft) return;
+
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = " ";
+    }
+
+    function confirmNavigation(event: MouseEvent) {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest<HTMLAnchorElement>("a[href]");
+      const logout = event.target.closest("button[data-logout]");
+      if (!link && !logout) return;
+      if (link && (link.target || link.origin !== location.origin || link.pathname === location.pathname)) return;
+
+      if (!window.confirm("Thông tin tạo tài khoản chưa được lưu. Bạn có muốn rời trang?")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    document.addEventListener("click", confirmNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", warnBeforeUnload);
+      document.removeEventListener("click", confirmNavigation, true);
+    };
+  }, [hasDraft]);
 
   function submit(
     operation: () => Promise<AccountMutationResult>,
     successMessage: string,
-    onSuccess?: () => void,
   ) {
     setNotice(null);
     startTransition(async () => {
@@ -26,7 +58,6 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
         if ("error" in result) {
           setNotice({ message: result.error, isError: true });
         } else {
-          onSuccess?.();
           setNotice({ message: successMessage, isError: false });
         }
       } catch {
@@ -35,26 +66,32 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
     });
   }
 
-  function createAccount(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    submit(() => adminCreateUser(data), "Đã tạo tài khoản.", () => form.reset());
-  }
-
   return (
-    <div className="space-y-4" aria-busy={pending}>
+    <div className="space-y-4" aria-busy={busy}>
       {notice && (
         <p role={notice.isError ? "alert" : "status"} className={notice.isError ? "body-sm text-error" : "body-sm text-success"}>
           {notice.message}
         </p>
       )}
-      {pending && <p role="status" className="body-sm text-secondary">Đang cập nhật…</p>}
+      {busy && <p role="status" className="body-sm text-secondary">Đang cập nhật…</p>}
+      {!creating && creation && (
+        "error" in creation
+          ? <p role="alert" className="body-sm text-error">{creation.error}</p>
+          : <p role="status" className="body-sm text-success">Đã tạo tài khoản.</p>
+      )}
 
       <details className="rounded-[20px] border border-border bg-surface p-4 shadow-soft">
         <summary className="min-h-11 cursor-pointer py-2 font-semibold text-primary">Thêm tài khoản</summary>
-        <form onSubmit={createAccount} className="pt-2">
-          <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
+        <form
+          action={createAccount}
+          onChange={(event) => {
+            const fields = new FormData(event.currentTarget);
+            setHasDraft(Boolean(fields.get("email") || fields.get("password") || fields.get("is_active") === "false"));
+          }}
+          onSubmit={() => setHasDraft(false)}
+          className="pt-2"
+        >
+          <fieldset disabled={busy} className="grid gap-4 sm:grid-cols-2">
             <label className="body-sm font-semibold">
               Email
               <input
@@ -115,7 +152,7 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      disabled={pending}
+                      disabled={busy}
                       aria-label={`${statusAction} tài khoản ${user.email}`}
                       className="min-h-11 rounded-lg border border-border px-3 body-sm font-medium text-primary hover:bg-primary-soft disabled:opacity-50"
                       onClick={() => {
@@ -127,7 +164,7 @@ export default function AdminUserList({ users, currentUserId }: AdminUserListPro
                     </button>
                     <button
                       type="button"
-                      disabled={pending}
+                      disabled={busy}
                       aria-label={`Xóa tài khoản ${user.email}`}
                       className="min-h-11 rounded-lg border border-border px-3 body-sm font-medium text-error hover:bg-neutral disabled:opacity-50"
                       onClick={() => {

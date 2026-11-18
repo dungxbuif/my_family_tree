@@ -6,10 +6,7 @@ import { Shield } from "lucide-react";
 import { useActionState } from "react";
 
 export default function LoginPage() {
-  const [result, submit, loading] = useActionState(
-    async (_previous: { error: string } | null, formData: FormData) => login(formData),
-    null,
-  );
+  const [result, submit, loading] = useActionState(login, null);
 
   return (
     <div className="flex min-h-dvh flex-col bg-neutral">
@@ -29,6 +26,7 @@ export default function LoginPage() {
                 name="email"
                 type="email"
                 autoComplete="email"
+                defaultValue={result?.email}
                 required
                 className="min-h-12 w-full rounded-lg border border-border bg-surface px-3 text-foreground"
               />

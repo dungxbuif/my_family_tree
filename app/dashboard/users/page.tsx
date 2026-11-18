@@ -27,7 +27,7 @@ export default async function AdminUsersPage() {
       <Link href="/dashboard/account" className="inline-flex min-h-11 items-center text-primary hover:underline">
         Về tài khoản
       </Link>
-      <h1 className="title mb-4">Quản lý người dùng</h1>
+      <h1 className="mb-4 font-sans text-[26px] font-bold leading-[34px] text-primary">Quản lý người dùng</h1>
       {users ? (
         <AdminUserList users={users} currentUserId={profile.id} />
       ) : (

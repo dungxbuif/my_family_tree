@@ -6,12 +6,15 @@ import { query } from "@/utils/db/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-export async function login(formData: FormData) {
-  const email = formData.get("email");
+type LoginError = { error: string; email: string };
+
+export async function login(_previous: LoginError | null, formData: FormData): Promise<LoginError> {
+  const submittedEmail = formData.get("email");
+  const email = typeof submittedEmail === "string" ? submittedEmail : "";
   const password = formData.get("password");
 
-  if (typeof email !== "string" || !email || typeof password !== "string" || !password) {
-    return { error: "Vui lòng nhập đầy đủ email và mật khẩu." };
+  if (!email || typeof password !== "string" || !password) {
+    return { error: "Vui lòng nhập đầy đủ email và mật khẩu.", email };
   }
 
   try {
@@ -23,15 +26,15 @@ export async function login(formData: FormData) {
     );
 
     if (!user || !(await verifyPassword(password, user.password_hash))) {
-      return { error: "Email hoặc mật khẩu không đúng." };
+      return { error: "Email hoặc mật khẩu không đúng.", email };
     }
 
     if (!user.is_active || !(await createSession(user.id))) {
-      return { error: "Tài khoản của bạn chưa được kích hoạt hoặc đã bị khóa. Vui lòng liên hệ Quản trị viên hệ thống." };
+      return { error: "Tài khoản của bạn chưa được kích hoạt hoặc đã bị khóa. Vui lòng liên hệ Quản trị viên hệ thống.", email };
     }
   } catch (err) {
     console.error("Login error:", err);
-    return { error: "Đã có lỗi xảy ra trong quá trình đăng nhập." };
+    return { error: "Đã có lỗi xảy ra trong quá trình đăng nhập.", email };
   }
 
   revalidatePath("/");

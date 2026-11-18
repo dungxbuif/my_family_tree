@@ -14,7 +14,7 @@ function refreshAccountList(result: AccountMutationResult) {
   return result;
 }
 
-export async function adminCreateUser(formData: FormData) {
+export async function adminCreateUser(_previous: AccountMutationResult | null, formData: FormData) {
   return refreshAccountList(await createSystemUser(await getSessionToken(), formData));
 }
 

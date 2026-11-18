@@ -1,15 +1,36 @@
 # GitLab homelab group migration
 
-Status: blocked by VM100 host outage during release verification (2026-11-17)
+## Release preparation (2026-11-19)
 
-## Intended behavior
+The canonical repository is `homelab/my-family-tree` on GitLab. The owner creates a protected `prod-<semver>` tag from its `main`. The `ci-build` release job uses the existing shared Docker builder to build a `linux/amd64` image. Next.js compilation and TypeScript checking run inside the Docker build. A smoke check starts the image and checks `/readyz` over HTTP before publishing to the shared registry. Existing branch and merge-request checks still run.
+
+App promotion uses protected `HOMELAB_OPS_PUSH_USER` and masked/protected `HOMELAB_OPS_PUSH_TOKEN` to atomically write the digest to `homelab-ops/main` and create `my-family-tree-prod-<semver>`. The shared YAML manifest follows the GitLab slug `my-family-tree`; the runtime service and catalog entry remain `family-tree`. Promotion updates the catalog image metadata while preserving operational fields. The ops runner tagged `cd-production` owns production deployment, health verification, and rollback.
+
+For a pipeline change, check GitLab CI YAML and shell syntax, run the promoter against a local catalog fixture, build the image for `linux/amd64`, and run the image smoke in an isolated container. Before a production release, verify runner assignment, variable protection, protected app and ops tag patterns, and matching ops jobs.
+
+### Runtime and data
+
+- The target is VM100 Swarm service `family-tree` with `edge-http-net` and `family-data-net`. The image runs Next.js under Bun as an unprivileged user on port 3000. The canonical app slug and the Swarm service name differ.
+- GitLab build and promotion consume `LAB_REGISTRY_HOST`, `LAB_REGISTRY_PUSH_USER`, `LAB_REGISTRY_PUSH_PASSWORD`, `HOMELAB_OPS_PUSH_USER`, and `HOMELAB_OPS_PUSH_TOKEN`. Ops needs its shared registry pull configuration. Keep credentials in protected CI variables and the runtime environment as appropriate.
+- PostgreSQL uses `DATABASE_URL`. The image declares `/app/uploads` for legacy data. The unused local storage helper honors `UPLOAD_DIR`. The live upload and image routes use S3. They require `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. `S3_REGION` defaults to `us-east-1`. Image delivery accepts keys with an empty prefix or `family-tree`. Verify the chosen endpoint is reachable by browsers and its CORS policy permits the app origin to PUT presigned uploads. `SITE_NAME` configures the displayed site name. App code reads these environment variables directly.
+- `docs/schema.sql` bootstraps a fresh database. The versioned SQL under `docs/migrations/` covers the lunar death date columns on older databases. The app has no automatic production migration, and the promoted manifest declares `migration.enabled: false`. Verify the production schema before the first image rollout.
+- `scripts/backup.sh` captures the local Compose database and local uploads only. For production, confirm recent PostgreSQL, RustFS objects for the actual configured bucket and prefix, and any legacy upload-volume backup and restore evidence. The legacy app example names `mac-ocr/family-tree`, while the ops inventory lists a dedicated `family-tree` bucket. Check which storage the live service uses.
+- `/readyz` checks the Next.js process. A production verification must also exercise authenticated PostgreSQL reads and S3 upload and retrieval. Swarm rollback restores the previous service specification. Record its image and configuration for the first release and maintain a separate restore procedure for data.
+
+### Ops enrollment pending
+
+As of the read-only check on 2026-11-19, `homelab-ops/main` does not have a production manifest or release jobs for `my-family-tree`. The existing `family-tree` catalog entry has `deployable: false` and describes a source bind mount. The shared validator needs to accept `my-family-tree` and its distinct `family-tree` service and catalog ID. Ops enrollment must also preserve runtime environment, networks and data mounts, switch from the source bind mount to the immutable image, and exercise production health and rollback. Runner scope and protections were not verified during app preparation.
+
+## Historical group migration
+
+### Intended behavior
 
 `my-family-tree` is owned by the private GitLab group `homelab` so group-level
 CI/CD variables and runner policy can be shared without copying credentials
 into each project. The repository remote is the group path
 `homelab/my-family-tree`.
 
-## Current state
+### Current state
 
 - GitLab group `homelab` exists (private, group ID 49).
 - `my-family-tree` has been transferred successfully to
@@ -37,7 +58,7 @@ into each project. The repository remote is the group path
   `db-management`, and `RelayHub`; these remain in the user namespace until
   their registry retention/migration is handled deliberately.
 
-## Verification plan
+### Verification plan
 
 1. Assign/enable the protected `homelab-mac` runner for the group.
 2. Add the existing shared credentials at group scope as masked/protected
@@ -48,7 +69,7 @@ into each project. The repository remote is the group path
 4. Verify the matching internal ops receipt tag, VM100 health check, and
    rollback metadata.
 
-## Latest deployment verification
+### Deployment verification before the GitLab reset
 
 The group runner and app-side pipeline are operational. App pipeline `#1035`
 passed for source tag `prod-0.1.32`, and receipt pipeline `#1037` started the

@@ -59,57 +59,28 @@ docker-compose exec app bun scripts/migrate-local-dev.sh
 - Người đăng ký đầu tiên sẽ tự động được cấp quyền **Admin**.
 - Các tài khoản sau đó sẽ cần được Admin kích hoạt trong mục **Quản lý Người dùng**.
 
-## Triển khai homelab: `family.dungxbuif.com`
+## Triển khai Homelab
 
-Production chạy ứng dụng trên Mac mini, PostgreSQL tại Pi5 và Traefik tại
-Orange Pi làm HTTPS reverse proxy.
-Không chạy database container cùng ứng dụng production.
+Production chạy dịch vụ Swarm `family-tree` trên VM100 tại
+`https://family.dungxbuif.com`. PostgreSQL và RustFS được cấu hình riêng.
 
-```bash
-# Tại source repository
-docker build -t homelab/family-tree:local .
+1. Trước khi phát hành, xác nhận `homelab-ops` đã có job dành cho Family Tree.
+2. Chủ repo tạo một tag được bảo vệ `prod-<semver>` từ `main` của GitLab
+   `homelab/my-family-tree`. CI build image `linux/amd64`, kiểm tra `/readyz`,
+   đẩy image và ghi digest vào `homelab-ops/main`. CI tạo tag nội bộ
+   `my-family-tree-prod-<semver>` để khởi động pipeline triển khai.
+3. Kiểm tra job triển khai của `homelab-ops`. Mở `/login`, rồi kiểm tra
+   đăng nhập, dữ liệu thành viên và tải ảnh. `/readyz` kiểm tra tiến trình
+   Next.js, còn các thao tác sau khi đăng nhập kiểm tra PostgreSQL và RustFS.
 
-# Chuẩn bị thư mục deploy trên Mac mini
-mkdir -p ~/production/family-tree/uploads
-cp -R deployment/production/. ~/production/family-tree/
-cp docs/schema.sql ~/production/family-tree/schema.sql
-cp ~/production/family-tree/.env.example ~/production/family-tree/.env
-# Điền DATABASE_URL và các biến S3_*; không commit file .env.
+Cấu hình runtime cần `DATABASE_URL`, `S3_ENDPOINT`, `S3_BUCKET`,
+`S3_ACCESS_KEY_ID` và `S3_SECRET_ACCESS_KEY`. Thêm `S3_PREFIX` và `S3_REGION`
+khi cần. Chọn prefix rỗng hoặc `family-tree`. Avatar và ảnh thư viện được tải
+lên bằng URL ký và phục vụ qua `/api/storage/...`. Nếu còn dữ liệu ảnh cũ
+trong `/app/uploads`, giữ bản sao và xác nhận kế hoạch chuyển dữ liệu sang
+RustFS trước khi chuyển dịch vụ sang image mới.
 
-# Khởi tạo schema (an toàn để chạy lặp lại), rồi chạy app
-cd ~/production/family-tree
-set -a; source .env; set +a
-./migrate.sh
-docker compose up -d
-docker compose ps
-```
-
-Ảnh avatar và gallery được browser tải trực tiếp lên RustFS S3 bằng URL ký.
-Production dùng `S3_BUCKET=mac-ocr` với `S3_PREFIX=family-tree`; các object
-vẫn là private và được app phục vụ qua `/api/storage/...`. Không đưa file ảnh
-qua Server Action hay lưu credential trong mã nguồn.
-
-Thêm router/service sau vào `/opt/edge/traefik/dynamic.yml` trên Orange Pi,
-giữ nguyên các route khác:
-
-```yaml
-http:
-  routers:
-    family:
-      rule: "Host(`family.dungxbuif.com`)"
-      entryPoints: [websecure]
-      service: family
-      tls: *wildcard_tls
-  services:
-    family:
-      loadBalancer:
-        passHostHeader: true
-        servers:
-          - url: "http://10.10.0.10:18085"
-```
-
-Sau khi Traefik nạp lại cấu hình, mở `https://family.dungxbuif.com/login` để tạo tài khoản
-Admin đầu tiên và kiểm tra đăng nhập, thành viên, quan hệ, ảnh và export/import.
+[Quy trình phát hành và kiểm tra dữ liệu](docs/deployment/gitlab-homelab-migration.md)
 
 ## Phân quyền người dùng
 1. **Admin**: Toàn quyền hệ thống, quản lý người dùng và dữ liệu riêng tư.

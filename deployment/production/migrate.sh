@@ -1,20 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-schema_file="${FAMILY_TREE_SCHEMA_FILE:-$script_dir/schema.sql}"
-
-if [[ -z "${DATABASE_URL:-}" ]]; then
-  echo "DATABASE_URL must be set." >&2
-  exit 1
-fi
-
-if [[ ! -r "$schema_file" ]]; then
-  echo "Schema file is not readable: $schema_file" >&2
-  exit 1
-fi
-
-docker run --rm \
-  --mount "type=bind,src=$schema_file,dst=/schema.sql,readonly" \
-  postgres:16-alpine \
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema.sql
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+schema_file="${FAMILY_TREE_SCHEMA_FILE:-$root/docs/schema.sql}"
+: "${DATABASE_URL:?DATABASE_URL is required}"
+docker run --rm -e DATABASE_URL \
+  --mount "type=bind,src=$root/docs,dst=/app/docs,readonly" \
+  --mount "type=bind,src=$root/scripts,dst=/app/scripts,readonly" \
+  --mount "type=bind,src=$schema_file,dst=/app/docs/entry.sql,readonly" \
+  "${FAMILY_TREE_IMAGE:-homelab/family-tree:local}" /app/scripts/migrate-release.mjs /app/docs/entry.sql

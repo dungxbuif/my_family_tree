@@ -5,6 +5,23 @@ export type RelationshipType =
   | "adopted_child";
 export type UserRole = "admin" | "editor" | "member";
 
+export type TreeRole = "owner" | "editor" | "viewer";
+
+export interface FamilyTree {
+  id: string;
+  name: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TreeMembership {
+  tree_id: string;
+  user_id: string;
+  role: TreeRole;
+  created_at: string;
+}
+
 export interface AppUser {
   id: string;
   email: string;
@@ -13,6 +30,7 @@ export interface AppUser {
 }
 
 export interface Profile {
+  is_super_admin: boolean;
   id: string;
   role: UserRole;
   is_active: boolean;
@@ -29,6 +47,9 @@ export interface AdminUserData {
 }
 
 export interface Person {
+  tree_id: string;
+  email: string | null;
+  linked_user_id: string | null;
   id: string;
   full_name: string;
   gender: Gender;
@@ -62,6 +83,7 @@ export interface Person {
 }
 
 export interface Relationship {
+  tree_id: string;
   id: string;
   type: RelationshipType;
   person_a: string; // UUID
@@ -79,6 +101,7 @@ export interface PersonWithDetails extends Person {
 }
 
 export interface GalleryItem {
+  tree_id: string;
   id: string;
   title: string;
   description: string | null;

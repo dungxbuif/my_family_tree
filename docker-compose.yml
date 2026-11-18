@@ -35,6 +35,8 @@ services:
       - "55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docs:/family-tree/docs:ro
+      - ./scripts:/family-tree/scripts:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d family_tree"]
       interval: 5s

@@ -54,7 +54,7 @@ def main() -> None:
         "  liveness: /readyz\n"
         "  readiness: /readyz\n"
         "migration:\n"
-        "  enabled: false\n"
+        "  enabled: true\n"
     )
     manifest_path.write_text(manifest, encoding="utf-8")
     catalog_path.write_text(catalog[:entry.start()] + updated + catalog[entry.end():], encoding="utf-8")

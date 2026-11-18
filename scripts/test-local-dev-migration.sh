@@ -6,6 +6,7 @@ bash scripts/wait-for-local-db.sh
 bash scripts/migrate-local-dev.sh
 
 docker compose exec -T db psql -v ON_ERROR_STOP=1 -U postgres -d family_tree <<'SQL'
+BEGIN;
 SET search_path TO public;
 
 DO $$
@@ -32,13 +33,14 @@ BEGIN
   END IF;
 END $$;
 
-INSERT INTO public.persons (full_name, gender)
-VALUES ('Local Dev Migration Check', 'other')
-RETURNING id;
-
-INSERT INTO public.users (email, password_hash)
-VALUES ('migration-check@example.test', 'scrypt:test:test')
-ON CONFLICT (email) DO NOTHING;
+INSERT INTO public.users (email,password_hash)
+VALUES ('smoke-' || gen_random_uuid() || '@example.test', 'fixture')
+RETURNING id AS user_id \gset
+INSERT INTO public.family_trees(name) VALUES ('Migration smoke') RETURNING id AS tree_id \gset
+INSERT INTO public.tree_memberships(tree_id,user_id,role) VALUES (:'tree_id', :'user_id', 'owner');
+INSERT INTO public.persons(tree_id,full_name,gender) VALUES (:'tree_id', 'Local Dev Migration Check', 'other');
+SET CONSTRAINTS ALL IMMEDIATE;
+ROLLBACK;
 SQL
 
 echo "Local development migration test passed."

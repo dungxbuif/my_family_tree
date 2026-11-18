@@ -50,6 +50,9 @@ Each Agent Credential belongs to a System User. REST and MCP authenticate as tha
 34. As an operator, I want API and MCP mutations audited without secrets or private payloads, so that changes are traceable without creating another data leak.
 35. As a mobile user, I want exact-email, membership, and Agent Credential controls to wrap and remain tappable, so that long values do not overflow the screen.
 36. As a desktop user, I want the same mobile-first components to expand naturally, so that the product retains one visual language.
+37. As a family editor, I want to add a Person directly from the Family Tree view, so that I do not have to leave the graph and re-find my context.
+38. As a family editor with a selected Person, I want the add flow to carry that Person as relationship context, so that the new Person can be connected correctly during creation.
+39. As a mobile family editor, I want the in-tree add form to avoid obscuring navigation and preserve my graph position, so that I can continue editing after save or cancel.
 
 ## Implementation Decisions
 
@@ -72,6 +75,7 @@ Each Agent Credential belongs to a System User. REST and MCP authenticate as tha
 - REST uses bounded collections and stable JSON errors. MCP uses stateless Streamable HTTP, official Web-standard server tooling, bounded schemas, and safe tool errors.
 - Image bytes are not transported as base64 through MCP; gallery operations reference application-owned uploaded URLs.
 - All new UI follows the approved Heritage Modern tokens, supports 320–430px first, uses 44px minimum targets, respects safe areas, wraps long values, and introduces no page-level horizontal overflow.
+- The Family Tree view exposes a permission-gated “Thêm thành viên” action. With a selected Person it opens contextual Person + relationship entry; without a selection it creates an unconnected Person. Successful save refreshes the graph and focuses the new Person, while cancel preserves the previous viewport.
 
 ## Testing Decisions
 
@@ -79,6 +83,7 @@ Each Agent Credential belongs to a System User. REST and MCP authenticate as tha
 - PostgreSQL integration tests exercise the real migration and constraints: legacy backfill, role mapping, row-count preservation, reruns, collision/orphan rollback, Person Link uniqueness, final-owner protection, and cross-tree rejection.
 - Shared application-service tests exercise tree isolation and permission intersections once for browser, REST, and MCP consumers: different roles in two trees, suspended users, removed memberships, private data, destructive operations, imports, exports, and audit metadata.
 - Browser tests exercise create/switch/manage workflows and exact-email behavior at 320×568, 430×932, and desktop. They verify accessibility, target sizes, wrapping, safe areas, and absence of overflow.
+- Browser tests cover in-tree Person creation with and without a selected relationship context, permission denial for viewers, graph focus after save, and viewport preservation after cancel.
 - Transport integration tests verify REST status/error contracts and a real MCP client initialize/list/call flow without retesting domain behavior at a lower seam.
 - Security-focused tests verify forged tree IDs, cross-tree object IDs, stale cookies, email enumeration attempts, plaintext-key absence, revoked/expired credentials, and immediate permission loss.
 - Production migration rehearsal runs against a production-shaped database copy or fixture and records before/after counts and access mappings.

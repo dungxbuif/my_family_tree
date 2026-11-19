@@ -99,10 +99,14 @@ sớm nhất. Khi danh sách trống, bạn có thể tạo cây đầu tiên.
 Trong cây đang chọn, Chủ sở hữu mở **Quản lý quyền truy cập → Thêm quyền truy
 cập**, nhập đầy đủ email của tài khoản đang hoạt động và chọn vai trò. Vai trò
 mặc định là Người xem. Bạn có thể đổi vai trò trong danh sách người đã có quyền.
-Trước khi gỡ hoặc hạ quyền Chủ sở hữu cuối cùng, hãy cấp quyền này cho người khác.
+Mỗi cây cần giữ ít nhất một Chủ sở hữu đang hoạt động. Trước khi gỡ quyền,
+hạ quyền, khóa hoặc xóa tài khoản Chủ sở hữu cuối cùng đang hoạt động, hãy cấp
+quyền này cho một tài khoản đang hoạt động khác trong mỗi cây bị ảnh hưởng.
 
 Để gắn tài khoản với một người trong gia phả, chọn **Liên kết hồ sơ**, nhập
-email đầy đủ và chọn hồ sơ. Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
+email đầy đủ và chọn hồ sơ. Mã bên cạnh tên giúp phân biệt các hồ sơ trùng tên.
+Nếu kết nối gián đoạn khi lưu, hãy mở lại danh sách trong thẻ mới để kiểm tra
+kết quả. Thẻ hiện tại giữ thông tin đã gửi. Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
 Người xem. Mỗi tài khoản có thể liên kết với một hồ sơ trong mỗi cây. Gỡ liên
 kết trước khi đổi sang tài khoản khác hoặc gỡ quyền truy cập. Thay đổi email
 của hồ sơ đã liên kết vẫn giữ nguyên tài khoản gắn với hồ sơ.

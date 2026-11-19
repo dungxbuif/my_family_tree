@@ -1,6 +1,7 @@
 import { FAMILY_TREE_NAME_LIMIT, type TreeRole } from "@/types";
 import type { Pool } from "pg";
 import { pool } from "@/utils/db/client";
+import { accountAccessLock } from "./account-access-lock";
 
 export type AccessibleTree = { id: string; name: string; role: TreeRole };
 type TreeDatabase = Pick<Pool, "query">;
@@ -11,7 +12,8 @@ export async function createFamilyTree(actorId: string, name: unknown, database:
     return { code: "INVALID_NAME" as const };
   }
   const { rows } = await database.query<AccessibleTree>(
-    `WITH actor AS (SELECT id FROM profiles WHERE id=$1 AND is_active FOR SHARE),
+    `WITH access_lock AS MATERIALIZED (${accountAccessLock.shared}),
+          actor AS (SELECT p.id FROM access_lock CROSS JOIN profiles p WHERE p.id=$1 AND p.is_active FOR SHARE OF p),
           tree AS (INSERT INTO family_trees(name) SELECT $2 FROM actor RETURNING id,name),
           membership AS (
             INSERT INTO tree_memberships(tree_id,user_id,role)

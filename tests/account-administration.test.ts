@@ -161,3 +161,62 @@ test("concurrent deletion attempts between Super Admins leave one active adminis
   );
   expect(rowCount).toBe(1);
 });
+
+test("a Super Admin must preserve an active Owner in every tree when suspending or deleting a user", async () => {
+  const { createFamilyTree } = await import("@/utils/auth/tree-access");
+  const { manageTreeAccess } = await import("@/utils/auth/tree-membership");
+  const admin = await seedAccount(true), target = await seedAccount(), backup = await seedAccount();
+  const ids: string[] = [];
+  try {
+    for (const name of ["A", "B"]) {
+      const { tree } = await createFamilyTree(target.id, name, database);
+      ids.push(tree!.id);
+    }
+    await manageTreeAccess(target.id, ids[0], { operation: "add", role: "owner", email: backup.id + "@example.test" }, database);
+    const inactive = await seedAccount(false, false);
+    await database.query("INSERT INTO tree_memberships(tree_id,user_id,role) VALUES ($1,$2,'owner')", [ids[1],inactive.id]);
+    expect(await accounts.setSystemUserActive(admin.token, target.id, false, database)).toMatchObject({ code: "LAST_ACTIVE_OWNER" });
+    expect(await accounts.deleteSystemUser(admin.token, target.id, database)).toMatchObject({ code: "ACCOUNT_IN_USE" });
+    expect((await database.query("SELECT FROM profiles JOIN sessions ON sessions.user_id=profiles.id WHERE profiles.id=$1 AND is_active",
+      [target.id])).rowCount).toBe(1);
+    await manageTreeAccess(target.id, ids[1], { operation: "add", role: "owner", email: backup.id + "@example.test" }, database);
+    expect(await accounts.setSystemUserActive(admin.token, target.id, false, database)).toEqual({ success: true });
+  } finally {
+    await database.query("DELETE FROM family_trees WHERE id=ANY($1::uuid[])", [ids]);
+  }
+});
+
+test("suspension racing the other Owner's demotion leaves one active Owner", async () => {
+  const { createFamilyTree } = await import("@/utils/auth/tree-access");
+  const { manageTreeAccess } = await import("@/utils/auth/tree-membership");
+  const admin = await seedAccount(true), first = await seedAccount(), second = await seedAccount();
+  const { tree } = await createFamilyTree(first.id, "Chủ sở hữu", database);
+  const id = tree!.id;
+  const name = "owner-demotion-" + randomUUID();
+  const changes = new Pool({ connectionString, application_name: name, statement_timeout: 5000 });
+  const holdTree = await database.connect();
+  try {
+    await manageTreeAccess(first.id, id, { operation: "add", role: "owner", email: second.id + "@example.test" }, database);
+    await holdTree.query("BEGIN");
+    await holdTree.query("SELECT FROM family_trees WHERE id=$1 FOR UPDATE", [id]);
+    const demotion = manageTreeAccess(second.id, id, { operation: "role", userId: second.id, role: "viewer" }, changes);
+    let blocked = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const waiting = await database.query("SELECT FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock'", [name]);
+      if (waiting.rowCount) { blocked = true; break; }
+      await Bun.sleep(10);
+    }
+    const suspension = accounts.setSystemUserActive(admin.token, first.id, false, database);
+    await holdTree.query("COMMIT");
+    expect(blocked).toBe(true);
+    expect(await demotion).toEqual({ ok: true });
+    expect(await suspension).toMatchObject({ code: "LAST_ACTIVE_OWNER" });
+    expect((await database.query(`SELECT FROM tree_memberships m JOIN profiles p ON p.id=m.user_id
+      WHERE m.tree_id=$1 AND m.role='owner' AND p.is_active`, [id])).rowCount).toBe(1);
+  } finally {
+    await holdTree.query("ROLLBACK");
+    holdTree.release();
+    await changes.end();
+    await database.query("DELETE FROM family_trees WHERE id=$1", [id]);
+  }
+});

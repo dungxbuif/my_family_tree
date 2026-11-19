@@ -147,3 +147,61 @@ test("an Owner in another tree cannot manage this tree as an Editor or Viewer, i
     expect(await readTreeAccess(actor.id, treeId, db)).toBeNull();
   }
 });
+
+test("an existing non-dotted account can be added by its complete normalized email", async () => {
+  const owner = await account(), legacy = await account(), treeId = await tree(owner.id);
+  const email = '"legacy ' + legacy.id + '"@intranet';
+  await db.query("UPDATE users SET email=$2 WHERE id=$1", [legacy.id,email]);
+  expect(await manageTreeAccess(owner.id, treeId, { operation: "add", email: "\u00a0" + email.toUpperCase() + "\u3000" }, db))
+    .toEqual({ ok: true });
+});
+
+test("competing changes leave an active Owner when another Owner is suspended", async () => {
+  const a = await account(), b = await account(), suspended = await account();
+  const treeId = await tree(a.id);
+  for (const target of [b, suspended]) await manageTreeAccess(a.id, treeId, { operation: "add", role: "owner", email: target.email }, db);
+  await db.query("UPDATE profiles SET is_active=false WHERE id=$1", [suspended.id]);
+  const changes = await Promise.all([
+    manageTreeAccess(a.id, treeId, { operation: "remove", userId: a.id }, db),
+    manageTreeAccess(b.id, treeId, { operation: "role", role: "viewer", userId: b.id }, db),
+  ]);
+  expect(changes).toContainEqual({ code: "LAST_OWNER" });
+  expect(changes).toContainEqual({ ok: true });
+  expect((await db.query(`SELECT FROM tree_memberships m JOIN profiles p ON p.id=m.user_id
+    WHERE m.tree_id=$1 AND m.role='owner' AND p.is_active`, [treeId])).rowCount).toBe(1);
+});
+
+test("account deletion waits before locking account rows while a Person Link is committing", async () => {
+  const { deleteSystemUser } = await import("@/utils/auth/account-administration");
+  const { createHash } = await import("node:crypto");
+  const owner = await account(), admin = await account(), target = await account();
+  const treeId = await tree(owner.id), id = await person(treeId), token = randomUUID();
+  await db.query("UPDATE profiles SET is_super_admin=true WHERE id=$1", [admin.id]);
+  await db.query("INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '5 minutes')",
+    [admin.id,createHash("sha256").update(token).digest("hex")]);
+  const suffix = "access-order-" + randomUUID();
+  const deletionPool = new Pool({ connectionString, application_name: suffix, statement_timeout: 5000 });
+  const client = await db.connect();
+  let deletion: ReturnType<typeof deleteSystemUser> | undefined;
+  let waitedFor = "";
+  try {
+    await client.query("BEGIN");
+    expect(await updatePersonEmailInTransaction(client, owner.id, treeId, id, target.email)).toEqual({ ok: true });
+    deletion = deleteSystemUser(token, target.id, deletionPool);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const { rows } = await db.query("SELECT wait_event FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock'", [suffix]);
+      if (rows[0]) { waitedFor = rows[0].wait_event; break; }
+      await Bun.sleep(10);
+    }
+    await client.query("COMMIT");
+    expect(await deletion).toMatchObject({ code: "ACCOUNT_IN_USE" });
+    expect(waitedFor).toBe("advisory");
+    expect((await db.query("SELECT linked_user_id FROM persons WHERE tree_id=$1 AND id=$2", [treeId,id])).rows).toEqual([{ linked_user_id: target.id }]);
+    expect((await db.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2", [treeId,target.id])).rows).toEqual([{ role: "viewer" }]);
+  } finally {
+    await client.query("ROLLBACK");
+    client.release();
+    await deletion;
+    await deletionPool.end();
+  }
+}, 10000);

@@ -331,3 +331,34 @@ routeTest("the current Owner manages access by native exact-email POST and anoth
     await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
   }
 }, 15000);
+
+routeTest("a failed native access write renders the submitted role and exact email as a protected draft", async () => {
+  const owner = await seedAccount(false), target = await seedAccount(false);
+  const tree = randomUUID(), tag = "access_fixture_" + tree.replaceAll("-", "");
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=add&treeId=" + tree, appUrl);
+  const draft = "\u2002" + target.id.toUpperCase() + "@EXAMPLE.TEST\u3000";
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Cây kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships SELECT id,$2,'owner',now() FROM t`, [tree,owner.id]);
+    await database.query(`CREATE FUNCTION ${tag}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'fixture write unavailable'; END $$;
+      CREATE TRIGGER ${tag} BEFORE INSERT ON tree_memberships FOR EACH ROW
+        WHEN (NEW.tree_id='${tree}') EXECUTE FUNCTION ${tag}()`);
+    const form = renderedForm(await (await fetch(edit, { headers: { cookie } })).text(), "email");
+    form.inputs.set("email", draft);
+    form.inputs.set("role", "editor");
+    const response = await fetch(new URL(form.action || edit, edit), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs,
+    });
+    const html = await response.text();
+    expect(html).toContain("Chưa thể xác nhận kết quả");
+    expect(countElements(html, "main form")).toBe(0);
+    expect(countElements(html, '[aria-label="Thông tin đã gửi"]')).toBe(1);
+    expect(html).toContain(draft);
+    expect(html).toContain("Biên tập viên");
+  } finally {
+    await database.query(`DROP FUNCTION IF EXISTS ${tag}() CASCADE`);
+    await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);

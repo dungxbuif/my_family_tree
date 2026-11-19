@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { pool, withTransaction } from "@/utils/db/client";
 import { hashPassword } from "./password";
 import { hashSessionToken } from "./session";
+import { accountAccessLock } from "./account-access-lock";
 
 const errors = {
   FORBIDDEN: "Chỉ Quản trị viên hệ thống đang hoạt động mới có quyền thực hiện thao tác này.",
@@ -10,7 +11,8 @@ const errors = {
   INVALID_TARGET: "Tài khoản hoặc trạng thái không hợp lệ.",
   ACCOUNT_NOT_FOUND: "Không tìm thấy tài khoản.",
   SELF_PROTECTED: "Bạn không thể khóa hoặc xóa tài khoản đang đăng nhập.",
-  ACCOUNT_IN_USE: "Tài khoản còn liên kết với hồ sơ thành viên hoặc là chủ sở hữu duy nhất của một cây gia phả.",
+  ACCOUNT_IN_USE: "Tài khoản còn liên kết với hồ sơ thành viên hoặc một cây gia phả vẫn cần chủ sở hữu này.",
+  LAST_ACTIVE_OWNER: "Hãy cấp quyền chủ sở hữu cho một tài khoản đang hoạt động khác trước khi khóa tài khoản này.",
   ACCOUNT_UPDATE_FAILED: "Không thể cập nhật tài khoản. Vui lòng thử lại.",
 } as const;
 
@@ -21,6 +23,17 @@ function failure(code: keyof typeof errors) {
 export type AccountMutationResult = { success: true } | ReturnType<typeof failure>;
 type AccountDatabase = Pick<Pool, "connect">;
 const accountIdPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+// Called under the exclusive account lifecycle lock, before suspension or
+// cascading deletion. Tree-access transactions cannot change this answer.
+async function isLastActiveOwner(client: PoolClient, userId: string) {
+  const result = await client.query(`SELECT FROM tree_memberships m JOIN profiles p ON p.id=m.user_id
+    WHERE m.user_id=$1 AND m.role='owner' AND p.is_active AND NOT EXISTS (
+      SELECT FROM tree_memberships other JOIN profiles active ON active.id=other.user_id
+      WHERE other.tree_id=m.tree_id AND other.user_id<>m.user_id AND other.role='owner' AND active.is_active
+    ) LIMIT 1`, [userId]);
+  return result.rowCount === 1;
+}
 
 async function mutateAccounts(
   token: string | undefined,
@@ -33,7 +46,7 @@ async function mutateAccounts(
     return await withTransaction(async (client) => {
       // Serialize account mutations so simultaneous changes cannot revoke each
       // other's authority after the session check.
-      await client.query("SELECT pg_advisory_xact_lock(917208342)");
+      await client.query(accountAccessLock.exclusive);
       const { rows: [actor] } = await client.query<{ id: string }>(
         `SELECT p.id
            FROM sessions s JOIN profiles p ON p.id = s.user_id
@@ -102,6 +115,7 @@ export async function setSystemUserActive(
       return failure("INVALID_TARGET");
     }
     if (!active && userId.toLowerCase() === actorId) return failure("SELF_PROTECTED");
+    if (!active && await isLastActiveOwner(client, userId)) return failure("LAST_ACTIVE_OWNER");
 
     const { rowCount } = await client.query("UPDATE profiles SET is_active = $2 WHERE id = $1", [userId, active]);
     if (rowCount === 0) return failure("ACCOUNT_NOT_FOUND");
@@ -118,6 +132,7 @@ export async function deleteSystemUser(
   return mutateAccounts(token, async (client, actorId) => {
     if (typeof userId !== "string" || !accountIdPattern.test(userId)) return failure("INVALID_TARGET");
     if (userId.toLowerCase() === actorId) return failure("SELF_PROTECTED");
+    if (await isLastActiveOwner(client, userId)) return failure("ACCOUNT_IN_USE");
 
     const { rowCount } = await client.query("DELETE FROM users WHERE id = $1", [userId]);
     if (rowCount === 0) return failure("ACCOUNT_NOT_FOUND");

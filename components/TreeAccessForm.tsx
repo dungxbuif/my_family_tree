@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { submitTreeAccess } from "@/app/actions/tree-membership";
 import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
-import type { AccessMember, AccessSnapshot } from "@/utils/auth/tree-membership";
+import type { AccessMember } from "@/utils/auth/tree-membership";
 import type { AccessNotice } from "@/utils/auth/browser-tree-membership";
 import { accessOperations, accessPath, deniedAccess, treeRoles, type AccessOperation } from "@/utils/tree-access-labels";
 
@@ -12,9 +12,9 @@ const errors = {
   FORBIDDEN: deniedAccess,
   UNAVAILABLE: "Không thể thực hiện thay đổi với thông tin đã nhập.",
   CONFIRM: "Vui lòng xác nhận thay đổi trước khi tiếp tục.",
-  LAST_OWNER: "Cây gia phả cần ít nhất một chủ sở hữu. Hãy cấp quyền chủ sở hữu cho người khác trước.",
+  LAST_OWNER: "Cây gia phả cần ít nhất một chủ sở hữu đang hoạt động. Hãy cấp quyền chủ sở hữu cho người khác trước.",
   LINKED: "Hãy gỡ liên kết hồ sơ trước khi gỡ quyền truy cập.",
-  UNCERTAIN: "Chưa thể xác nhận kết quả. Hãy tải lại danh sách để kiểm tra.",
+  UNCERTAIN: "Chưa thể xác nhận kết quả. Mở danh sách trong thẻ mới để kiểm tra. Thông tin đã gửi được giữ ở đây.",
 };
 function subscribe(notify: () => void) {
   window.addEventListener("online", notify);
@@ -22,8 +22,9 @@ function subscribe(notify: () => void) {
   return () => { window.removeEventListener("online", notify); window.removeEventListener("offline", notify); };
 }
 
-export default function TreeAccessForm({ tree, operation, member, people }: {
-  tree: { id: string; name: string }; operation: AccessOperation; member?: AccessMember; people: AccessSnapshot["people"];
+export default function TreeAccessForm({ tree, operation, member, people, unavailable }: {
+  tree: { id: string; name: string }; operation: AccessOperation; member?: AccessMember;
+  people: { id: string; label: string }[]; unavailable: boolean;
 }) {
   const [native, action] = useActionState(submitTreeAccess, null);
   const [notice, setNotice] = useState<AccessNotice | null>(native?.notice ?? null);
@@ -40,7 +41,9 @@ export default function TreeAccessForm({ tree, operation, member, people }: {
   const saved = notice && "ok" in notice;
   const readOnly = saved || code === "FORBIDDEN" || code === "UNCERTAIN";
   const dirty = Boolean(email || role !== initialRole || person || confirmed);
-  useUnsavedNavigation(!readOnly && (dirty || busy), "Thay đổi quyền truy cập chưa được lưu. Bạn có muốn rời trang?");
+  useUnsavedNavigation(code === "UNCERTAIN" || (!readOnly && (dirty || busy)), code === "UNCERTAIN"
+    ? "Chưa thể xác nhận kết quả. Rời trang sẽ bỏ thông tin đã gửi. Bạn có muốn rời trang?"
+    : "Thay đổi quyền truy cập chưa được lưu. Bạn có muốn rời trang?");
   useEffect(() => {
     if (saved) window.location.replace(accessPath + "?saved=1&treeId=" + tree.id);
   }, [saved, tree.id]);
@@ -66,11 +69,19 @@ export default function TreeAccessForm({ tree, operation, member, people }: {
       setBusy(false);
     }
   }
+  if (unavailable && code !== "UNCERTAIN") {
+    return <><p role="alert">Thao tác này không còn khả dụng.</p><a className="btn min-h-11" href={accessPath}>Xem quyền truy cập</a></>;
+  }
   return <section className="grid min-w-0 gap-3 rounded-[20px] border border-border bg-surface p-4 shadow-soft">
     <h2 className="font-sans text-[22px] font-semibold leading-[30px] text-primary">{accessOperations[operation]}</h2>
     <p className="body-sm text-secondary [overflow-wrap:anywhere]">{tree.name}</p>
     {member && <p className="[overflow-wrap:anywhere]">{member.email}{operation === "unlink" && " · " + member.personName}</p>}
     {code && <p role="alert" className="body-md text-error">{errors[code]}</p>}
+    {code === "UNCERTAIN" && <section aria-label="Thông tin đã gửi" className="grid min-w-0 gap-2 [overflow-wrap:anywhere]">
+      {email && <p className="whitespace-pre-wrap">Email · {email}</p>}
+      {(operation === "role" || operation === "add") && <p>Vai trò · {treeRoles[role as keyof typeof treeRoles]}</p>}
+      {operation === "link" && <p>Hồ sơ gia phả · {people.find(p => p.id === person)?.label ?? person}</p>}
+    </section>}
     {saved && <p role="status">Đã cập nhật quyền truy cập.</p>}
     {!online && <p role="status" className="text-warning">Đã mất kết nối. Hãy kết nối lại để lưu thay đổi.</p>}
     {!readOnly && <form action={action} onSubmit={submit} aria-busy={busy}>
@@ -81,7 +92,7 @@ export default function TreeAccessForm({ tree, operation, member, people }: {
         {operation === "unlink" && <input type="hidden" name="personId" value={member?.personId ?? ""} />}
         {(operation === "add" || operation === "link") && <label className="body-md font-semibold">
           Email đầy đủ của tài khoản
-          <input required type="email" name="email" maxLength={254} autoComplete="off" autoCapitalize="none"
+          <input required type="text" inputMode="email" name="email" maxLength={512} autoComplete="off" autoCapitalize="none"
             spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} className={control} />
         </label>}
         {(operation === "add" || operation === "role") && <label className="body-md font-semibold">Vai trò
@@ -92,7 +103,7 @@ export default function TreeAccessForm({ tree, operation, member, people }: {
         {operation === "link" && <label className="body-md font-semibold">Hồ sơ gia phả
           <select required name="personId" value={person} onChange={event => setPerson(event.target.value)} className={control}>
             <option value="">Chọn hồ sơ</option>
-            {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {people.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
           <span className="body-sm mt-2 block font-normal text-secondary">Tài khoản chưa tham gia sẽ được cấp quyền người xem.</span>
         </label>}
@@ -100,11 +111,13 @@ export default function TreeAccessForm({ tree, operation, member, people }: {
           <input required type="checkbox" name="confirm" value="yes" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />
           {operation === "remove" ? "Tôi xác nhận gỡ quyền truy cập cây gia phả này." : "Tôi xác nhận gỡ liên kết giữa tài khoản và hồ sơ này."}
         </label>}
-        <button type="submit" className={destructive ? "btn min-h-[52px] text-error" : "btn-primary min-h-[52px]"} disabled={!online || busy}>
+        <button type="submit" className={destructive ? "btn h-[52px] py-0 text-error" : "btn-primary h-[52px] py-0"} disabled={!online || busy}>
           {busy ? "Đang lưu…" : accessOperations[operation]}
         </button>
       </fieldset>
     </form>}
-    <a href={accessPath} className="btn min-h-11">{code === "UNCERTAIN" ? "Tải lại danh sách" : "Xem quyền truy cập"}</a>
+    {code === "UNCERTAIN"
+      ? <a href={accessPath + "?treeId=" + tree.id} target="_blank" rel="noopener" className="btn min-h-11">Tải lại danh sách</a>
+      : <a href={accessPath} className="btn min-h-11">Xem quyền truy cập</a>}
   </section>;
 }

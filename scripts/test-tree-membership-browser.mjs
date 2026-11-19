@@ -3,14 +3,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
-import checkMembership from "../tests/browser/tree-membership.mjs";
+import checkMembership, { checkUnconfirmedDrafts } from "../tests/browser/tree-membership.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
 const appUrl = process.env.FAMILY_TREE_TEST_APP_URL;
 if (!connectionString || !appUrl) throw Error("Set FAMILY_TREE_TEST_DATABASE_URL and FAMILY_TREE_TEST_APP_URL to the same migrated test instance.");
 const db = new Pool({ connectionString });
 const owner = randomUUID(), target = randomUUID(), tree = randomUUID(), token = randomUUID();
-const targetEmail = target + "." + "nguyen".repeat(4) + "@example.test";
+const targetEmail = target + "." + "nguyen".repeat(4) + "@intranet";
 const url = new URL(appUrl), output = resolve("output/playwright/tree-membership");
 mkdirSync(output, { recursive: true });
 function cli(...args) {
@@ -27,12 +27,18 @@ try {
     [owner,createHash("sha256").update(token).digest("hex")]);
   await db.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Cây gia phả kiểm tra') RETURNING id)
     INSERT INTO tree_memberships(tree_id,user_id,role) SELECT id,$2,'owner' FROM t`, [tree,owner]);
-  await db.query("INSERT INTO persons(tree_id,full_name,gender) VALUES($1,'Người liên kết','other')", [tree]);
+  const { rows: people } = await db.query(`INSERT INTO persons(tree_id,full_name,gender)
+    VALUES($1,'Người liên kết','other'),($1,'Người liên kết','other') RETURNING id`, [tree]);
   cli("open", new URL("/login", url).href, "--browser=chrome");
   cli("cookie-set", "family_tree_session", token, "--domain", url.hostname, "--path", "/", "--httpOnly");
-  const result = JSON.parse(cli("run-code", "async page => (" + checkMembership.toString() + ")(page, " + JSON.stringify(targetEmail)
-    + ").catch(error => ({failure:error.message}))"));
-  if (result.failure) throw new Error(result.failure);
+  function run(check) {
+    const result = JSON.parse(cli("run-code", "async page => (" + check.toString() + ")(page, " + JSON.stringify(targetEmail) + "," + JSON.stringify(people[1].id)
+      + ").catch(error => ({failure:error.message}))"));
+    if (result.failure) throw new Error(result.failure);
+    return result;
+  }
+  const drafts = run(checkUnconfirmedDrafts);
+  const result = { ...run(checkMembership), drafts };
   const report = JSON.stringify(result, null, 2) + "\n";
   writeFileSync(resolve(output, "measurements.json"), report);
   process.stdout.write(report);

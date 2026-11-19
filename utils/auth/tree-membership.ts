@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { pool, withTransaction } from "@/utils/db/client";
 import type { TreeRole } from "@/types";
+import { accountAccessLock } from "./account-access-lock";
 
 type Database = Pick<Pool, "connect">;
 export type AccessCommand =
@@ -22,6 +23,7 @@ export function isTreeRole(value: unknown): value is TreeRole {
 
 async function lockOwnedTree(client: PoolClient, actor: string, treeId: string) {
   if (!uuid.test(treeId) || !uuid.test(actor)) return false;
+  await client.query(accountAccessLock.shared);
   // Serialize access decisions per tree, then check the current Owner in a fresh snapshot.
   const tree = await client.query(`SELECT t.id FROM family_trees t
     WHERE id=$1 AND archived_at IS NULL AND EXISTS
@@ -36,7 +38,10 @@ async function lockOwnedTree(client: PoolClient, actor: string, treeId: string) 
 async function normalizeEmail(client: PoolClient, email: string) {
   if (typeof email !== "string" || email.length > 512 || email.includes("\0")) return null;
   const { rows: [{ value }] } = await client.query<{ value: string }>("SELECT public.normalize_email($1) AS value", [email]);
-  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : null;
+  // Existing accounts can have legacy mailbox syntax. The normalized equality
+  // match establishes identity, including quoted names and single-label domains.
+  const separator = value.lastIndexOf("@");
+  return separator > 0 && separator < value.length - 1 ? value : null;
 }
 
 async function activeUser(client: PoolClient, email: string) {
@@ -86,7 +91,8 @@ async function changeMember(
     "SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2 FOR UPDATE", [treeId, command.userId]);
   if (!target) return unavailable;
   if (target.role === "owner" && (command.operation === "remove" || command.role !== "owner")) {
-    const others = await client.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id<>$2 AND role='owner' LIMIT 1",
+    const others = await client.query(`SELECT FROM tree_memberships m JOIN profiles p ON p.id=m.user_id
+      WHERE m.tree_id=$1 AND m.user_id<>$2 AND m.role='owner' AND p.is_active LIMIT 1 FOR SHARE OF p`,
       [treeId, command.userId]);
     if (!others.rowCount) return { code: "LAST_OWNER" } as const;
   }

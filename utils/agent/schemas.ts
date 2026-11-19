@@ -12,6 +12,10 @@ const note = text(8192).nullable().optional();
 const image = text(2048).startsWith("/api/storage/");
 const date = z.iso.date().refine((s) => !s.startsWith("0000"));
 const integer = z.int32().nullable().optional();
+const year = z.int().min(1).max(9999).nullable().optional();
+const solarMonth = z.int().min(1).max(12);
+const solarDay = z.int().min(1).max(31).nullable().optional();
+const lunarMonth = z.union([z.int().min(-12).max(-1), solarMonth]);
 const personFields = {
   full_name: title,
   gender: z.enum(["male", "female", "other"]).nullable().optional(),
@@ -21,15 +25,15 @@ const personFields = {
     .union([image, z.literal("")])
     .nullable()
     .optional(),
-  birth_year: integer,
-  birth_month: integer,
-  birth_day: integer,
-  death_year: integer,
-  death_month: integer,
-  death_day: integer,
-  death_lunar_year: integer,
-  death_lunar_month: integer,
-  death_lunar_day: integer,
+  birth_year: year,
+  birth_month: solarMonth.nullable().optional(),
+  birth_day: solarDay,
+  death_year: year,
+  death_month: solarMonth.nullable().optional(),
+  death_day: solarDay,
+  death_lunar_year: year,
+  death_lunar_month: lunarMonth.nullable().optional(),
+  death_lunar_day: z.int().min(1).max(30).nullable().optional(),
   generation: integer,
   birth_order: integer,
   is_in_law: z.boolean().optional(),

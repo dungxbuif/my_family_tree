@@ -160,6 +160,12 @@ test("official client initializes, discovers only family tools with bounded inpu
         "export_family_data",
       ].sort(),
     );
+    const eventDescription = tools.find(t => t.name === "update_event")?.description;
+    expect(eventDescription).toMatch(/trim.*name/i);
+    expect(eventDescription).toMatch(/empty location.*content.*null/i);
+    expect(eventDescription).toContain("omitted");
+    const personDescription = tools.find(t => t.name === "update_person")?.description;
+    expect(personDescription).toMatch(/omitted.*leap lunar month.*negative/i);
     for (const t of tools) {
       if (t.name !== "list_family_trees")
         expect(t.inputSchema.required).toContain("familyTreeId");

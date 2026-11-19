@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { toolInputs } from "@/utils/agent/schemas";
+import { validateLifeDates } from "@/utils/family/life-dates";
 import { z } from "zod";
 
 // Match the public resource names to their tool equivalents, including the
@@ -66,6 +67,37 @@ test("anonymous OpenAPI describes every shipped REST method and MCP action", asy
   expect(ids.sort()).toEqual(Object.keys(toolInputs).sort());
   for (const match of JSON.stringify(api).matchAll(/"\$ref":"#\/([^"]+)"/g)) {
     expect(match[1].split("/").reduce((value, key) => value?.[key], api)).toBeDefined();
+  }
+});
+
+test("published Person date bounds agree with the shared life-date validator for create and patch", async () => {
+  const response = await fetch(new URL("/api/openapi.json", base));
+  const { components } = await response.json();
+  const years = { valid: [1, 9999], invalid: [0, 10000] };
+  const solarMonths = { valid: [1, 12], invalid: [-1, 0, 13] };
+  const solarDays = { valid: [1, 31], invalid: [0, 32] };
+  const bounds = {
+    birth_year: years, death_year: years, death_lunar_year: years,
+    birth_month: solarMonths, death_month: solarMonths,
+    birth_day: solarDays, death_day: solarDays,
+    death_lunar_month: { valid: [-12, -1, 1, 12], invalid: [-13, 0, 13] },
+    death_lunar_day: { valid: [1, 30], invalid: [0, 31] },
+  };
+  for (const schemaName of ["personCreate", "personUpdate"]) {
+    const published = z.fromJSONSchema(components.schemas[schemaName]);
+    for (const [field, { valid, invalid }] of Object.entries(bounds)) {
+      for (const value of [null, ...valid]) {
+        const record = { full_name: "Fixture", [field]: value };
+        expect(() => validateLifeDates(record)).not.toThrow();
+        expect(published.safeParse(record).success).toBe(true);
+      }
+      for (const value of invalid) {
+        const record = { full_name: "Fixture", [field]: value };
+        expect(() => validateLifeDates(record)).toThrow();
+        expect(published.safeParse(record).success, schemaName + "." + field + "=" + value).toBe(false);
+      }
+    }
+    expect(published.safeParse({ full_name: "Fixture" }).success).toBe(true);
   }
 });
 

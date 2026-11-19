@@ -16,7 +16,7 @@ Call list_family_trees first. Pass the chosen familyTreeId explicitly on every o
 - `list_people` — read. Public person fields in one tree.
 - `get_person` — read. Owner plus private scope also receives email and privateData.
 - `create_person` — write. Requires full_name.
-- `update_person` — write. Applies only submitted fields.
+- `update_person` — write. Merges the patch with the existing person. Editing life dates can convert an omitted legacy leap lunar month from positive to negative when confirmed by the complete solar death date.
 - `delete_person` — delete. Remove Person Link and relationships first.
 - `list_relationships` — read. Returns recorded edges and endpoints.
 - `create_relationship` — write. Supply type, person_a and person_b.
@@ -34,6 +34,8 @@ Call list_family_trees first. Pass the chosen familyTreeId explicitly on every o
 Read permits Owner, Editor and Viewer. Write and delete need Owner or Editor and their respective key scope. Writing private fields requires Owner, write and private. A Super Admin also needs membership in the selected tree.
 
 ## Limits and errors
+
+Person date fields may be omitted or null. Integer years range from 1 to 9999, solar months from 1 to 12, and solar days from 1 to 31. Lunar months range from 1 to 12 for ordinary months and -12 to -1 for leap months. Lunar days range from 1 to 30. The service checks month length, full lunar dates and chronological order using the known date parts.
 
 REST accepts JSON bodies up to 64 KiB. MCP accepts one JSON-RPC object per POST up to 4 MiB and up to 100 fields and array elements combined per tool input, including nested values. Each data result is limited to 1 MiB before MCP framing. Export allows up to 100 records per collection. Reduce the page limit for oversized lists, or use the application's backup UI for larger exports.
 

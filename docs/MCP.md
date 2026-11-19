@@ -50,6 +50,8 @@ Danh sách mặc định 50 mục, tối đa 100. Dùng `offset` từ 0 để du
 
 `update_event` ghép thay đổi với sự kiện hiện tại. Khi lưu, tên được bỏ khoảng trắng hai đầu và chuỗi rỗng trong `location`, `content` được chuyển thành `null`, kể cả giá trị cũ của trường được bỏ qua.
 
+`update_person` ghép các trường đã gửi với hồ sơ hiện tại. Khi sửa ngày, tháng âm lịch cũ có thể được chuẩn hóa thành số âm nếu ngày mất dương lịch xác nhận tháng nhuận, kể cả khi bỏ qua `death_lunar_month`. [Giới hạn và quy tắc ngày](API.md)
+
 Mỗi lần gọi công cụ nhận tối đa 100 trường và phần tử mảng, tính cả các cấp lồng nhau. Phần JSON chứa dữ liệu kết quả có giới hạn 1 MiB trước khi SDK đóng gói nội dung văn bản và dữ liệu có cấu trúc. Nếu một trang dữ liệu lớn trả `INVALID_INPUT`, giảm `limit`. Nếu chỉ một hồ sơ đã vượt giới hạn, xem hồ sơ đó trong ứng dụng. Danh mục công cụ cố định trong suốt kết nối.
 
 Kết quả thành công gồm `structuredContent.data` và nội dung văn bản JSON tương ứng. Kiểm tra `isError` khi gọi công cụ. Lỗi ứng dụng gồm `code`, `message` và `requestId`. Khi cần hỗ trợ, gửi mã yêu cầu và tên công cụ. Giữ kín khóa và thông tin riêng tư trong phản hồi.

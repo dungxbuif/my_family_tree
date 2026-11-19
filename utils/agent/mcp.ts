@@ -24,7 +24,8 @@ const descriptions: Record<FamilyAction, string> = {
   get_person:
     "Get one Person. Private details require Owner and private scope.",
   create_person: "Create one Person in the tree.",
-  update_person: "Update only the supplied Person fields.",
+  update_person:
+    "Apply a partial Person update. Editing life dates can convert an omitted legacy leap lunar month to its negative representation.",
   delete_person: "Delete an unlinked Person without relationships.",
   list_relationships: "List relationships in the tree.",
   create_relationship:
@@ -32,7 +33,8 @@ const descriptions: Record<FamilyAction, string> = {
   delete_relationship: "Remove one relationship.",
   list_events: "List custom calendar events.",
   create_event: "Create a custom calendar event.",
-  update_event: "Update only the supplied event fields.",
+  update_event:
+    "Apply a partial event update, trim the name, and convert empty location and content strings to null, including existing values omitted from the update.",
   delete_event: "Delete one custom event.",
   list_gallery: "List Gallery metadata and owned image references.",
   create_gallery_item:

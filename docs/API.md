@@ -35,7 +35,7 @@ curl --fail-with-body \
 | GET | `/api/v1/persons?familyTreeId=<tree-id>` | `data` là danh sách hồ sơ với các trường công khai |
 | GET | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | `data` là một hồ sơ. Chủ sở hữu có quyền `private` nhận thêm `email` và `privateData` |
 | POST | `/api/v1/persons?familyTreeId=<tree-id>` | Tạo hồ sơ, trả 201 và `{"data":{"id":"…"}}` |
-| PATCH | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | Chỉ cập nhật các trường đã gửi, trả 200 và ID |
+| PATCH | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | Cập nhật một phần hồ sơ, trả 200 và ID. Sửa ngày có thể chuẩn hóa tháng âm lịch cũ như mô tả bên dưới |
 | DELETE | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | Xóa hồ sơ, trả 200 và ID. Cần gỡ Person Link và các quan hệ trước khi xóa |
 | GET, POST | `/api/v1/relationships?familyTreeId=<tree-id>` | Liệt kê hoặc tạo quan hệ |
 | DELETE | `/api/v1/relationships/<id>?familyTreeId=<tree-id>` | Gỡ quan hệ |
@@ -57,7 +57,8 @@ Gửi JSON với `Content-Type: application/json`, tối đa 64 KiB cho mỗi th
 ```
 
 - `full_name` bắt buộc khi tạo. Các trường văn bản khác gồm `other_names`, `note`, `avatar_url` và `gender` (`male`, `female`, `other`). Ảnh đại diện phải là ảnh đã tải lên và thuộc cây.
-- Các thành phần ngày nhận số nguyên hoặc `null` để bỏ trống. Dùng `birth_year/month/day`, `death_year/month/day` hoặc `death_lunar_year/month/day`, chẳng hạn `birth_month`. Cặp năm/tháng được giữ nguyên độ chính xác khi chưa biết ngày.
+- Các thành phần ngày có thể bỏ qua hoặc nhận `null`. Năm nhận số nguyên từ 1 đến 9999. Tháng dương lịch nhận 1–12, ngày nhận 1–31 tùy tháng và năm nhuận. Tháng âm lịch nhận 1–12 cho tháng thường hoặc −1 đến −12 cho tháng nhuận, ngày nhận 1–30. Dùng `birth_year/month/day`, `death_year/month/day` hoặc `death_lunar_year/month/day`, chẳng hạn `birth_month`. Máy chủ kiểm tra ngày âm lịch đầy đủ theo lịch thực tế và thứ tự ngày sinh, ngày mất theo độ chính xác đã biết.
+- Khi PATCH một thành phần ngày, máy chủ kiểm tra ngày sau khi ghép với hồ sơ hiện tại. Nếu ngày mất dương lịch đầy đủ xác nhận tháng nhuận tương ứng với ngày âm lịch đã lưu, máy chủ đổi `death_lunar_month` cũ từ số dương sang số âm, kể cả khi yêu cầu bỏ qua trường này.
 - `is_deceased` nhận `true`, `false`, `null`. `is_in_law` nhận boolean. `birth_order` và `generation` nhận số nguyên hoặc `null`.
 - Gửi `email`, `phone_number`, `occupation`, `current_residence` ở cấp ngoài của JSON để cập nhật thông tin riêng tư. Email khớp chính xác có thể thiết lập Person Link theo quy tắc của cây. Liên kết đã tồn tại được giữ theo ID tài khoản.
 

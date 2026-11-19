@@ -8,7 +8,7 @@ export interface GedcomPerson {
   death_year?: number | null;
   death_month?: number | null;
   death_day?: number | null;
-  is_deceased?: boolean;
+  is_deceased?: boolean | null;
   is_in_law?: boolean;
   birth_order?: number | null;
   generation?: number | null;
@@ -303,7 +303,7 @@ export function parseGedcom(gedcom: string): {
 
     let fullName = "Unknown";
     let gender: "male" | "female" | "other" = "other";
-    let is_deceased = false;
+    let is_deceased: boolean | null = null;
     let birth_day = null;
     let birth_month = null;
     let birth_year = null;

@@ -45,7 +45,7 @@ export default function FamilyTree({
     DEFAULT_AUTO_COLLAPSE_LEVEL,
   );
 
-  const { showAvatar, focusCreated } = useMemberListView();
+  const { showAvatar, focusCreatedPerson } = useMemberListView();
 
   const {
     scale,
@@ -191,14 +191,10 @@ export default function FamilyTree({
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         centerTree();
-        const created = focusCreated.current;
-        if (created && roots[0]?.id === created) {
-          const node = containerRef.current?.querySelector<HTMLButtonElement>(`button[data-person-id="${created}"]`);
-          if (node) {
-            node.focus({ preventScroll: true });
-            node.scrollIntoView({ block: "center", inline: "center" });
-            focusCreated.current = null;
-          }
+        const id = roots[0]?.id;
+        if (id) {
+          const node = containerRef.current?.querySelector<HTMLButtonElement>(`button[data-person-id="${id}"]`);
+          focusCreatedPerson(id, node ?? null);
         }
       });
     });

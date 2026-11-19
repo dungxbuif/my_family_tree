@@ -27,10 +27,13 @@ export async function changeBrowserTree(userId: string, fields: FormData): Promi
         draft,
       };
     }
-    (await cookies()).set(TREE_COOKIE, result.tree.id, {
-      httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/",
+    const store = await cookies();
+    const options = {
+      sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/",
       maxAge: 60 * 60 * 24 * 30,
-    });
+    };
+    store.set(TREE_COOKIE, result.tree.id, { ...options, httpOnly: true });
+    store.set("family_tree_revision", crypto.randomUUID(), options);
     return { message: creating ? "Đã tạo và chọn cây gia phả." : "Đã chuyển cây gia phả.", treeId: result.tree.id };
   } catch {
     return { error: "Không thể cập nhật cây gia phả. Vui lòng thử lại.", draft };

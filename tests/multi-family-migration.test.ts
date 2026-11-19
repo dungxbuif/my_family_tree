@@ -181,3 +181,17 @@ test("backup, rehearsal and rollback compare each account’s captured access", 
     expect(JSON.parse(sql(`\\c ${target}\n${check}`).split("\n").at(-1)!)).toEqual(snapshot);
   }
 });
+
+test("receipt and life-status upgrades use the public schema under a custom search path and preserve existing flags", () => {
+  migrate();
+  const receipt = "\\i /app/docs/migrations/20261119104000_person_creation_receipts.sql";
+  const lifeStatus = "\\i /app/docs/migrations/20261119105000_unknown_person_life_status.sql";
+  sql([
+    `UPDATE persons SET is_deceased=true WHERE id='${spouse}'; CREATE SCHEMA another;`,
+    "SET search_path=another,pg_catalog;", receipt, lifeStatus, receipt, lifeStatus,
+  ].join("\n"));
+  expect(sql("SELECT to_regclass('another.person_creation_receipts') IS NULL AND to_regclass('public.person_creation_receipts') IS NOT NULL")).toBe("t");
+  expect(sql(`SELECT is_deceased FROM persons WHERE id='${person}'`)).toBe("f");
+  expect(sql(`SELECT is_deceased FROM persons WHERE id='${spouse}'`)).toBe("t");
+  expect(sql(`INSERT INTO persons(tree_id,full_name,gender) VALUES('${legacy}','Chưa rõ','other') RETURNING is_deceased IS NULL`)).toBe("t");
+});

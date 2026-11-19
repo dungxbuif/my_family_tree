@@ -2,6 +2,7 @@
 
 import { Gender, Person } from "@/types";
 import { saveMember } from "@/app/actions/member";
+import { recordedLifeStatus } from "@/utils/dateHelpers";
 import { uploadImage } from "@/utils/storage/client";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
@@ -78,9 +79,12 @@ export default function MemberForm({
     initialData?.death_lunar_day || "",
   );
 
-  const [isDeceased, setIsDeceased] = useState<boolean>(
-    initialData?.is_deceased || false,
-  );
+  const [lifeStatus, setLifeStatus] = useState(() => {
+    const recorded = initialData ? recordedLifeStatus(initialData) : null;
+    return recorded === null ? "unknown" : String(recorded);
+  });
+  const isDeceased = lifeStatus === "true";
+  const uploadedAvatar = useRef<{ file: File; upload: Promise<string> } | null>(null);
   const [isInLaw, setIsInLaw] = useState<boolean>(
     initialData?.is_in_law || false,
   );
@@ -283,9 +287,19 @@ export default function MemberForm({
     }
 
     try {
-      const uploadedAvatarUrl = avatarFile
-        ? await uploadImage(avatarFile, "avatars")
-        : avatarUrl;
+      let uploadedAvatarUrl = avatarUrl;
+      if (avatarFile) {
+        if (uploadedAvatar.current?.file !== avatarFile) {
+          uploadedAvatar.current = { file: avatarFile, upload: uploadImage(avatarFile, "avatars") };
+        }
+        const pending = uploadedAvatar.current;
+        try {
+          uploadedAvatarUrl = await pending.upload;
+        } catch (err) {
+          if (uploadedAvatar.current === pending) uploadedAvatar.current = null;
+          throw err;
+        }
+      }
       const formData = new FormData();
       formData.set("treeId", treeId);
       if (!initialData?.id) formData.set("submissionId", submission.current ||= crypto.randomUUID());
@@ -297,7 +311,7 @@ export default function MemberForm({
       formData.append("birth_year", birthYear.toString());
       formData.append("birth_month", birthMonth.toString());
       formData.append("birth_day", birthDay.toString());
-      formData.append("is_deceased", isDeceased.toString());
+      formData.append("is_deceased", lifeStatus);
       formData.append("is_in_law", isInLaw.toString());
       formData.append("birth_order", birthOrder.toString());
       formData.append("generation", generation.toString());
@@ -305,14 +319,12 @@ export default function MemberForm({
       formData.append("note", note);
       formData.append("avatar_url", uploadedAvatarUrl);
 
-      if (isDeceased) {
-        formData.append("death_year", finalDeathYear.toString());
-        formData.append("death_month", finalDeathMonth.toString());
-        formData.append("death_day", finalDeathDay.toString());
-        formData.append("death_lunar_year", finalDeathLunarYear.toString());
-        formData.append("death_lunar_month", finalDeathLunarMonth.toString());
-        formData.append("death_lunar_day", finalDeathLunarDay.toString());
-      }
+      formData.append("death_year", finalDeathYear.toString());
+      formData.append("death_month", finalDeathMonth.toString());
+      formData.append("death_day", finalDeathDay.toString());
+      formData.append("death_lunar_year", finalDeathLunarYear.toString());
+      formData.append("death_lunar_month", finalDeathLunarMonth.toString());
+      formData.append("death_lunar_day", finalDeathLunarDay.toString());
 
       if (isOwner) {
         formData.set("email", email);
@@ -600,48 +612,13 @@ export default function MemberForm({
 
           <div className="md:col-span-2 bg-stone-50/50 p-5 rounded-2xl border border-stone-200/60 shadow-xs">
             <div className="flex flex-col gap-4">
-              <label className="flex items-center gap-3 group">
-                <div className="relative flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={isDeceased}
-                    onChange={(e) => {
-                      setIsDeceased(e.target.checked);
-                      if (!e.target.checked) {
-                        setDeathYear("");
-                        setDeathMonth("");
-                        setDeathDay("");
-                        setDeathLunarYear("");
-                        setDeathLunarMonth("");
-                        setDeathLunarDay("");
-                      }
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="size-5 border-2 border-stone-300 rounded peer-checked:bg-stone-600 peer-checked:border-stone-600 transition-colors flex items-center justify-center">
-                    <motion.svg
-                      initial={false}
-                      animate={{
-                        opacity: isDeceased ? 1 : 0,
-                        scale: isDeceased ? 1 : 0.5,
-                      }}
-                      className="size-3 text-white pointer-events-none"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={4}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </motion.svg>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-stone-700 group-hover:text-stone-900 transition-colors">
-                  Đã mất
-                </span>
+              <label className="block text-sm font-semibold">
+                Tình trạng
+                <select name="is_deceased" className={inputClasses} value={lifeStatus} onChange={(event) => setLifeStatus(event.target.value)}>
+                  <option value="unknown">Chưa rõ</option>
+                  <option value="false">Sống</option>
+                  <option value="true">Đã mất</option>
+                </select>
               </label>
             </div>
 

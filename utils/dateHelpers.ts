@@ -1,3 +1,4 @@
+import type { Person } from "@/types";
 import { Lunar, Solar } from "lunar-javascript";
 
 export function formatDisplayDate(
@@ -70,6 +71,14 @@ export function getSolarDateString(
   }
 }
 
+export function recordedLifeStatus(person: Person): boolean | null {
+  if (person.death_year || person.death_month || person.death_day ||
+      person.death_lunar_year || person.death_lunar_month || person.death_lunar_day) {
+    return true;
+  }
+  return person.is_deceased;
+}
+
 export function calculateAge(
   birthYear: number | null,
   birthMonth: number | null,
@@ -77,9 +86,9 @@ export function calculateAge(
   deathYear: number | null,
   deathMonth: number | null,
   deathDay: number | null,
-  isDeceased: boolean = false,
+  isDeceased: boolean | null = null,
 ): { age: number; isDeceased: boolean } | null {
-  if (!birthYear) return null;
+  if (!birthYear || (isDeceased === null && !deathYear)) return null;
 
   if (isDeceased || deathYear) {
     if (deathYear) {

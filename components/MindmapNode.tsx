@@ -131,10 +131,11 @@ export const MindmapNode = memo(
                 transition={{ duration: 0.3 }}
                 className={`group/card relative flex flex-wrap items-center gap-2 bg-surface rounded-2xl border border-stone-200/60 p-2 sm:p-2.5 shadow-sm hover:border-amber-300 hover:shadow-md hover:bg-surface transition-all duration-300 overflow-hidden cursor-pointer
                 ${data.person.is_deceased ? "opacity-80 grayscale-[0.3]" : ""}`}
-                onClick={() => ctx.setMemberModalId(data.person.id)}
               >
                 <div className="flex items-center gap-2.5 relative z-10 w-full">
-                  <div className="flex flex-1 items-center gap-2.5 min-w-0">
+                  <button type="button" className="flex min-h-11 flex-1 items-center gap-2.5 min-w-0 text-left"
+                    data-person-id={data.person.id} aria-label={`Xem thông tin ${data.person.full_name}`}
+                    onClick={() => ctx.setMemberModalId(data.person.id)}>
                     {ctx.showAvatar && (
                       <div className="relative shrink-0">
                         <div
@@ -204,7 +205,7 @@ export const MindmapNode = memo(
                         </div>
                       )}
                     </div>
-                  </div>
+                  </button>
 
                   {/* Spouses attached to node */}
                   {data.spouses.length > 0 && (

@@ -3,6 +3,7 @@
 import { useActionState, useState, useSyncExternalStore, type FormEvent } from "react";
 import { FAMILY_TREE_NAME_LIMIT } from "@/types";
 import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
+import { notifyTreeSelection } from "./TreeSelectionSync";
 import { Check, Trees } from "lucide-react";
 import type { TreeNotice } from "@/utils/auth/browser-tree-selection";
 import { changeFamilyTree } from "@/app/actions/family-tree";
@@ -72,6 +73,7 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
       }
       if (!response.ok) throw new Error("Tree selection request failed");
       const result = await response.json() as { notice: TreeNotice };
+      if ("treeId" in result.notice) notifyTreeSelection();
       if (creatingTree && "treeId" in result.notice) setDraft("");
       setNotice(result.notice);
       await refreshSelection();

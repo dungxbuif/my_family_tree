@@ -36,7 +36,7 @@ interface EventsListProps {
     death_lunar_year: number | null;
     death_lunar_month: number | null;
     death_lunar_day: number | null;
-    is_deceased: boolean;
+    is_deceased: boolean | null;
   }[];
   customEvents?: CustomEventRecord[];
 }

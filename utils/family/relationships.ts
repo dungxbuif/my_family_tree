@@ -7,7 +7,6 @@ export type Edge = {
   person_b: string;
   type: RelationshipType;
   note?: string | null;
-  direction?: "child" | "parent" | "spouse";
 };
 export interface EnrichedRelationship {
   id: string;
@@ -18,13 +17,13 @@ export interface EnrichedRelationship {
 }
 
 export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
-  const { person_a: a, person_b: b, type, direction } = edge;
+  const { person_a: a, person_b: b, type } = edge;
   if (a === b)
     throw new FamilyDataError("Không thể tạo quan hệ với chính mình.");
   if (!["marriage", "biological_child", "adopted_child"].includes(type))
     throw new FamilyDataError("Quan hệ không hợp lệ.");
-  const first = await requirePerson(client, tree, a),
-    second = await requirePerson(client, tree, b);
+  await requirePerson(client, tree, a);
+  await requirePerson(client, tree, b);
   const duplicate = await client.query(
     `SELECT FROM relationships WHERE tree_id=$1 AND type=$4
     AND ((person_a=$2 AND person_b=$3) OR (type='marriage' AND person_a=$3 AND person_b=$2))`,
@@ -44,18 +43,6 @@ export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
     "INSERT INTO relationships(tree_id,person_a,person_b,type,note) VALUES($1,$2,$3,$4,$5)",
     [tree, a, b, type, edge.note ?? null],
   );
-  if (direction) {
-    const parent = direction === "parent",
-      source = parent ? second : first;
-    const generation =
-      source.generation == null
-        ? null
-        : source.generation + (parent ? -1 : direction === "child" ? 1 : 0);
-    await client.query(
-      `UPDATE persons SET generation=$3 WHERE tree_id=$1 AND id=$2 AND generation IS NULL AND $3::int IS NOT NULL`,
-      [tree, parent ? a : b, generation],
-    );
-  }
 }
 
 export async function readFamily(client: PoolClient, tree: string, id: string) {

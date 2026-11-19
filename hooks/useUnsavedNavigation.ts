@@ -1,15 +1,17 @@
 import { useEffect } from "react";
 
-export function useUnsavedNavigation(shouldGuard: boolean, message: string) {
+export function useUnsavedNavigation(shouldGuard: boolean, message: string, active?: () => boolean) {
   useEffect(() => {
     if (!shouldGuard) return;
 
     function warnBeforeUnload(event: BeforeUnloadEvent) {
+      if (active && !active()) return;
       event.preventDefault();
       event.returnValue = " ";
     }
 
     function confirmNavigation(event: MouseEvent) {
+      if (active && !active()) return;
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
       if (!(event.target instanceof Element)) return;
       const link = event.target.closest<HTMLAnchorElement>("a[href]");
@@ -29,5 +31,5 @@ export function useUnsavedNavigation(shouldGuard: boolean, message: string) {
       window.removeEventListener("beforeunload", warnBeforeUnload);
       document.removeEventListener("click", confirmNavigation, true);
     };
-  }, [shouldGuard, message]);
+  }, [shouldGuard, message, active]);
 }

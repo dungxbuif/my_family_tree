@@ -17,7 +17,7 @@ export interface FamilyEvent {
   originMonth?: number | null;
   originDay?: number | null;
   /** Whether the person is deceased */
-  isDeceased: boolean;
+  isDeceased: boolean | null;
   /** Optional location for the event */
   location?: string | null;
   /** Optional content/description for the event */
@@ -88,7 +88,7 @@ export function computeEvents(
     death_lunar_year: number | null;
     death_lunar_month: number | null;
     death_lunar_day: number | null;
-    is_deceased: boolean;
+    is_deceased: boolean | null;
   }[],
   customEvents: CustomEventRecord[] = []
 ): FamilyEvent[] {

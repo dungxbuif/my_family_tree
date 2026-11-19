@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import type { TreeRole } from "@/types";
 import { updatePersonEmailInTransaction } from "@/utils/auth/tree-membership";
 import { FamilyDataError, forbidden, requirePerson, uuid } from "./records";
+import { validateLifeDates } from "./life-dates";
 import { insertEdge } from "./relationships";
 
 export type Relation =
@@ -113,8 +114,15 @@ export async function savePerson(
       throw new FamilyDataError("Giá trị số không hợp lệ.");
     values[key] = raw ? Number(raw) : null;
   }
-  for (const key of ["is_deceased", "is_in_law"])
-    if (fields.has(key)) values[key] = formText(fields, key) === "true";
+  if (fields.has("is_in_law"))
+    values.is_in_law = formText(fields, "is_in_law") === "true";
+  if (fields.has("is_deceased")) {
+    const status = formText(fields, "is_deceased");
+    if (!["true", "false", "unknown"].includes(status))
+      throw new FamilyDataError("Tình trạng không hợp lệ.");
+    values.is_deceased = status === "unknown" ? null : status === "true";
+  }
+
   const privateKeys = privateFields.filter((key) => fields.has(key));
   if (role !== "owner" && (privateKeys.length || fields.has("email")))
     throw forbidden();
@@ -129,9 +137,14 @@ export async function savePerson(
     let id = existing;
     const keys = Object.keys(values),
       params = Object.values(values);
-    if (id) {
-      await requirePerson(client, tree, id);
-    } else {
+    const original = id ? await requirePerson(client, tree, id) : null;
+    if (
+      !id ||
+      keys.some((key) => /^(birth|death)(_lunar)?_(day|month|year)$/.test(key))
+    ) {
+      validateLifeDates({ ...original, ...values });
+    }
+    if (!id) {
       const { rows } = await client.query(
         `INSERT INTO persons(tree_id,${keys.join(",")})
         VALUES($1,${keys.map((_, i) => "$" + (i + 2)).join(",")}) RETURNING id`,
@@ -173,11 +186,6 @@ export async function savePerson(
             : relation.startsWith("adopt")
               ? "adopted_child"
               : "biological_child",
-        direction: parent
-          ? "parent"
-          : relation === "spouse"
-            ? "spouse"
-            : "child",
         note: formText(fields, "relationshipNote") || null,
       });
     }

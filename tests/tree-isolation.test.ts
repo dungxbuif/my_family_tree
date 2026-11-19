@@ -340,6 +340,7 @@ test.skipIf(!process.env.FAMILY_TREE_TEST_APP_URL)(
     const detail = await html("/dashboard/members/" + local);
     expect(detail).toContain("Hồ sơ thành viên");
     expect(detail).not.toContain(privateText);
+    expect(detail).toContain("Tình trạng chưa rõ");
     expect(await html("/dashboard/members/" + foreign)).not.toContain(
       "Foreign fixture marker",
     );
@@ -462,4 +463,86 @@ test("an unavailable relationship context rolls back the new Person, contact fie
       )
     ).rows,
   ).toEqual([{ role: "viewer" }]);
+});
+
+test("life status distinguishes unknown, living and deceased in the stored Person", async () => {
+  const owner = await account(),
+    treeId = await tree(owner),
+    service = familyPeople(owner, treeId, db);
+  for (const [state, expected] of [
+    ["unknown", null],
+    ["true", true],
+    ["false", false],
+  ] as const) {
+    const id = await service.save(
+      form({
+        full_name: state,
+        is_deceased: state,
+        submissionId: randomUUID(),
+      }),
+    );
+    expect((await service.detail(id))?.person.is_deceased).toBe(expected);
+  }
+  const plain = await person(treeId);
+  expect((await service.detail(plain))?.person.is_deceased).toBeNull();
+});
+
+test("calendar validation handles leap dates and partial updates at their recorded precision", async () => {
+  const owner = await account(),
+    treeId = await tree(owner),
+    service = familyPeople(owner, treeId, db);
+  const draft = {
+    full_name: "Ngày sinh",
+    birth_year: "2000",
+    birth_month: "2",
+    birth_day: "29",
+    submissionId: randomUUID(),
+  };
+  const id = await service.save(form(draft));
+  for (const changes of [
+    { birth_month: "13" },
+    { birth_day: "0" },
+    { birth_year: "1900" },
+    { birth_day: "30" },
+    { death_year: "2000", death_month: "1" },
+    { death_year: "2000", death_month: "2", death_day: "28" },
+    { death_lunar_month: "13" },
+    { death_lunar_day: "31" },
+  ] as Record<string, string>[]) {
+    await expect(service.save(form({ id, ...changes }))).rejects.toThrow(
+      "Ngày",
+    );
+  }
+  expect((await service.detail(id))?.person.birth_year).toBe(2000);
+  await service.save(
+    form({ id, death_year: "2000", death_month: "2", is_deceased: "true" }),
+  );
+  await service.save(form({ id, death_day: "29" }));
+});
+
+test("relative generation in a relationship leaves manually recorded Person generations unchanged", async () => {
+  const owner = await account(),
+    treeId = await tree(owner),
+    service = familyPeople(owner, treeId, db);
+  const parent = await service.save(
+    form({ full_name: "Gốc", generation: "7", submissionId: randomUUID() }),
+  );
+  const child = await service.save(
+    form({
+      full_name: "Con",
+      relatedTo: parent,
+      relation: "child",
+      submissionId: randomUUID(),
+    }),
+  );
+  const [bulk] = await service.children({
+    parentId: parent,
+    submissionId: randomUUID(),
+    children: [{ name: "Hai", gender: "other", birthYear: "", birthOrder: "" }],
+  });
+  await service.family(child);
+  await service.family(parent);
+  expect((await service.detail(child))?.person.generation).toBeNull();
+  expect((await service.detail(bulk))?.person.generation).toBeNull();
+  expect((await service.detail(parent))?.person.generation).toBe(7);
 });

@@ -189,7 +189,6 @@ export default function RelationshipManager({
         person_b: personB,
         type: type,
         note: newRelNote ? newRelNote : null,
-        direction: newRelDirection,
       }, person.tree_id);
 
       if (!result.success) throw new Error(result.error);

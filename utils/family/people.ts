@@ -11,6 +11,7 @@ import {
   uuid,
 } from "./records";
 import { insertEdge, readFamily, type Edge } from "./relationships";
+import { validateLifeDates } from "./life-dates";
 import { createOnce, savePerson } from "./save-person";
 import { accountAccessLock } from "@/utils/auth/account-access-lock";
 
@@ -90,18 +91,19 @@ export function familyPeople(
                 !["male", "female", "other"].includes(child.gender)
               )
                 throw new FamilyDataError("Thông tin con không hợp lệ.");
+              const birthYear = child.birthYear ? Number(child.birthYear) : null;
+              validateLifeDates({birth_year: birthYear});
               const {
                 rows: [row],
               } = await client.query(
-                `INSERT INTO persons(tree_id,full_name,gender,birth_year,birth_order,generation)
-          VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+                `INSERT INTO persons(tree_id,full_name,gender,birth_year,birth_order)
+          VALUES($1,$2,$3,$4,$5) RETURNING id`,
                 [
                   treeId,
                   child.name.trim(),
                   child.gender,
-                  child.birthYear || null,
+                  birthYear,
                   child.birthOrder || null,
-                  parent.generation === null ? null : parent.generation + 1,
                 ],
               );
               for (const id of second ? [parent.id, second] : [parent.id])

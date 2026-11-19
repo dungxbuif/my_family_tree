@@ -2,7 +2,7 @@
 
 import { Person, Relationship } from "@/types";
 import { Share2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMemberListView } from "@/context/MemberListContext";
 import { MindmapContextData, MindmapNode } from "./MindmapNode";
 import MindmapToolbar from "./MindmapToolbar";
@@ -24,7 +24,7 @@ export default function MindmapTree({
   roots,
   canEdit,
 }: MindmapTreeProps) {
-  const { showAvatar, setMemberModalId } = useMemberListView();
+  const { showAvatar, setMemberModalId, focusCreatedPerson } = useMemberListView();
   const [hideDaughtersInLaw, setHideDaughtersInLaw] = useState(false);
   const [hideSonsInLaw, setHideSonsInLaw] = useState(false);
   const [hideDaughters, setHideDaughters] = useState(false);
@@ -75,6 +75,15 @@ export default function MindmapTree({
     setMemberModalId,
   ]);
 
+  const container = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const id = roots[0]?.id;
+    if (id) {
+      const node = container.current?.querySelector<HTMLButtonElement>(`button[data-person-id="${id}"]`);
+      focusCreatedPerson(id, node ?? null);
+    }
+  }, [roots, focusCreatedPerson]);
+
   if (roots.length === 0) {
     return (
       <div className="p-12 text-center">
@@ -89,7 +98,7 @@ export default function MindmapTree({
   }
 
   return (
-    <div className="w-full h-full relative p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-140px)] flex justify-start lg:justify-center overflow-x-auto">
+    <div ref={container} className="w-full h-full relative p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-140px)] flex justify-start lg:justify-center overflow-x-auto">
       <MindmapToolbar
         hideDaughtersInLaw={hideDaughtersInLaw}
         setHideDaughtersInLaw={setHideDaughtersInLaw}

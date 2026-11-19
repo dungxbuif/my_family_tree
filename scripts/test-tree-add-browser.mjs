@@ -3,6 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
+import {
+  formStates,
+  focusModes,
+  avatarRetry,
+  treeSwitch,
+  historySwitch,
+} from "../tests/browser/tree-add-review.mjs";
 import checkAdd, { checkDemotion } from "../tests/browser/tree-add.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
@@ -64,6 +71,12 @@ try {
     "INSERT INTO persons(tree_id,full_name,gender) VALUES($1,'An','other')",
     [tree.tree_id],
   );
+  await database.query(
+    `WITH t AS (INSERT INTO family_trees(name) VALUES('Cây thứ hai') RETURNING id),
+    m AS (INSERT INTO tree_memberships(tree_id,user_id,role) SELECT t.id,v.id,v.role FROM t CROSS JOIN (VALUES($1::uuid,'owner'),($2::uuid,'viewer')) v(id,role))
+    INSERT INTO persons(tree_id,full_name,gender) SELECT id,'Nhà khác','other' FROM t`,
+    [owner, userId],
+  );
   cli("open", new URL("/login", url).href, "--browser=chrome");
   cli(
     "cookie-set",
@@ -75,11 +88,51 @@ try {
     "/",
     "--httpOnly",
   );
+  const review = {};
+  for (const check of [
+    formStates,
+    focusModes,
+    avatarRetry,
+    treeSwitch,
+    historySwitch,
+  ]) {
+    try {
+      review[check.name] = JSON.parse(cli("run-code", check.toString()));
+    } catch (e) {
+      review[check.name] = String(e.stdout ?? e.message).slice(-400);
+    }
+  }
+  writeFileSync(
+    resolve(output, "review.json"),
+    JSON.stringify(review, null, 2),
+  );
+  if (
+    !Array.isArray(review.formStates.failures) ||
+    review.formStates.failures.length ||
+    review.focusModes.length ||
+    review.avatarRetry.uploads !== 1 ||
+    review.avatarRetry.puts !== 1 ||
+    !review.avatarRetry.detail ||
+    review.avatarRetry.writes !== 2 ||
+    review.treeSwitch.newPerson !== 1 ||
+    !review.historySwitch.viewer ||
+    review.treeSwitch.previousControls !== 0
+  )
+    throw new Error(JSON.stringify(review));
+  const avatar = await database.query(
+    `SELECT p.id FROM persons p JOIN person_creation_receipts r ON r.tree_id=p.tree_id AND p.id=ANY(r.person_ids)
+    WHERE p.tree_id=$1 AND p.full_name='Avatar retry'`,
+    [tree.tree_id],
+  );
+  if (avatar.rowCount !== 1)
+    throw new Error(
+      "Expected one Person and receipt for the recovered avatar creation.",
+    );
   const results = JSON.parse(cli("run-code", checkAdd.toString()));
   const {
     rows: [edge],
   } = await database.query(
-    `SELECT a.full_name AS parent,b.full_name AS child,r.type
+    `SELECT a.full_name AS parent,b.full_name AS child,r.type,a.generation AS parent_generation,b.generation AS child_generation
     FROM relationships r JOIN persons a ON a.id=r.person_a AND a.tree_id=r.tree_id
     JOIN persons b ON b.id=r.person_b AND b.tree_id=r.tree_id WHERE r.tree_id=$1 AND b.id=$2`,
     [tree.tree_id, results.focused],
@@ -87,7 +140,9 @@ try {
   if (
     edge?.parent !== "Người mới" ||
     edge.child !== "Con của người mới" ||
-    edge.type !== "biological_child"
+    edge.type !== "biological_child" ||
+    edge.parent_generation !== null ||
+    edge.child_generation !== null
   )
     throw new Error(
       "The focused Person and saved parent-child relationship differ.",
@@ -96,6 +151,9 @@ try {
     "UPDATE tree_memberships SET role='viewer' WHERE tree_id=$1 AND user_id=$2",
     [tree.tree_id, userId],
   );
+  cli("reload");
+  cli("dialog-dismiss");
+  results.reloadProtected = true;
   results.viewer = JSON.parse(cli("run-code", checkDemotion.toString()));
   const { rowCount } = await database.query(
     "SELECT FROM persons WHERE tree_id=$1 AND full_name='Bản nháp'",

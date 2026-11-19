@@ -22,6 +22,14 @@ export default async function checkAdd(page) {
     await cdp.send("Emulation.setSafeAreaInsetsOverride", {
       insets: { bottom: 34 },
     });
+    if (width < 768) {
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector("dialog.tree-add-dialog[open]")
+            ?.getBoundingClientRect().height === visualViewport.height,
+      );
+    }
     const result = await dialog.evaluate((el) => ({
       width: innerWidth,
       pageWidth: document.documentElement.scrollWidth,
@@ -113,6 +121,14 @@ export async function checkDemotion(page) {
   await dialog.getByRole("alert").filter({ hasText: "Từ chối" }).waitFor();
   if ((await dialog.getByLabel("Họ và tên").inputValue()) !== "Bản nháp")
     throw new Error("Demotion cleared the draft.");
+  await page.evaluate(() => {
+    window.confirm = () => true;
+  });
+  await dialog.getByRole("button", { name: "Hủy" }).click();
+  await page.waitForFunction(
+    () =>
+      !history.state?.personDraft && !document.querySelector("dialog[open]"),
+  );
   await page.reload();
   const node = page.getByRole("button", {
     name: "Xem thông tin Con của người mới",

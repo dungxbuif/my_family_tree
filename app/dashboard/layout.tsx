@@ -1,10 +1,12 @@
 import config from "@/app/config";
 import { HeritageBottomNav, HeritageHeader } from "@/components/heritage";
+import TreeSelectionSync from "@/components/TreeSelectionSync";
 import Footer from "@/components/Footer";
 import LogoutButton from "@/components/LogoutButton";
 import { UserProvider } from "@/components/UserProvider";
 import { getProfile, getUser } from "@/utils/data/queries";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import React from "react";
 
@@ -71,6 +73,7 @@ export default async function DashboardLayout({
 
   return (
     <UserProvider user={user} profile={profile}>
+      <TreeSelectionSync initialRevision={(await cookies()).get("family_tree_revision")?.value ?? ""} />
       <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
         <HeritageHeader />
         {children}

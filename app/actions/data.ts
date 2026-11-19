@@ -19,7 +19,7 @@ interface PersonExport {
   death_lunar_year: number | null;
   death_lunar_month: number | null;
   death_lunar_day: number | null;
-  is_deceased: boolean;
+  is_deceased: boolean | null;
   is_in_law: boolean;
   birth_order: number | null;
   generation: number | null;
@@ -85,7 +85,7 @@ function sanitizePerson(
     death_lunar_year: p.death_lunar_year ?? null,
     death_lunar_month: p.death_lunar_month ?? null,
     death_lunar_day: p.death_lunar_day ?? null,
-    is_deceased: p.is_deceased ?? false,
+    is_deceased: p.is_deceased ?? null,
     is_in_law: p.is_in_law ?? false,
     birth_order: p.birth_order ?? null,
     generation: p.generation ?? null,

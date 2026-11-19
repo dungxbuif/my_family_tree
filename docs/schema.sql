@@ -13,3 +13,4 @@ COMMIT;
 \ir migrations/20261119102000_native_access_submissions.sql
 \ir migrations/20261119103000_access_submission_claims.sql
 \ir migrations/20261119104000_person_creation_receipts.sql
+\ir migrations/20261119105000_unknown_person_life_status.sql

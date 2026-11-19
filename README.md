@@ -84,8 +84,8 @@ và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm tr
 
 Trong **Cây gia phả**, chủ sở hữu và người chỉnh sửa có thể chọn **Thêm thành viên**.
 Mở một người trên sơ đồ rồi chọn **Thêm thành viên** để lưu hồ sơ mới cùng
-quan hệ với người đó. Nút ở ngoài hồ sơ tạo người chưa có quan hệ. Sau khi
-lưu, sơ đồ lấy người vừa tạo làm gốc. Nút **Hủy** giữ vị trí trước đó.
+quan hệ với người đó. Nút ở ngoài hồ sơ tạo người chưa có quan hệ. Trạng thái mặc định là **Chưa rõ**. Có thể ghi rõ **Sống** hoặc **Đã mất**. Sau khi
+lưu, cả ba chế độ sơ đồ lấy người vừa tạo làm gốc. Nút **Hủy** giữ vị trí trước đó.
 Chỉ chủ sở hữu có quyền đọc và sửa thông tin riêng tư, bao gồm email có
 thể thiết lập liên kết tài khoản. Muốn xóa hồ sơ đã liên kết, chủ sở hữu
 cần hủy liên kết trong phần quản lý quyền trước.

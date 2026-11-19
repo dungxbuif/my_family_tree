@@ -76,7 +76,7 @@ export interface Person {
   death_lunar_day: number | null;
 
   // New fields
-  is_deceased: boolean;
+  is_deceased: boolean | null;
   is_in_law: boolean;
   birth_order: number | null;
   generation: number | null;

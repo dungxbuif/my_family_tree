@@ -5,6 +5,7 @@ import RelationshipManager from "@/components/RelationshipManager";
 import { Person } from "@/types";
 import {
   calculateAge,
+  recordedLifeStatus,
   formatDisplayDate,
   getLunarDateString,
   getSolarDateString,
@@ -70,14 +71,7 @@ export default function MemberDetailContent({
   const note = (fullPerson.note as string) || "";
   const isNoteLong = note.length > 300;
 
-  const isDeceased =
-    person.is_deceased ||
-    !!person.death_year ||
-    !!person.death_month ||
-    !!person.death_day ||
-    !!person.death_lunar_year ||
-    !!person.death_lunar_month ||
-    !!person.death_lunar_day;
+  const isDeceased = recordedLifeStatus(person);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -164,6 +158,7 @@ export default function MemberDetailContent({
           <div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 flex items-center gap-2 sm:gap-3 flex-wrap">
               {fullPerson.full_name}
+              {isDeceased === null && <span className="body-sm text-secondary">Tình trạng chưa rõ</span>}
               {isDeceased && (
                 <span className="text-[10px] sm:text-xs font-sans font-bold text-stone-500 border border-stone-200/80 bg-stone-100/50 rounded-md px-2 py-0.5 whitespace-nowrap uppercase tracking-wider shadow-xs">
                   Đã mất

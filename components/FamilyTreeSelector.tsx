@@ -7,10 +7,10 @@ import { Check, Trees } from "lucide-react";
 import type { TreeNotice } from "@/utils/auth/browser-tree-selection";
 import { changeFamilyTree } from "@/app/actions/family-tree";
 import type { AccessibleTree } from "@/utils/auth/tree-access";
+import { accessPath, treeRoles as roles } from "@/utils/tree-access-labels";
 
 type Selection = { trees: AccessibleTree[]; currentId?: string };
 const selectionUrl = "/dashboard/account/trees/selection";
-const roles = { owner: "Chủ sở hữu", editor: "Biên tập viên", viewer: "Người xem" };
 
 function subscribeToConnection(notify: () => void) {
   window.addEventListener("online", notify);
@@ -128,6 +128,9 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
               })}
             </ul>
           </form>
+        )}
+        {selection.trees.some(tree => tree.id === selection.currentId && tree.role === "owner") && (
+          <a href={accessPath} className="btn mt-3 min-h-11">Quản lý quyền truy cập</a>
         )}
       </section>
       <section className="space-y-3 rounded-[20px] border border-border bg-surface p-4 shadow-soft" aria-labelledby="create-tree">

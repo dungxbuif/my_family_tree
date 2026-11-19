@@ -71,12 +71,14 @@ Máy chạy kiểm thử cần Bun, npx và Google Chrome.
 
 ```sh
 bun scripts/test-tree-selector-browser.mjs
+bun scripts/test-tree-membership-browser.mjs
 ```
 
 Script tạo tài khoản và cây tạm thời, chạy Playwright CLI ở 320×568, 430×932
 và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm trong
 `output/playwright/tree-selector/`. Đặt `PLAYWRIGHT_CLI` nếu cần dùng đường dẫn
-đến wrapper Playwright CLI đã cài.
+đến wrapper Playwright CLI đã cài. Kiểm thử quản lý quyền ghi kết quả vào
+`output/playwright/tree-membership/`.
 
 ## Đăng nhập và quản lý tài khoản
 
@@ -94,7 +96,18 @@ máy chủ kiểm tra lại quyền trước khi dùng lựa chọn đã lưu tr
 Nếu bạn mất quyền hoặc cây đã lưu trữ, hệ thống chọn cây còn truy cập được tạo
 sớm nhất. Khi danh sách trống, bạn có thể tạo cây đầu tiên.
 
-Chức năng chọn cây hiện áp dụng trên trang **Cây gia phả của tôi**. Việc phát
+Trong cây đang chọn, Chủ sở hữu mở **Quản lý quyền truy cập → Thêm quyền truy
+cập**, nhập đầy đủ email của tài khoản đang hoạt động và chọn vai trò. Vai trò
+mặc định là Người xem. Bạn có thể đổi vai trò trong danh sách người đã có quyền.
+Trước khi gỡ hoặc hạ quyền Chủ sở hữu cuối cùng, hãy cấp quyền này cho người khác.
+
+Để gắn tài khoản với một người trong gia phả, chọn **Liên kết hồ sơ**, nhập
+email đầy đủ và chọn hồ sơ. Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
+Người xem. Mỗi tài khoản có thể liên kết với một hồ sơ trong mỗi cây. Gỡ liên
+kết trước khi đổi sang tài khoản khác hoặc gỡ quyền truy cập. Thay đổi email
+của hồ sơ đã liên kết vẫn giữ nguyên tài khoản gắn với hồ sơ.
+
+Chức năng chọn cây hiện áp dụng trên trang **Cây gia phả của tôi** và trang quản lý quyền. Việc phát
 hành đa cây vẫn chờ kiểm thử cách ly dữ liệu trên các màn hình gia đình, chức
 năng nhập/xuất và kho lưu trữ.
 

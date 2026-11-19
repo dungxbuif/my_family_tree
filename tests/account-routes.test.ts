@@ -293,3 +293,41 @@ routeTest("a tree write acknowledges the selected cookie and subsequent GET retr
     await database.query("DELETE FROM family_trees WHERE id IN (SELECT tree_id FROM tree_memberships WHERE user_id=$1)", [ordinary.id]);
   }
 }, 15_000);
+routeTest("the current Owner manages access by native exact-email POST and another member sees no controls", async () => {
+  const owner = await seedAccount(false), target = await seedAccount(false);
+  const tree = randomUUID();
+  const root = "/dashboard/account/trees/access";
+  await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Cây kiểm tra') RETURNING id)
+    INSERT INTO tree_memberships SELECT id,$2,'owner',now() FROM t`, [tree,owner.id]);
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  try {
+    const list = await fetch(new URL(root, appUrl), { headers: { cookie } });
+    expect(list.status).toBe(200);
+    const edit = new URL(root + "/edit?operation=add&treeId=" + tree, appUrl);
+    const get = await fetch(edit, { headers: { cookie } });
+    const form = renderedForm(await get.text(), "email");
+    expect(form.method.toLowerCase()).toBe("post");
+    form.inputs.set("email", "unknown-" + target.id + "@example.test");
+    const rejected = await fetch(new URL(form.action || edit, edit), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs,
+    });
+    const rejectedHtml = await rejected.text();
+    expect(rejectedHtml).toContain("Không thể thực hiện thay đổi với thông tin đã nhập.");
+    expect(renderedForm(rejectedHtml, "email").inputs.get("email")).toBe(form.inputs.get("email"));
+    form.inputs.set("email", target.id + "@example.test");
+    const result = await fetch(new URL(form.action || edit, edit), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs, redirect: "manual",
+    });
+    expect(result.status).toBe(303);
+    expect((await database.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2", [tree,target.id])).rows)
+      .toEqual([{ role: "viewer" }]);
+    const denied = await fetch(edit, { headers: { cookie: target.cookie } });
+    expect(countElements(await denied.text(), 'input[name="email"]')).toBe(0);
+    const direct = await fetch(new URL(root + "/mutation", appUrl), {
+      method: "POST", headers: { cookie: target.cookie, "X-Requested-With": "TreeAccessManager" }, body: form.inputs,
+    });
+    expect(await direct.json()).toMatchObject({ code: "FORBIDDEN" });
+  } finally {
+    await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);

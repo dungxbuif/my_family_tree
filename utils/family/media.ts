@@ -1,3 +1,4 @@
+import { readRows, type FamilyPage } from "./read-rows";
 import type { PoolClient } from "pg";
 import type { GalleryItem, TreeRole } from "@/types";
 import { FamilyDataError, uuid } from "./records";
@@ -69,16 +70,15 @@ export async function requireAttachment(
 
 export function familyMedia(actor: string, tree: string, access: Access) {
   return {
-    calendar: (page?: { limit: number; offset: number }) =>
-      access(
-        false,
-        async (client) =>
-          (
-            await client.query<CustomEventRecord>(
-              "SELECT id,name,content,event_date::text,location,created_by FROM custom_events WHERE tree_id=$1 ORDER BY event_date,id LIMIT $2 OFFSET $3",
-              [tree, page?.limit ?? null, page?.offset ?? 0],
-            )
-          ).rows,
+    calendar: (page?: FamilyPage) =>
+      access(false, (client) =>
+        readRows<CustomEventRecord>(
+          client,
+          "SELECT id,name,content,event_date::text,location,created_by FROM custom_events WHERE tree_id=$1 ORDER BY event_date,id LIMIT $2 OFFSET $3",
+          [tree, page?.limit ?? null, page?.offset ?? 0],
+          ["name", "content", "location"],
+          page?.maxBytes,
+        ),
       ),
     event: (id: string) =>
       access(false, async (client) => {
@@ -126,18 +126,17 @@ export function familyMedia(actor: string, tree: string, access: Access) {
         )
           throw missing();
       }),
-    gallery: (page?: { limit: number; offset: number }) =>
-      access(
-        false,
-        async (client) =>
-          (
-            await client.query<GalleryItem>(
-              `SELECT g.id,g.tree_id,g.title,g.description,m.object_url AS image_url,g.event_date::text,g.created_at::text,g.created_by
+    gallery: (page?: FamilyPage) =>
+      access(false, (client) =>
+        readRows<GalleryItem>(
+          client,
+          `SELECT g.id,g.tree_id,g.title,g.description,m.object_url AS image_url,g.event_date::text,g.created_at::text,g.created_by
       FROM gallery_items g LEFT JOIN tree_media m ON m.tree_id=g.tree_id AND m.object_url=g.image_url AND m.folder='gallery' AND m.cleanup_claim IS NULL
       WHERE g.tree_id=$1 ORDER BY g.event_date DESC NULLS LAST,g.created_at DESC,g.id LIMIT $2 OFFSET $3`,
-              [tree, page?.limit ?? null, page?.offset ?? 0],
-            )
-          ).rows,
+          [tree, page?.limit ?? null, page?.offset ?? 0],
+          ["title", "description", "image_url"],
+          page?.maxBytes,
+        ),
       ),
     saveGallery: (draft: GalleryDraft) =>
       access(true, async (client) => {

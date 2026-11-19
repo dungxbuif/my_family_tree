@@ -46,6 +46,8 @@ Ghi và xóa cần vai trò Chủ sở hữu hoặc Người chỉnh sửa. Ghi 
 
 Danh sách mặc định 50 mục, tối đa 100. Dùng `offset` từ 0 để duyệt trang. Bản xuất chứa đầy đủ các bảng của cây, tối đa 100 bản ghi mỗi bảng và 1 MiB. Ảnh gửi qua `image_url` phải là đường dẫn `/api/storage/…` đã được ứng dụng cấp, thuộc thư mục Gallery của cây và đã tải lên thành công. Mỗi POST chứa một đối tượng JSON, tối đa 4 MiB.
 
+Mỗi lần gọi công cụ nhận tối đa 100 trường và phần tử mảng, tính cả các cấp lồng nhau. Phần JSON chứa dữ liệu kết quả có giới hạn 1 MiB trước khi SDK đóng gói nội dung văn bản và dữ liệu có cấu trúc. Nếu một trang dữ liệu lớn trả `INVALID_INPUT`, giảm `limit`. Nếu chỉ một hồ sơ đã vượt giới hạn, xem hồ sơ đó trong ứng dụng. Danh mục công cụ cố định trong suốt kết nối.
+
 Kết quả thành công gồm `structuredContent.data` và nội dung văn bản JSON tương ứng. Kiểm tra `isError` khi gọi công cụ. Lỗi ứng dụng gồm `code`, `message` và `requestId`. Khi cần hỗ trợ, gửi mã yêu cầu và tên công cụ. Giữ kín khóa và thông tin riêng tư trong phản hồi.
 
 ## Cấu hình máy chủ

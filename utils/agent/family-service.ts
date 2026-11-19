@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
-import { FamilyDataError, publicColumns, uuid } from "@/utils/family/records";
+import {
+  FamilyDataError,
+  publicColumns,
+  personTextFields,
+  uuid,
+} from "@/utils/family/records";
 import {
   requireTreeRole,
   personDetail,
@@ -8,6 +13,7 @@ import {
 } from "@/utils/family/person-records";
 import type { z } from "zod";
 import { privateFields, savePerson } from "@/utils/family/save-person";
+import { readRows, responseSizeMessage } from "@/utils/family/read-rows";
 import { familyMedia } from "@/utils/family/media";
 import { exportBackup } from "@/utils/family/backup";
 import {
@@ -32,6 +38,7 @@ import {
   type Transport,
 } from "./credentials";
 
+const maxResponseBytes = 1024 * 1024;
 export const requiredScope = {
   list_family_trees: "read",
   list_people: "read",
@@ -121,13 +128,17 @@ async function execute(
   const page = () => ({
     limit: pageNumber(command.limit, 50, 1, 100),
     offset: pageNumber(command.offset, 0, 0, 2147483647),
+    maxBytes: maxResponseBytes,
   });
   if (action === "list_family_trees") {
     const { limit, offset } = page();
-    const { rows } = await client.query(
+    const rows = await readRows(
+      client,
       `SELECT t.id,t.name,m.role FROM tree_memberships m JOIN family_trees t ON t.id=m.tree_id
         WHERE m.user_id=$1 AND t.archived_at IS NULL ORDER BY t.created_at,t.id LIMIT $2 OFFSET $3`,
       [key.user_id, limit, offset],
+      ["name"],
+      maxResponseBytes,
     );
     return { data: rows };
   }
@@ -155,12 +166,13 @@ async function execute(
     case "list_people": {
       const { limit, offset } = page();
       return {
-        data: (
-          await client.query(
-            `SELECT ${publicColumns} FROM persons WHERE tree_id=$1 ORDER BY id LIMIT $2 OFFSET $3`,
-            [tree, limit, offset],
-          )
-        ).rows,
+        data: await readRows(
+          client,
+          `SELECT ${publicColumns} FROM persons WHERE tree_id=$1 ORDER BY id LIMIT $2 OFFSET $3`,
+          [tree, limit, offset],
+          personTextFields,
+          maxResponseBytes,
+        ),
       };
     }
     case "get_person": {
@@ -171,6 +183,7 @@ async function execute(
         itemId(),
         role,
         privateAccess,
+        maxResponseBytes,
       );
       if (!detail) throw new AgentError("NOT_FOUND");
       return {
@@ -262,16 +275,10 @@ async function execute(
     case "export_family_data": {
       if (role !== "owner" || !key.scopes.includes("private"))
         throw new AgentError("FORBIDDEN");
-      const maxBytes = 1024 * 1024;
       const data = await exportBackup(client, tree, undefined, {
         maxRows: 100,
-        maxBytes,
+        maxBytes: maxResponseBytes,
       });
-      if (Buffer.byteLength(JSON.stringify(data)) > maxBytes)
-        throw new AgentError(
-          "INVALID_INPUT",
-          "Bản xuất vượt giới hạn. Vui lòng sử dụng công cụ sao lưu của cây.",
-        );
       return { data };
     }
   }
@@ -320,5 +327,11 @@ export async function runFamilyCommand(
     }
   });
   if (result.error) throw result.error;
-  return { data: result.response.data };
+  const payload = { data: result.response.data };
+  const text = JSON.stringify(payload);
+  // The database bounds original text before transport. JSON escaping,
+  // timestamps, fixed-width fields and the envelope count toward the same cap.
+  if (Buffer.byteLength(text) > maxResponseBytes)
+    throw new AgentError("INVALID_INPUT", responseSizeMessage);
+  return { payload, text };
 }

@@ -1,10 +1,12 @@
 import type { PoolClient } from "pg";
+import { readRows } from "./read-rows";
 import type { Person, TreeRole } from "@/types";
 import { accountAccessLock } from "@/utils/auth/account-access-lock";
 import {
   FamilyDataError,
   forbidden,
   publicColumns,
+  personTextFields,
   requirePerson,
   uuid,
 } from "./records";
@@ -71,24 +73,28 @@ export async function personDetail(
   id: string,
   role: TreeRole,
   includePrivate: boolean,
+  maxBytes?: number,
 ) {
   if (!uuid.test(id)) return null;
-  const person = (
-    await client.query<Person>(
-      `SELECT ${publicColumns}${includePrivate && role === "owner" ? ",email" : ""}
-        FROM persons WHERE tree_id=$1 AND id=$2`,
-      [treeId, id],
-    )
-  ).rows[0];
+  const privateAccess = includePrivate && role === "owner";
+  const [person] = await readRows<Person>(
+    client,
+    `SELECT ${publicColumns}${privateAccess ? ",email" : ""} FROM persons WHERE tree_id=$1 AND id=$2`,
+    [treeId, id],
+    privateAccess ? [...personTextFields, "email"] : personTextFields,
+    maxBytes,
+  );
   if (!person) return null;
-  const privateData =
-    includePrivate && role === "owner"
-      ? ((
-          await client.query<PrivateDetails>(
-            "SELECT phone_number,occupation,current_residence FROM person_details_private WHERE tree_id=$1 AND person_id=$2",
-            [treeId, id],
-          )
-        ).rows[0] ?? null)
-      : null;
+  const privateData = privateAccess
+    ? ((
+        await readRows<PrivateDetails>(
+          client,
+          "SELECT phone_number,occupation,current_residence FROM person_details_private WHERE tree_id=$1 AND person_id=$2",
+          [treeId, id],
+          ["phone_number", "occupation", "current_residence"],
+          maxBytes,
+        )
+      )[0] ?? null)
+    : null;
   return { person, privateData, role };
 }

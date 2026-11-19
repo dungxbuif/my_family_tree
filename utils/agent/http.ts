@@ -103,7 +103,10 @@ export async function rest(
       offset: params.get("offset"),
       body,
     });
-    return json(response, request.method === "POST" ? 201 : 200);
+    return new Response(response.text, {
+      status: request.method === "POST" ? 201 : 200,
+      headers: { ...headers, "Content-Type": "application/json" },
+    });
   } catch (error) {
     return failure(error);
   }

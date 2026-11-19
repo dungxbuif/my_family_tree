@@ -1,3 +1,4 @@
+import { readRows, type FamilyPage } from "./read-rows";
 import type { PoolClient } from "pg";
 import type { Person, Relationship, RelationshipType } from "@/types";
 import {
@@ -24,7 +25,11 @@ export interface EnrichedRelationship {
 
 export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
   const { person_a: a, person_b: b, type } = edge;
-  if (a === b)
+  if (
+    typeof a === "string" &&
+    typeof b === "string" &&
+    a.toLowerCase() === b.toLowerCase()
+  )
     throw new FamilyDataError("Không thể tạo quan hệ với chính mình.");
   if (!["marriage", "biological_child", "adopted_child"].includes(type))
     throw new FamilyDataError("Quan hệ không hợp lệ.");
@@ -59,14 +64,15 @@ export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
 export async function listEdges(
   client: PoolClient,
   tree: string,
-  page?: { limit: number; offset: number },
+  page?: FamilyPage,
 ) {
-  return (
-    await client.query<Relationship>(
-      "SELECT id,tree_id,person_a,person_b,type,note,created_at,updated_at FROM relationships WHERE tree_id=$1 ORDER BY id LIMIT $2 OFFSET $3",
-      [tree, page?.limit ?? null, page?.offset ?? 0],
-    )
-  ).rows;
+  return readRows<Relationship>(
+    client,
+    "SELECT id,tree_id,person_a,person_b,type,note,created_at,updated_at FROM relationships WHERE tree_id=$1 ORDER BY id LIMIT $2 OFFSET $3",
+    [tree, page?.limit ?? null, page?.offset ?? 0],
+    ["note"],
+    page?.maxBytes,
+  );
 }
 
 export async function removeEdge(client: PoolClient, tree: string, id: string) {

@@ -566,3 +566,129 @@ test("invalid mutation arguments leave only safe audit metadata and a structured
     },
   ]);
 }, 30000);
+
+test("complex tool arguments return the application error and record the attempted mutation", async () => {
+  const client = await connect(token);
+  const id = randomUUID();
+  const result = await call(client, "update_event", {
+    familyTreeId: tree,
+    id,
+    body: { content: Array(101).fill("PRIVATE_OVERSIZED") },
+  });
+  expect(result.isError).toBe(true);
+  expect(result.structuredContent).toMatchObject({
+    code: "INVALID_INPUT",
+    requestId: expect.any(String),
+  });
+  expect(JSON.stringify(result)).not.toContain("PRIVATE_OVERSIZED");
+  expect(
+    (
+      await db.query(
+        "SELECT action,transport,outcome FROM api_audit_logs WHERE tree_id=$1 AND resource_id=$2",
+        [tree, id],
+      )
+    ).rows,
+  ).toEqual([{ action: "update_event", transport: "mcp", outcome: "failed" }]);
+}, 30000);
+
+test("static tools do not offer a catalog-change subscription", async () => {
+  const client = await connect(token, true);
+  expect(client.getServerCapabilities()?.tools?.listChanged).toBe(false);
+  const stream = await client.listen(
+    { toolsListChanged: true },
+    { signal: AbortSignal.timeout(3000) },
+  );
+  expect(await stream.closed).toBe("graceful");
+}, 30000);
+
+test("case variants of one Person ID receive a safe self-relationship error on both transports", async () => {
+  const person = "a" + randomUUID().slice(1);
+  await db.query(
+    "INSERT INTO persons(id,tree_id,full_name,gender) VALUES($1,$2,'Self','other')",
+    [person, tree],
+  );
+  const body = {
+    person_a: person,
+    person_b: person.toUpperCase(),
+    type: "marriage",
+  };
+  try {
+    const result = await rest("relationships", "POST", body);
+    expect(result.status).toBe(400);
+    expect(await result.json()).toMatchObject({
+      code: "INVALID_INPUT",
+      requestId: expect.any(String),
+    });
+    const client = await connect(token);
+    const tool = await call(client, "create_relationship", {
+      familyTreeId: tree,
+      body,
+    });
+    expect(tool.isError).toBe(true);
+    expect(tool.structuredContent).toMatchObject({
+      code: "INVALID_INPUT",
+      requestId: expect.any(String),
+    });
+  } finally {
+    await rest("persons/" + person, "DELETE");
+  }
+}, 30000);
+
+test("oversized legacy collection rows return bounded errors on REST and MCP", async () => {
+  const { rows } = await db.query(
+    "INSERT INTO persons(tree_id,full_name,gender,note) VALUES($1,'Legacy','other',repeat('ế',400000)) RETURNING id",
+    [tree],
+  );
+  try {
+    const client = await connect(token);
+    for (const [path, tool, args] of [
+      ["persons?limit=1", "list_people", { limit: 1 }],
+      ["persons/" + rows[0].id, "get_person", { id: rows[0].id }],
+    ] as const) {
+      const response = await rest(path);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        code: "INVALID_INPUT",
+        requestId: expect.any(String),
+      });
+      const result = await call(client, tool, { familyTreeId: tree, ...args });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        code: "INVALID_INPUT",
+        requestId: expect.any(String),
+      });
+    }
+    const detail = await familyPeople(user, tree, db).detail(rows[0].id);
+    expect(detail?.person.note?.length).toBe(400000);
+  } finally {
+    await db.query("DELETE FROM persons WHERE id=$1", [rows[0].id]);
+  }
+}, 30000);
+
+test("a legacy page can be split when the JSON encoding of multiple rows exceeds the response limit", async () => {
+  const { rows } = await db.query(
+    "INSERT INTO custom_events(tree_id,name,event_date,content) SELECT $1,'Large','2026-01-01',repeat(chr(34),300000) FROM generate_series(1,2) RETURNING id",
+    [tree],
+  );
+  try {
+    const client = await connect(token);
+    expect((await rest("events?limit=2")).status).toBe(400);
+    const large = await call(client, "list_events", {
+      familyTreeId: tree,
+      limit: 2,
+    });
+    expect(large.structuredContent).toMatchObject({
+      code: "INVALID_INPUT",
+      requestId: expect.any(String),
+    });
+    for (const offset of [0, 1]) {
+      const result = await rest("events?limit=1&offset=" + offset);
+      expect(result.status).toBe(200);
+      expect((await result.json()).data[0].content.length).toBe(300000);
+    }
+  } finally {
+    await db.query("DELETE FROM custom_events WHERE id=ANY($1::uuid[])", [
+      rows.map((r) => r.id),
+    ]);
+  }
+}, 30000);

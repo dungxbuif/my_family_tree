@@ -44,6 +44,8 @@ curl --fail-with-body \
 | GET | `/api/v1/stats?familyTreeId=<tree-id>` | Số lượng `persons`, `relationships`, `events`, `gallery` trong cây |
 | GET | `/api/v1/export?familyTreeId=<tree-id>` | Bản sao lưu JSON phiên bản 4, gồm trường riêng tư. Cần vai trò Chủ sở hữu và cả hai quyền `read`, `private` |
 
+Mỗi phản hồi dữ liệu có giới hạn 1 MiB JSON, kể cả trường `data`. Trang chứa dữ liệu cũ quá lớn trả 400 `INVALID_INPUT` kèm `requestId`. Khi đó hãy giảm `limit`. Nếu một bản ghi vượt giới hạn, xem bản ghi trong giao diện cây.
+
 Mỗi danh sách nhận `limit` từ 1 đến 100, mặc định 50, và `offset` từ 0, mặc định 0. Trang tiếp theo dùng `offset` tăng bằng số mục đã nhận. Kết thúc khi nhận được ít hơn `limit` mục. Thay đổi đồng thời trong cây có thể làm dịch chuyển vị trí trong danh sách.
 
 Gửi JSON với `Content-Type: application/json`, tối đa 64 KiB cho mỗi thân yêu cầu. Ví dụ tạo hồ sơ với năm sinh và tình trạng sống chưa rõ.

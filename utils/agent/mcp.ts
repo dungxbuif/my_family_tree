@@ -43,12 +43,32 @@ const descriptions: Record<FamilyAction, string> = {
   export_family_data:
     "Export a complete metadata backup up to 100 rows per collection and 1 MiB. Requires Owner, read and private.",
 };
+// Count object fields and array elements. Stop before schema validation and
+// avoid recursive calls for deeply nested JSON.
+function withinToolInputLimit(value: unknown) {
+  const pending: unknown[] = [value];
+  let elements = 0;
+  while (pending.length) {
+    const node = pending.pop();
+    if (node === null || typeof node !== "object") continue;
+    const record = node as Record<string, unknown>;
+    for (const key in record) {
+      if (!Object.hasOwn(record, key)) continue;
+      if (++elements > 100) return false;
+      pending.push(record[key]);
+    }
+  }
+  return true;
+}
+
 // Decode an invocation to a command, including validation failures. Keeping a
 // rejected command in the normal dispatch path gives it the same sanitized
 // tool result and transactional audit as invalid REST input.
 function decodeCommand(action: FamilyAction, value: unknown): FamilyCommand {
-  const result = toolInputs[action].safeParse(value);
-  if (!result.success) {
+  const result = withinToolInputLimit(value)
+    ? toolInputs[action].safeParse(value)
+    : undefined;
+  if (!result?.success) {
     const record = value && typeof value === "object" ? value : {};
     return {
       action,
@@ -81,7 +101,7 @@ const handler = createMcpHandler(
     if (!authInfo) throw new AgentError("UNAUTHORIZED");
     const server = new McpServer(
       { name: "family-tree", version: "1.0.0" },
-      { maxToolInputElements: 100 },
+      { capabilities: { tools: { listChanged: false } } },
     );
     for (const action of Object.keys(toolInputs) as FamilyAction[]) {
       const schema = toolInputs[action];
@@ -116,10 +136,8 @@ const handler = createMcpHandler(
               command,
             );
             return {
-              structuredContent: result,
-              content: [
-                { type: "text" as const, text: JSON.stringify(result) },
-              ],
+              structuredContent: result.payload,
+              content: [{ type: "text" as const, text: result.text }],
             };
           } catch (error) {
             const result = safeError(error);

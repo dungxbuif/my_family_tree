@@ -23,6 +23,12 @@ export const unavailable = () =>
 export const uuid = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
 export const ownedAvatar =
   "(SELECT m.object_url FROM tree_media m WHERE m.tree_id=persons.tree_id AND m.folder='avatars' AND m.object_url=persons.avatar_url AND m.cleanup_claim IS NULL) AS avatar_url";
+export const personTextFields = [
+  "full_name",
+  "other_names",
+  "note",
+  "avatar_url",
+] as const;
 export const publicColumns =
   "tree_id," +
   tableColumns.persons

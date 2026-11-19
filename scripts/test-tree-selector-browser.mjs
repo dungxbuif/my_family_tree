@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
-import checkSelector, { checkRevokedSelection } from "../tests/browser/tree-selector.mjs";
+import checkSelector, { checkRevokedSelection, checkSnapshotRecovery } from "../tests/browser/tree-selector.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
 const appUrl = process.env.FAMILY_TREE_TEST_APP_URL;
@@ -44,6 +44,14 @@ try {
     );
     results.recoveredFromRevocation = JSON.parse(cli("run-code", checkRevokedSelection.toString()));
     if (!results.recoveredFromRevocation) results.failures.push("Stale switch error remained after creation");
+  }
+  if (!results.failures.length) {
+    results.snapshotRecovery = JSON.parse(cli("run-code", checkSnapshotRecovery.toString()));
+    const committed = await database.query(
+      `SELECT t.id FROM family_trees t JOIN tree_memberships m ON m.tree_id=t.id
+        WHERE m.user_id=$1 AND m.role='owner' AND t.name='Cây kiểm tra tải lại'`, [userId],
+    );
+    if (committed.rowCount !== 1) results.failures.push("Reload duplicated or lost the committed Family Tree");
   }
   const report = JSON.stringify(results, null, 2) + "\n";
   writeFileSync(resolve(output, "measurements.json"), report);

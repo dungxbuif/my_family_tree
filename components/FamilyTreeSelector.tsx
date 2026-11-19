@@ -8,6 +8,8 @@ import type { TreeNotice } from "@/utils/auth/browser-tree-selection";
 import { changeFamilyTree } from "@/app/actions/family-tree";
 import type { AccessibleTree } from "@/utils/auth/tree-access";
 
+type Selection = { trees: AccessibleTree[]; currentId?: string };
+const selectionUrl = "/dashboard/account/trees/selection";
 const roles = { owner: "Chủ sở hữu", editor: "Biên tập viên", viewer: "Người xem" };
 
 function subscribeToConnection(notify: () => void) {
@@ -31,12 +33,26 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
   const [notice, setNotice] = useState<TreeNotice | null>(initialNotice);
   const [draft, setDraft] = useState(initialNotice && "error" in initialNotice ? initialNotice.draft ?? "" : "");
   const [touchedTree, setTouchedTree] = useState<string | null>(null);
-  const [operation, setOperation] = useState<"create" | "select" | null>(null);
-  const [selection, setSelection] = useState({ trees, currentId });
+  const [operation, setOperation] = useState<"create" | "select" | "read" | null>(null);
+  const [selection, setSelection] = useState<Selection | null>({ trees, currentId });
+  const reading = operation === "read";
   const busy = operation !== null;
   const creating = operation === "create";
   const online = useSyncExternalStore(subscribeToConnection, () => navigator.onLine, () => true);
   useUnsavedNavigation(Boolean(draft) || creating, "Tên cây gia phả chưa được lưu. Bạn có muốn rời trang?");
+
+  async function refreshSelection() {
+    setOperation("read");
+    try {
+      const response = await fetch(selectionUrl, { cache: "no-store" });
+      if (!response.ok || response.redirected) throw new Error("Selection unavailable");
+      setSelection(await response.json() as Selection);
+    } catch {
+      setSelection(null);
+    } finally {
+      setOperation(null);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +62,7 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
     setOperation(creatingTree ? "create" : "select");
     setNotice(null);
     try {
-      const response = await fetch("/dashboard/account/trees/selection", {
+      const response = await fetch(selectionUrl, {
         method: "POST", headers: { "X-Requested-With": "FamilyTreeSelector" }, body: fields,
       });
       if (response.status === 401 || (response.redirected && new URL(response.url).pathname === "/login")) {
@@ -55,16 +71,29 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
         return;
       }
       if (!response.ok) throw new Error("Tree selection request failed");
-      const result = await response.json() as { notice: TreeNotice; trees: AccessibleTree[]; currentId?: string };
-      setSelection({ trees: result.trees, currentId: result.currentId });
+      const result = await response.json() as { notice: TreeNotice };
       if (creatingTree && "treeId" in result.notice) setDraft("");
       setNotice(result.notice);
+      await refreshSelection();
     } catch {
-      setNotice({ error: "Không thể cập nhật cây gia phả. Vui lòng thử lại." });
+      setSelection(null);
+      setNotice({ error: "Chưa thể xác nhận kết quả. Hãy tải lại danh sách để kiểm tra." });
     } finally {
       setOperation(null);
     }
   }
+  if (!selection) {
+    return (
+      <div className="space-y-3" aria-busy={reading}>
+        <Notice result={notice} />
+        <p role="alert" className="body-sm text-error">Cần tải lại danh sách cây gia phả để tiếp tục.</p>
+        <button type="button" className="btn min-h-[52px]" onClick={refreshSelection} disabled={reading || !online}>
+          {reading ? "Đang tải danh sách…" : "Tải lại danh sách"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {!online && <p role="status" className="body-sm text-warning">Đã mất kết nối. Hãy kết nối lại để chọn hoặc tạo cây gia phả.</p>}
@@ -74,7 +103,7 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
         {selection.trees.length === 0 ? (
           <p className="body-md mt-3 text-secondary">Bạn chưa có cây gia phả. Hãy tạo cây đầu tiên của bạn.</p>
         ) : (
-          <form action={nativeAction} onSubmit={submit} className="mt-3 space-y-3" aria-busy={busy && !creating}>
+          <form action={nativeAction} onSubmit={submit} className="mt-3 space-y-3" aria-busy={operation === "select"}>
             <input type="hidden" name="operation" value="select" />
             <ul className="space-y-2">
               {selection.trees.map(tree => {
@@ -116,7 +145,8 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
           </button>
         </form>
       </section>
-      {busy && !creating && <p role="status">Đang chuyển cây gia phả…</p>}
+      {operation === "select" && <p role="status">Đang chuyển cây gia phả…</p>}
+      {reading && <p role="status">Đang tải danh sách…</p>}
     </div>
   );
 }

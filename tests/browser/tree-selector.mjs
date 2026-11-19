@@ -113,3 +113,47 @@ export async function checkRevokedSelection(page) {
   await page.getByRole("button", { name: /Cây mới của gia đình/, pressed: true }).waitFor();
   return await page.locator("main [role=alert]").count() === 0;
 }
+
+export async function checkSnapshotRecovery(page) {
+  const path = "**/dashboard/account/trees/selection";
+  const results = [];
+  for (const operation of ["create", "select"]) {
+    let writes = 0;
+    let reads = 0;
+    await page.route(path, async route => {
+      const method = route.request().method();
+      if (method === "POST") writes++;
+      if (method === "GET" && ++reads === 1) {
+        await route.fulfill({ status: 503, body: "Snapshot temporarily unavailable" });
+      } else {
+        await route.continue();
+      }
+    });
+    try {
+      const committed = page.waitForResponse(r => r.url().endsWith("/trees/selection") && r.request().method() === "POST");
+      if (operation === "create") {
+        const input = page.getByRole("textbox", { name: "Tên cây gia phả" });
+        await input.fill("Cây kiểm tra tải lại");
+        await input.press("Enter");
+      } else {
+        await page.getByRole("button", { name: /Họ Bùi/ }).press("Space");
+      }
+      const response = await committed;
+      const { notice } = await response.json();
+      const cookie = (await page.context().cookies()).find(c => c.name === "family_tree_selected");
+      if (!response.ok() || !notice.treeId || cookie?.value !== notice.treeId) throw new Error("Lost mutation acknowledgement or cookie");
+      const reload = page.getByRole("button", { name: "Tải lại danh sách" });
+      await reload.waitFor({ timeout: 4000 });
+      await page.getByRole("status").filter({ hasText: notice.message }).waitFor();
+      if (await page.locator("main form").count()) throw new Error("A mutation form is still available during recovery");
+      await reload.press("Enter");
+      await page.locator('button[aria-pressed="true"][value="' + notice.treeId + '"]').waitFor();
+      if (await page.getByRole("textbox", { name: "Tên cây gia phả" }).inputValue()) throw new Error("Committed draft remained");
+      if (writes !== 1 || reads !== 2) throw new Error("Recovery must retry only the snapshot GET");
+      results.push({ operation, writes, reads });
+    } finally {
+      await page.unroute(path);
+    }
+  }
+  return results;
+}

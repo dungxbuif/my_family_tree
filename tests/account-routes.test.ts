@@ -265,3 +265,31 @@ routeTest("hydrated tree updates require a browser request and a current session
   expect(await expired.json()).toMatchObject({ trees: [], notice: { error: "Vui lòng đăng nhập lại." } });
   expect((await database.query("SELECT FROM tree_memberships WHERE user_id=$1", [ordinary.id])).rowCount).toBe(0);
 }, 15_000);
+
+routeTest("a tree write acknowledges the selected cookie and subsequent GET retries are read-only", async () => {
+  const ordinary = await seedAccount(false);
+  const url = new URL("/dashboard/account/trees/selection", appUrl);
+  const fields = new FormData();
+  fields.set("operation", "create");
+  fields.set("name", "Chỉ tạo một lần");
+  try {
+    const write = await fetch(url, {
+      method: "POST", headers: { cookie: ordinary.cookie, "X-Requested-With": "FamilyTreeSelector" }, body: fields,
+    });
+    expect(write.status).toBe(200);
+    const { notice } = await write.json();
+    const selected = write.headers.getSetCookie().find(value => value.startsWith("family_tree_selected="))?.split(";")[0];
+    expect(selected).toBe("family_tree_selected=" + notice.treeId);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const read = await fetch(url, { headers: { cookie: ordinary.cookie + "; " + selected } });
+      expect(read.status).toBe(200);
+      expect(read.headers.get("cache-control")).toContain("no-store");
+      expect(await read.json()).toEqual({
+        trees: [{ id: notice.treeId, name: "Chỉ tạo một lần", role: "owner" }], currentId: notice.treeId,
+      });
+    }
+    expect((await database.query("SELECT FROM tree_memberships WHERE user_id=$1", [ordinary.id])).rowCount).toBe(1);
+  } finally {
+    await database.query("DELETE FROM family_trees WHERE id IN (SELECT tree_id FROM tree_memberships WHERE user_id=$1)", [ordinary.id]);
+  }
+}, 15_000);

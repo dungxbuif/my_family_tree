@@ -1,47 +1,49 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getProfile } from "@/utils/data/queries";
-import { getBrowserTreeSelection } from "@/utils/auth/browser-tree-selection";
-import { presignUpload } from "@/utils/storage/s3";
+import { pruneTreeMedia } from "@/utils/storage/prune";
+import { after, NextResponse } from "next/server";
+import { currentPeople } from "@/utils/family/browser";
+import { FamilyDataError } from "@/utils/family/records";
 
-export async function POST(request: NextRequest) {
-  const denied = () =>
-    NextResponse.json({ error: "Từ chối truy cập." }, { status: 403 });
-  const profile = await getProfile();
-  if (!profile?.is_active) return denied();
+export async function POST(request: Request) {
   try {
-    const {
-      folder,
-      fileName,
-      contentType,
-      size,
-      treeId,
-      submissionId,
-      sha256,
-    } = await request.json();
-    if (folder === "avatars") {
-      const { current } = await getBrowserTreeSelection(profile.id);
-      if (!current || current.id !== treeId || current.role === "viewer")
-        return denied();
-      return NextResponse.json(
-        await presignUpload(folder, fileName, contentType, size, {
-          actorId: profile.id,
-          treeId: current.id,
-          submissionId,
-          sha256,
-        }),
-      );
-    }
-    if (profile.role !== "admin" && profile.role !== "editor") return denied();
-    return NextResponse.json(
-      await presignUpload(folder, fileName, contentType, size),
+    const draft = await request.json();
+    const family = await currentPeople(draft.treeId);
+    const allowed = [
+      "folder",
+      "fileName",
+      "contentType",
+      "size",
+      "treeId",
+      "submissionId",
+      "sha256",
+    ];
+    if (Object.keys(draft).some((k) => !allowed.includes(k))) throw new Error();
+    const upload = await family.issueUpload(
+      draft.folder,
+      draft.fileName,
+      draft.contentType,
+      draft.size,
+      { submissionId: draft.submissionId, sha256: draft.sha256 },
     );
+    after(() =>
+      pruneTreeMedia(draft.treeId).catch(() => {
+        console.error("Không thể dọn ảnh cũ.");
+      }),
+    );
+    return NextResponse.json(upload, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
+    const denied = error instanceof FamilyDataError;
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "Không thể chuẩn bị upload.",
+        error: denied
+          ? "Từ chối truy cập."
+          : "Không thể chuẩn bị tải ảnh. Kiểm tra loại và kích thước ảnh.",
       },
-      { status: 400 },
+      {
+        status: denied ? 403 : 400,
+        headers: { "Cache-Control": "private, no-store" },
+      },
     );
   }
 }

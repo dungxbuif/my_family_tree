@@ -10,6 +10,7 @@ import {
   unavailable,
   uuid,
 } from "./records";
+import { familyMedia } from "./media";
 import { insertEdge, readFamily, type Edge } from "./relationships";
 import { validateLifeDates } from "./life-dates";
 import { createOnce, savePerson } from "./save-person";
@@ -65,6 +66,7 @@ export function familyPeople(
   }
 
   return {
+    ...familyMedia(actor, treeId, access),
     children: (draft: ChildrenDraft) =>
       access(true, (client) =>
         createOnce(

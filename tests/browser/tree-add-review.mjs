@@ -132,7 +132,9 @@ export async function avatarRetry(page) {
   await page.route("**/api/uploads/presign", async (route) => {
     const url = new URL("/fixture-avatar-" + ++uploads + ".png", page.url())
       .href;
-    await route.fulfill({ json: { publicUrl: url, uploadUrl: url } });
+    const signed = await route.fetch();
+    const payload = await signed.json();
+    await route.fulfill({ json: { ...payload, uploadUrl: url } });
   });
   await page.route("**/fixture-avatar-*.png", async (route) => {
     if (route.request().method() === "PUT") puts++;

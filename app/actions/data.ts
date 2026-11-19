@@ -1,5 +1,8 @@
 "use server";
 
+import { changeFamily, currentPeople } from "@/utils/family/browser";
+import type { EventDraft } from "@/utils/family/media";
+
 import { getIsAdmin, getDataClient } from "@/utils/data/queries";
 import { query } from "@/utils/db/client";
 import { revalidatePath } from "next/cache";
@@ -120,41 +123,17 @@ function sanitizeCustomEvent(
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export async function saveCustomEvent(data: { id?: string; name: string; event_date: string; location: string | null; content: string | null }) {
-  const isAdmin = await getIsAdmin();
-  if (!isAdmin) return { error: "Từ chối truy cập." };
-
-  const db = getDataClient();
-  try {
-    if (data.id) {
-      const { error } = await db.from("custom_events").update(data).eq("id", data.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await db.from("custom_events").insert(data);
-      if (error) throw new Error(error.message);
-    }
-    revalidatePath("/dashboard/events");
-    return { success: true };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { error: message };
-  }
+export async function saveCustomEvent(draft: EventDraft, treeId: string) {
+  return changeFamily("/dashboard/events", async () => ({
+    id: await (await currentPeople(treeId)).saveEvent(draft),
+  }));
 }
 
-export async function deleteCustomEvent(id: string) {
-  const isAdmin = await getIsAdmin();
-  if (!isAdmin) return { error: "Từ chối truy cập." };
-
-  const db = getDataClient();
-  try {
-    const { error } = await db.from("custom_events").delete().eq("id", id);
-    if (error) throw new Error(error.message);
-    revalidatePath("/dashboard/events");
-    return { success: true };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { error: message };
-  }
+export async function deleteCustomEvent(id: string, treeId: string) {
+  return changeFamily("/dashboard/events", async () => {
+    await (await currentPeople(treeId)).deleteEvent(id);
+    return {};
+  });
 }
 
 export async function exportData(

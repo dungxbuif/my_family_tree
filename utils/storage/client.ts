@@ -1,20 +1,18 @@
 export async function uploadImage(
   file: File,
   folder: "avatars" | "gallery",
-  avatar?: { treeId: string; submissionId: string },
+  upload: { treeId: string; submissionId: string },
 ) {
   if (file.size < 1 || file.size > 10 * 1024 * 1024)
     throw new Error("Ảnh phải nhỏ hơn hoặc bằng 10 MiB.");
-  let sha256: string | undefined;
-  if (avatar) {
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      await file.arrayBuffer(),
-    );
-    sha256 = Array.from(new Uint8Array(digest), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
-  }
+
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    await file.arrayBuffer(),
+  );
+  const sha256 = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
   const response = await fetch("/api/uploads/presign", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -23,7 +21,7 @@ export async function uploadImage(
       fileName: file.name,
       contentType: file.type,
       size: file.size,
-      ...avatar,
+      ...upload,
       sha256,
     }),
   });

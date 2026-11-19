@@ -23,7 +23,11 @@ export async function currentPeople(expected: unknown) {
   if (!current || expected !== current.tree.id) throw forbidden();
   return current.people;
 }
-export async function changePeople<T extends object>(
+export function changePeople<T extends object>(operation: () => Promise<T>) {
+  return changeFamily("/dashboard/members", operation);
+}
+export async function changeFamily<T extends object>(
+  path: string,
   operation: () => Promise<T>,
 ): Promise<
   | ({ success: true; error?: undefined } & T)
@@ -31,8 +35,8 @@ export async function changePeople<T extends object>(
 > {
   try {
     const result = await operation();
-    revalidatePath("/dashboard/members", "layout");
-    revalidatePath("/dashboard/lineage");
+    revalidatePath(path, "layout");
+    if (path === "/dashboard/members") revalidatePath("/dashboard/lineage");
     revalidatePath("/dashboard");
     return { success: true, ...result };
   } catch (err) {

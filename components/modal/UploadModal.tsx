@@ -1,5 +1,6 @@
 "use client";
 
+import { currentHistoryIndex, useUnsavedNavigation,useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
 import { uploadGalleryItem } from "@/app/actions/gallery";
 import { uploadImage } from "@/utils/storage/client";
 import { X, UploadCloud, Loader2 } from "lucide-react";
@@ -10,6 +11,7 @@ import Image from "next/image";
 import { GalleryItem } from "@/types";
 
 interface UploadModalProps {
+  treeId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -17,6 +19,7 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({
+  treeId,
   isOpen,
   onClose,
   onSuccess,
@@ -30,7 +33,15 @@ export default function UploadModal({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [submissionId] = useState(() => crypto.randomUUID());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const stale = useStaleTreeDraft();
+  const dirty = Boolean(file || title !== (initialData?.title || "") || description !== (initialData?.description || "") || eventDate !== (initialData?.event_date || ""));
+  useUnsavedNavigation(isOpen && dirty, "Hủy các thay đổi chưa lưu?");
+  useEffect(() => {
+    if (preview?.startsWith("blob:")) return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   // Sync initialData when modal opens
   useEffect(() => {
@@ -56,32 +67,19 @@ export default function UploadModal({
     };
   }, [isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) {
-      if (selected.size > 10 * 1024 * 1024) {
-        setError("File size must be less than 10MB");
-        return;
-      }
-      setFile(selected);
-      const url = URL.createObjectURL(selected);
-      setPreview(url);
-      setError(null);
+  const chooseFile = (selected?: File) => {
+    if (!selected) return;
+    if (!["image/jpeg","image/png","image/gif","image/webp"].includes(selected.type)) {
+      setError("Vui lòng chọn ảnh JPG, PNG, GIF hoặc WebP.");
+      return;
     }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped && dropped.type.startsWith("image/")) {
-      setFile(dropped);
-      setPreview(URL.createObjectURL(dropped));
-      setError(null);
+    if (selected.size < 1 || selected.size > 10 * 1024 * 1024) {
+      setError("Ảnh phải từ 1 byte đến 10 MiB.");
+      return;
     }
+    setFile(selected);
+    setPreview(URL.createObjectURL(selected));
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -100,10 +98,11 @@ export default function UploadModal({
 
     try {
       const uploadedImageUrl = file
-        ? await uploadImage(file, "gallery")
+        ? await uploadImage(file, "gallery", {treeId,submissionId})
         : initialData?.image_url;
       const formData = new FormData();
       formData.append("title", title);
+      formData.append("treeId", treeId);
       formData.append("description", description);
       formData.append("eventDate", eventDate);
       if (initialData) {
@@ -140,12 +139,13 @@ export default function UploadModal({
   };
 
   const handleClose = () => {
+    if (stale || isUploading || (dirty && !window.confirm("Hủy các thay đổi chưa lưu?"))) return;
     resetForm();
     onClose();
   };
 
   const inputClasses =
-    "bg-white text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
+    "min-h-11 min-w-0 bg-surface text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
     <AnimatePresence>
@@ -169,14 +169,15 @@ export default function UploadModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
+            role="dialog" aria-modal="true" aria-label="Hình ảnh"
             className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
           >
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
               <button
                 onClick={handleClose}
-                disabled={isUploading}
-                className="size-10 flex items-center justify-center bg-stone-100/80 text-stone-600 rounded-full hover:bg-stone-200 hover:text-stone-900 shadow-sm border border-stone-200/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isUploading || stale}
+                className="size-11 flex items-center justify-center bg-stone-100/80 text-stone-600 rounded-full hover:bg-stone-200 hover:text-stone-900 shadow-sm border border-stone-200/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Đóng"
               >
                 <X className="size-5" />
@@ -192,23 +193,31 @@ export default function UploadModal({
 
               <form
                 id="upload-form"
+                data-dirty-tree-draft={dirty}
+                data-recovery-role="editor"
+                onChangeCapture={({currentTarget}) => { currentTarget.dataset.treeDraftEntryIndex ??= String(currentHistoryIndex()); }}
                 onSubmit={handleSubmit}
                 className="space-y-6"
               >
+                <div data-tree-recovery className="empty:hidden" />
                 {/* Image Upload Area */}
                 <div
                   className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer
                     ${preview ? "border-stone-200 bg-stone-50" : "border-stone-300 hover:border-pink-400 hover:bg-pink-50/50"}`}
+                  role={preview ? undefined : "button"}
+                  tabIndex={preview ? undefined : 0}
+                  aria-label={preview ? undefined : "Chọn ảnh để tải lên"}
+                  onKeyDown={e => { if (!preview && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); fileInputRef.current?.click(); } }}
                   onClick={() => !preview && fileInputRef.current?.click()}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {e.preventDefault(); chooseFile(e.dataTransfer.files[0]);}}
                 >
                   {preview ? (
                     <div className="relative inline-block w-full">
                       <Image
                         unoptimized
                         src={preview}
-                        alt="Preview"
+                        alt="Ảnh xem trước"
                         width={1200}
                         height={800}
                         className="max-h-64 object-contain mx-auto rounded-lg shadow-sm"
@@ -221,7 +230,8 @@ export default function UploadModal({
                           setFile(null);
                           setPreview(null);
                         }}
-                        className="absolute top-2 right-2 p-1.5 bg-surface text-stone-700 hover:text-rose-600 rounded-full shadow-md"
+                        aria-label="Chọn ảnh khác"
+                        className="min-w-11 min-h-11 absolute top-2 right-2 p-1.5 bg-surface text-stone-700 hover:text-rose-600 rounded-full shadow-md"
                       >
                         <X className="size-4" />
                       </button>
@@ -236,7 +246,7 @@ export default function UploadModal({
                           Kéo thả ảnh vào đây, hoặc click để chọn
                         </p>
                         <p className="text-xs text-stone-500 mt-1">
-                          Hỗ trợ JPG, PNG, WEBP (Max 10MB)
+                          JPG, PNG, GIF, WebP · Tối đa 10 MiB
                         </p>
                       </div>
                     </div>
@@ -244,14 +254,15 @@ export default function UploadModal({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    aria-label="Chọn tệp ảnh"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
                     className="hidden"
-                    onChange={handleFileChange}
+                    onChange={e => {chooseFile(e.target.files?.[0]); e.target.value = "";}}
                   />
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-rose-50 text-rose-600 text-sm rounded-xl border border-rose-100">
+                  <div role="alert" className="p-3 bg-surface text-error text-sm rounded-xl border border-error">
                     {error}
                   </div>
                 )}
@@ -266,7 +277,7 @@ export default function UploadModal({
                     <input
                       type="text"
                       required
-                      value={title}
+                      aria-label="Tiêu đề ảnh" value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       className={inputClasses}
                       placeholder="Ví dụ: Lễ mừng thọ ông nội"
@@ -279,7 +290,7 @@ export default function UploadModal({
                     </label>
                     <input
                       type="date"
-                      value={eventDate}
+                      aria-label="Ngày diễn ra" value={eventDate}
                       onChange={(e) => setEventDate(e.target.value)}
                       className={inputClasses}
                     />
@@ -290,7 +301,7 @@ export default function UploadModal({
                       Nội dung kỷ niệm
                     </label>
                     <textarea
-                      value={description}
+                      aria-label="Nội dung kỷ niệm" value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
                       className={`${inputClasses} resize-none`}
@@ -299,11 +310,11 @@ export default function UploadModal({
                   </div>
                 </div>
 
-                <div className="pt-4 flex justify-end gap-3 border-t border-stone-100">
+                <div className="pt-4 flex flex-wrap justify-end gap-3 border-t border-stone-100">
                   <button
                     type="button"
                     onClick={handleClose}
-                    disabled={isUploading}
+                    disabled={isUploading || stale}
                     className="btn"
                   >
                     Hủy bỏ
@@ -311,7 +322,7 @@ export default function UploadModal({
                   <button
                     type="submit"
                     form="upload-form"
-                    disabled={isUploading || (!initialData && !file) || !title}
+                    disabled={stale || isUploading || (!initialData && !file) || !title}
                     className="btn-primary flex items-center gap-2"
                   >
                     {isUploading ? (

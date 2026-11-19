@@ -195,3 +195,19 @@ test("receipt and life-status upgrades use the public schema under a custom sear
   expect(sql(`SELECT is_deceased FROM persons WHERE id='${spouse}'`)).toBe("t");
   expect(sql(`INSERT INTO persons(tree_id,full_name,gender) VALUES('${legacy}','Chưa rõ','other') RETURNING is_deceased IS NULL`)).toBe("t");
 });
+
+test("legacy media ownership is captured once and ambiguous keys roll back", () => {
+  migrate();
+  const media = "\\i /app/docs/migrations/20261119110000_tree_media.sql";
+  const url = "/api/storage/family-tree/gallery/aaa-bbb.png";
+  sql(`UPDATE gallery_items SET image_url='${url}';
+    WITH t AS (INSERT INTO family_trees(id,name) VALUES('${secondTreeId}','Second') RETURNING id),
+    m AS (INSERT INTO tree_memberships(tree_id,user_id,role) SELECT id,'${owner}','owner' FROM t)
+    INSERT INTO gallery_items(tree_id,title,image_url) SELECT id,'copy','${url}' FROM t;`);
+  expect(() => sql(media)).toThrow(/duplicate key/i);
+  expect(sql("SELECT to_regclass('public.tree_media') IS NULL")).toBe("t");
+  sql(`DELETE FROM gallery_items WHERE tree_id='${secondTreeId}'; CREATE SCHEMA media_migration_fixture; SET search_path=media_migration_fixture,pg_catalog;\n${media}`);
+  expect(sql("SELECT tree_id FROM tree_media")).toBe(legacy);
+  sql(`INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${secondTreeId}','copy','${url}');\n${media}`);
+  expect(sql("SELECT tree_id FROM tree_media")).toBe(legacy);
+});

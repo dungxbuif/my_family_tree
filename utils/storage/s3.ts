@@ -1,12 +1,28 @@
 import { createHash } from "node:crypto";
-import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  openSync,
+  readFileSync,
+} from "node:fs";
 
 export type UploadFolder = "avatars" | "gallery";
 const maxBytes = 10 * 1024 * 1024;
-const types: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif" };
+const types: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+};
 
 function credential(name: "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY") {
   const file = process.env[`${name}_FILE`];
@@ -30,38 +46,144 @@ function config() {
   const { S3_ENDPOINT, S3_BUCKET } = process.env;
   const S3_ACCESS_KEY_ID = credential("S3_ACCESS_KEY_ID");
   const S3_SECRET_ACCESS_KEY = credential("S3_SECRET_ACCESS_KEY");
-  if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) throw new Error("S3 chưa được cấu hình.");
-  return { bucket: S3_BUCKET, prefix: process.env.S3_PREFIX || "", client: new S3Client({ endpoint: S3_ENDPOINT, region: process.env.S3_REGION || "us-east-1", forcePathStyle: true, credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY } }) };
+  if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY)
+    throw new Error("S3 chưa được cấu hình.");
+  return {
+    bucket: S3_BUCKET,
+    prefix: process.env.S3_PREFIX || "",
+    client: new S3Client({
+      endpoint: S3_ENDPOINT,
+      region: process.env.S3_REGION || "us-east-1",
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: S3_ACCESS_KEY_ID,
+        secretAccessKey: S3_SECRET_ACCESS_KEY,
+      },
+    }),
+  };
 }
 
-export function validateUpload(folder: string, _name: string, type: string, size: number): asserts folder is UploadFolder {
-  if ((folder !== "avatars" && folder !== "gallery") || typeof type !== "string" || !Object.hasOwn(types, type)) throw new Error("Loại tệp không được hỗ trợ.");
-  if (!Number.isSafeInteger(size) || size < 1 || size > maxBytes) throw new Error("Ảnh phải nhỏ hơn hoặc bằng 10 MiB.");
+export function validateUpload(
+  folder: string,
+  _name: string,
+  type: string,
+  size: number,
+): asserts folder is UploadFolder {
+  if (
+    (folder !== "avatars" && folder !== "gallery") ||
+    typeof type !== "string" ||
+    !Object.hasOwn(types, type)
+  )
+    throw new Error("Loại tệp không được hỗ trợ.");
+  if (!Number.isSafeInteger(size) || size < 1 || size > maxBytes)
+    throw new Error("Ảnh phải nhỏ hơn hoặc bằng 10 MiB.");
 }
 
-export function buildObjectKey(folder: UploadFolder, _name: string, type: string, id: string) { return `${folder}/${id}${types[type]}`; }
-type AvatarUpload = { actorId: string; treeId: string; submissionId: string; sha256: string };
-export async function presignUpload(folder: UploadFolder, name: string, type: string, size: number, avatar?: AvatarUpload) {
+export type UploadIdentity = {
+  actorId: string;
+  treeId: string;
+  submissionId: string;
+  sha256: string;
+};
+
+export async function presignUpload(
+  folder: UploadFolder,
+  name: string,
+  type: string,
+  size: number,
+  upload: UploadIdentity,
+) {
   validateUpload(folder, name, type, size);
-  let identity: string;
-  let checksum: string | undefined;
-  if (avatar) {
-    const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-    if (folder !== "avatars" || !uuid.test(avatar.submissionId) || !/^[0-9a-f]{64}$/.test(avatar.sha256))
-      throw new Error("Định danh ảnh không hợp lệ.");
-    const scope = [avatar.actorId, avatar.treeId, avatar.submissionId, avatar.sha256, type];
-    identity = createHash("sha256").update(JSON.stringify(scope)).digest("hex");
-    checksum = Buffer.from(avatar.sha256, "hex").toString("base64");
-  } else {
-    identity = crypto.randomUUID();
-  }
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  if (
+    ![upload.actorId, upload.treeId, upload.submissionId].every(
+      (id) => typeof id === "string" && uuid.test(id),
+    ) ||
+    typeof upload.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(upload.sha256)
+  )
+    throw new Error("Định danh ảnh không hợp lệ.");
+  const scope = [
+    upload.actorId,
+    upload.treeId,
+    upload.submissionId,
+    upload.sha256,
+    type,
+  ];
+  const identity = createHash("sha256")
+    .update(JSON.stringify(scope))
+    .digest("hex");
   const { bucket, prefix, client } = config();
-  const key = [prefix.replace(/^\/+|\/+$/g, ""), buildObjectKey(folder, name, type, identity)].filter(Boolean).join("/");
+  const key = [
+    prefix.replace(/^\/+|\/+$/g, ""),
+    "trees",
+    upload.treeId,
+    folder,
+    identity + types[type],
+  ]
+    .filter(Boolean)
+    .join("/");
   const put = new PutObjectCommand({
-    Bucket: bucket, Key: key, ContentType: type, ContentLength: size, ChecksumSHA256: checksum,
+    Bucket: bucket,
+    Key: key,
+    ContentType: type,
+    ContentLength: size,
+    ChecksumSHA256: Buffer.from(upload.sha256, "hex").toString("base64"),
   });
-  const uploadUrl = await getSignedUrl(client, put, { expiresIn: 300, signableHeaders: new Set(["content-type"]) });
+  const uploadUrl = await getSignedUrl(client, put, {
+    expiresIn: 300,
+    signableHeaders: new Set(["content-type", "content-length"]),
+  });
   return { key, publicUrl: `/api/storage/${key}`, uploadUrl };
 }
-export async function readObject(key: string) { const { bucket, client } = config(); const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key })); return { body: Buffer.from(await result.Body!.transformToByteArray()), contentType: result.ContentType || "application/octet-stream" }; }
-export async function deleteObject(publicUrl: string | null | undefined) { if (!publicUrl?.startsWith("/api/storage/")) return; const key = publicUrl.slice("/api/storage/".length); if (!/^(family-tree\/)?((avatars)|(gallery))\/[0-9a-f-]+\.(jpg|png|webp|gif)$/.test(key)) return; const { bucket, client } = config(); await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })); }
+
+// Callers pass only object URLs obtained from the tree_media ownership table.
+function objectKey(url: string) {
+  if (!url.startsWith("/api/storage/")) throw new Error("Ảnh không hợp lệ.");
+  return url.slice("/api/storage/".length);
+}
+export async function requireUploadedImage(url: string) {
+  const { bucket, client } = config();
+  const result = await client.send(
+    new HeadObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
+  );
+  if (
+    !result.ContentLength ||
+    result.ContentLength > maxBytes ||
+    !result.ContentType ||
+    !Object.hasOwn(types, result.ContentType) ||
+    !url.endsWith(types[result.ContentType])
+  )
+    throw new Error("Ảnh không hợp lệ.");
+}
+export async function readObject(url: string, range?: string) {
+  const { bucket, client } = config();
+  const result = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey(url), Range: range }),
+  );
+  const contentType =
+    Object.keys(types).find((type) => url.endsWith(types[type])) ??
+    (url.endsWith(".jpeg") ? "image/jpeg" : undefined);
+  if (
+    !contentType ||
+    result.ContentLength === undefined ||
+    result.ContentLength > maxBytes ||
+    !result.Body
+  ) {
+    result.Body?.transformToWebStream()
+      .cancel()
+      .catch(() => {});
+    throw new Error("Ảnh không hợp lệ.");
+  }
+  return {
+    body: await result.Body.transformToByteArray(),
+    contentType,
+    contentRange: result.ContentRange,
+  };
+}
+export async function deleteObject(url: string) {
+  const { bucket, client } = config();
+  await client.send(
+    new DeleteObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
+  );
+}

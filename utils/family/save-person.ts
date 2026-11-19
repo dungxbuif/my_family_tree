@@ -4,6 +4,7 @@ import type { TreeRole } from "@/types";
 import { updatePersonEmailInTransaction } from "@/utils/auth/tree-membership";
 import { FamilyDataError, forbidden, requirePerson, uuid } from "./records";
 import { validateLifeDates } from "./life-dates";
+import { requireMedia } from "./media";
 import { insertEdge } from "./relationships";
 
 export type Relation =
@@ -136,6 +137,8 @@ export async function savePerson(
   const save = async () => {
     let id = existing;
     const original = id ? await requirePerson(client, tree, id) : null;
+    if (values.avatar_url && values.avatar_url !== original?.avatar_url)
+      await requireMedia(client, tree, "avatars", String(values.avatar_url));
     if (
       !id ||
       Object.keys(values).some((key) => /^(birth|death)(_lunar)?_(day|month|year)$/.test(key))

@@ -183,3 +183,7 @@ phả do tư cách thành viên trong từng cây quyết định.
 
 ## Giấy phép
 Mã nguồn được phân phối dưới giấy phép MIT.
+
+### Ảnh và sự kiện theo cây gia phả
+
+Chủ sở hữu và người chỉnh sửa có thể quản lý sự kiện và hình ảnh trong cây đang chọn. Người xem có thể đọc lịch và xem ảnh. Mỗi ảnh tải lên có khóa riêng theo cây. Máy chủ kiểm tra quyền hiện tại cho từng lần đọc hoặc tải lên, kể cả khi trình duyệt còn giữ đường dẫn cũ. Quy trình chuyển đổi ảnh cũ và dọn tệp không còn được sử dụng nằm trong [hướng dẫn triển khai](docs/runbooks/multi-family-production-migration.md#media-ownership-at-cutover).

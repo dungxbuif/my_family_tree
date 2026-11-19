@@ -125,3 +125,26 @@ legacy sign-in, family reads, readiness and object access before restoring
 traffic. Preserve the migrated database for investigation. If new writes were
 accepted after cutover, capture that database and reconcile those writes before
 selecting a recovery point.
+
+## Media ownership at cutover
+
+Keep the bucket private. Migration `20261119110000` records the owning Family Tree of each existing application storage URL from its Gallery or Person row. It preserves object paths and rejects the entire transaction if two trees claim one legacy URL. Resolve a collision by verifying the original owners, copying the object to a distinct private key for each authorized tree, and updating the corresponding references before rerunning the migration. External Gallery URLs require re-uploading through the application.
+
+Invalidate existing CDN/proxy caches for `/api/storage/*` at cutover. Previously distributed immutable responses may remain in browser caches until their original expiry. New reads require the active account's current Tree Membership and selected tree and return `private, no-store`.
+
+New uploads receive five-minute, checksum-bound PUT URLs. An image becomes readable when its tree attaches it to a Person or Gallery item. Removing the final reference makes the proxy deny reads immediately. A 24-hour grace period from the latest signature protects in-flight uploads and retries. Upload traffic collects expired unreferenced objects in the current tree. To reclaim storage for idle or deleted trees, run the following maintenance command with the application's database and bucket credentials. It can be retried after a database or storage outage.
+
+```sh
+bun /app/scripts/prune-tree-media.js
+```
+
+### Rehearse Gallery and Event access
+
+Use a disposable migrated database and private test bucket. Start the application with the same database and S3 settings as the test process. Configure the bucket's CORS rules to allow the browser application's exact origin, method PUT, and the Content-Type request header. Set `FAMILY_TREE_TEST_DATABASE_URL`, `FAMILY_TREE_TEST_APP_URL`, `DATABASE_URL`, and the S3 variables. Use `.next/server/server-reference-manifest.json` for `FAMILY_TREE_TEST_ACTION_MANIFEST` with a production build.
+
+```sh
+FAMILY_TREE_TEST_LIVE_S3=1 bun test tests/secondary-tree-isolation.test.ts
+bun scripts/test-secondary-browser.mjs
+```
+
+The browser rehearsal creates temporary Editor and Viewer memberships, exercises both mobile widths with Chrome, and removes its accounts and trees. Its detached image objects expire under the same cleanup policy as application uploads.

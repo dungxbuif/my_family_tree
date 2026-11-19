@@ -14,6 +14,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN bun run build
+RUN bun build scripts/prune-tree-media.ts --target=bun --packages=external --outfile=scripts/prune-tree-media.js
 
 FROM base AS runner
 WORKDIR /app

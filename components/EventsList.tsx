@@ -24,6 +24,8 @@ import CustomEventModal from "@/components/modal/CustomEventModal";
 import { useMemberListView } from "@/context/MemberListContext";
 
 interface EventsListProps {
+  treeId: string;
+  canEdit: boolean;
   persons: {
     id: string;
     full_name: string;
@@ -67,7 +69,7 @@ function EventCard({
 }: {
   event: FamilyEvent;
   index: number;
-  onEditCustomEvent: (e: FamilyEvent) => void;
+  onEditCustomEvent?: (e: FamilyEvent) => void;
 }) {
   const isBirthday = event.type === "birthday";
   const isCustom = event.type === "custom_event";
@@ -79,7 +81,7 @@ function EventCard({
 
   const handleClick = () => {
     if (isCustom) {
-      onEditCustomEvent(event);
+      onEditCustomEvent?.(event);
     } else if (event.personId) {
       setMemberModalId(event.personId);
     }
@@ -127,15 +129,18 @@ function EventCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.04 }}
+      role={!isCustom || onEditCustomEvent ? "button" : undefined}
+      tabIndex={!isCustom || onEditCustomEvent ? 0 : undefined}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       onClick={handleClick}
       className={`w-full text-left flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] hover:shadow-md group ${isToday
         ? "bg-amber-50 border-amber-300 shadow-sm"
         : isPast
           ? "bg-stone-50/60 border-stone-200/50"
           : isBirthday
-            ? "bg-surface border-stone-200/60 hover:border-blue-200"
+            ? "bg-surface border-stone-200/60 hover:border-primary"
             : isCustom
-              ? "bg-surface border-stone-200/60 hover:border-purple-200"
+              ? "bg-surface border-stone-200/60 hover:border-primary"
               : "bg-surface border-stone-200/60 hover:border-rose-200"
         }`}
     >
@@ -146,9 +151,9 @@ function EventCard({
           : isPast
             ? "bg-stone-100 text-stone-400"
             : isBirthday
-              ? "bg-blue-50 text-blue-500"
+              ? "bg-primary-soft text-primary"
               : isCustom
-                ? "bg-purple-50 text-purple-500"
+                ? "bg-amber-50 text-tertiary"
                 : "bg-rose-50 text-rose-500"
           }`}
       >
@@ -166,7 +171,7 @@ function EventCard({
         {/* Top row: name + badge */}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <p
-            className={`font-semibold text-[15px] sm:text-base truncate transition-colors ${isPast
+            className={`font-semibold text-[15px] sm:text-base [overflow-wrap:anywhere] transition-colors ${isPast
               ? "text-stone-500"
               : "text-stone-800 group-hover:text-amber-700"
               }`}
@@ -214,13 +219,13 @@ function EventCard({
           {event.location && (
             <p className="text-[13px] sm:text-sm text-stone-500 flex items-center gap-1.5 leading-snug">
               <MapPin className="size-3.5 shrink-0" />
-              <span className="truncate">{event.location}</span>
+              <span className="min-w-0 break-words">{event.location}</span>
             </p>
           )}
           {event.content && (
             <p className="text-[13px] sm:text-sm text-stone-400 flex items-start gap-1.5 leading-snug mt-0.5">
               <AlignLeft className="size-3.5 shrink-0 mt-0.5" />
-              <span className="line-clamp-2">{event.content}</span>
+              <span className="min-w-0 break-words">{event.content}</span>
             </p>
           )}
         </div>
@@ -231,6 +236,7 @@ function EventCard({
 
 export default function EventsList({
   persons,
+  treeId, canEdit,
   customEvents = [],
 }: EventsListProps) {
   const router = useRouter();
@@ -377,13 +383,13 @@ export default function EventsList({
           </div>
         </div>
 
-        <button
+        {canEdit ? <button
           onClick={handleOpenCreateModal}
           className="btn-primary relative z-10 w-full sm:w-auto"
         >
           <Plus className="size-5 text-stone-300" />
           <span>Thêm sự kiện</span>
-        </button>
+        </button> : <span className="text-secondary">Chỉ xem</span>}
       </motion.div>
 
       {/* Controls */}
@@ -405,10 +411,10 @@ export default function EventsList({
                 setFilter(tab.key);
                 setShowCount(20);
               }}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${filter === tab.key
+              className={`min-h-11 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${filter === tab.key
                 ? filter === "past"
                   ? "bg-stone-600 text-white shadow-sm"
-                  : "bg-amber-500 text-white shadow-sm"
+                  : "bg-primary text-white shadow-sm"
                 : "bg-surface text-stone-600 border border-stone-200/60 hover:border-amber-200 hover:text-amber-700"
                 }`}
             >
@@ -423,7 +429,7 @@ export default function EventsList({
         {/* Toggle options — hide when viewing past events */}
         {filter !== "past" && (
           <div className="flex px-1">
-            <label className="flex items-center gap-2.5 text-sm font-medium text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+            <label className="min-h-11 flex items-center gap-2.5 text-sm font-medium text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
               <input
                 type="checkbox"
                 checked={showDeceasedBirthdays}
@@ -452,7 +458,7 @@ export default function EventsList({
               key={`${event.personId}-${event.type}-${event.eventDateLabel}`}
               event={event}
               index={i}
-              onEditCustomEvent={handleOpenEditModal}
+              onEditCustomEvent={canEdit ? handleOpenEditModal : undefined}
             />
           ))}
         </div>
@@ -469,6 +475,7 @@ export default function EventsList({
       )}
 
       <CustomEventModal
+        treeId={treeId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleModalSuccess}

@@ -1,13 +1,44 @@
-import { NextResponse } from "next/server";
-import { readObject } from "@/utils/storage/s3";
+import { getUser } from "@/utils/auth/session";
+import { getBrowserTreeSelection } from "@/utils/auth/browser-tree-selection";
+import { familyPeople } from "@/utils/family/people";
 
+const privateHeaders = {
+  "Cache-Control": "private, no-store",
+  Vary: "Cookie",
+  "Content-Security-Policy": "default-src 'none'; sandbox",
+  "X-Content-Type-Options": "nosniff",
+};
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
+  const missing = () =>
+    new Response("Not Found", { status: 404, headers: privateHeaders });
+  const user = await getUser();
+  if (!user) return missing();
+  const { current } = await getBrowserTreeSelection(user.id);
+  if (!current) return missing();
   const { path } = await params;
-  const key = path.join("/");
-  if (!/^(family-tree\/)?((avatars)|(gallery))\/[0-9a-f-]+\.(jpg|png|webp|gif)$/.test(key)) return new NextResponse("Not Found", { status: 404 });
-  try { const object = await readObject(key); return new NextResponse(object.body, { headers: { "Content-Type": object.contentType, "Cache-Control": "public, max-age=31536000, immutable" } }); }
-  catch { return new NextResponse("Not Found", { status: 404 }); }
+  const requested = request.headers.get("range");
+  const range =
+    requested && /^bytes=(?:\d{1,9}-\d{0,9}|-\d{1,9})$/.test(requested)
+      ? requested
+      : undefined;
+  try {
+    const object = await familyPeople(user.id, current.id).readMedia(
+      "/api/storage/" + path.join("/"),
+      range,
+    );
+    const headers = new Headers(privateHeaders);
+    headers.set("Content-Type", object.contentType);
+    headers.set("Content-Length", String(object.body.length));
+    headers.set("Accept-Ranges", "bytes");
+    if (object.contentRange) headers.set("Content-Range", object.contentRange);
+    return new Response(Buffer.from(object.body), {
+      status: object.contentRange ? 206 : 200,
+      headers,
+    });
+  } catch {
+    return missing();
+  }
 }

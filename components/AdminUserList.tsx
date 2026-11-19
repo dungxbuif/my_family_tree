@@ -1,9 +1,10 @@
 "use client";
 
 import { deleteUser, toggleUserStatus } from "@/app/actions/user";
+import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
 import type { AdminUserData } from "@/types";
 import type { AccountMutationResult } from "@/utils/auth/account-administration";
-import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
+import { useActionState, useState, useTransition, type FormEvent } from "react";
 
 interface AdminUserListProps {
   users: AdminUserData[];
@@ -19,35 +20,7 @@ export default function AdminUserList({ users, currentUserId, createUserAction }
   const busy = pending || creating;
   const shouldGuard = hasDraft || creating;
 
-  useEffect(() => {
-    if (!shouldGuard) return;
-
-    function warnBeforeUnload(event: BeforeUnloadEvent) {
-      event.preventDefault();
-      event.returnValue = " ";
-    }
-
-    function confirmNavigation(event: MouseEvent) {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      if (!(event.target instanceof Element)) return;
-      const link = event.target.closest<HTMLAnchorElement>("a[href]");
-      const logout = event.target.closest("button[data-logout]");
-      if (!link && !logout) return;
-      if (link && (link.target || link.origin !== location.origin || link.pathname === location.pathname)) return;
-
-      if (!window.confirm("Thông tin tạo tài khoản chưa được lưu. Bạn có muốn rời trang?")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    }
-
-    window.addEventListener("beforeunload", warnBeforeUnload);
-    document.addEventListener("click", confirmNavigation, true);
-    return () => {
-      window.removeEventListener("beforeunload", warnBeforeUnload);
-      document.removeEventListener("click", confirmNavigation, true);
-    };
-  }, [shouldGuard]);
+  useUnsavedNavigation(shouldGuard, "Thông tin tạo tài khoản chưa được lưu. Bạn có muốn rời trang?");
 
   function submit(
     operation: () => Promise<AccountMutationResult>,

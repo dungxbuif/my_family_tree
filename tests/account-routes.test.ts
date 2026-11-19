@@ -44,7 +44,7 @@ afterAll(async () => {
 type RenderedForm = { method: string; action: string; inputs: FormData };
 const htmlEntities: Record<string, string> = { "&quot;": '"', "&#x27;": "'", "&lt;": "<", "&gt;": ">", "&amp;": "&" };
 
-function credentialForm(html: string): RenderedForm {
+function renderedForm(html: string, field = "password"): RenderedForm {
   const forms: RenderedForm[] = [];
   new HTMLRewriter()
     .on("form", {
@@ -66,8 +66,8 @@ function credentialForm(html: string): RenderedForm {
       },
     })
     .transform(html);
-  const form = forms.find((item) => item.inputs.has("password"));
-  if (!form) throw new Error("Expected a rendered credential form");
+  const form = forms.find((item) => item.inputs.has(field));
+  if (!form) throw new Error("Expected a rendered form containing " + field);
   return form;
 }
 
@@ -75,7 +75,7 @@ routeTest("the initial HTML submits account-creation credentials by POST", async
   const url = `${appUrl}/dashboard/users`;
   const response = await fetch(url, { headers: { cookie: adminCookie } });
   expect(response.status).toBe(200);
-  const form = credentialForm(await response.text());
+  const form = renderedForm(await response.text());
   expect(form.method.toLowerCase()).toBe("post");
   expect([...form.inputs.keys()].some((name) => name.startsWith("$ACTION_"))).toBe(true);
   const email = `${randomUUID()}@example.test`;
@@ -98,7 +98,7 @@ routeTest("the initial HTML submits account-creation credentials by POST", async
 
 routeTest("rejected login renders the entered email and a cleared password field", async () => {
   const loginUrl = `${appUrl}/login`;
-  const form = credentialForm(await (await fetch(loginUrl)).text());
+  const form = renderedForm(await (await fetch(loginUrl)).text());
   expect(form.method.toLowerCase()).toBe("post");
   const email = "Rejected.Login@Example.Test";
   const password = "incorrect-demo-password";
@@ -112,7 +112,7 @@ routeTest("rejected login renders the entered email and a cleared password field
   const html = await response.text();
   expect(response.status).toBe(200);
   expect(html).toContain("Email hoặc mật khẩu không đúng.");
-  const returned = credentialForm(html);
+  const returned = renderedForm(html);
   expect(returned.inputs.get("email")).toBe(email);
   expect(returned.inputs.get("password")).toBe("");
   expect(html).not.toContain(password);
@@ -192,4 +192,59 @@ routeTest("an ordinary user's dashboard header has an account link", async () =>
   const response = await fetch(`${appUrl}/dashboard`, { headers: { cookie: ordinary.cookie } });
   expect(response.status).toBe(200);
   expect(countElements(await response.text(), 'header a[href="/dashboard/account"]')).toBe(1);
+}, 15_000);
+
+routeTest("an ordinary account can open its empty Family Tree selector and creation form", async () => {
+  const ordinary = await seedAccount(false);
+  const headers = { cookie: ordinary.cookie };
+  const account = await fetch(new URL("/dashboard/account", appUrl), { headers });
+  expect(countElements(await account.text(), 'a[href="/dashboard/account/trees"]')).toBe(1);
+  const selector = await fetch(new URL("/dashboard/account/trees", appUrl), { headers });
+  expect(selector.status).toBe(200);
+  const html = await selector.text();
+  expect(countElements(html, 'nav[aria-label="Điều hướng chính"]')).toBe(0);
+  expect(html).toContain("Bạn chưa có cây gia phả");
+  expect(countElements(html, "form input[name=name][required]")).toBe(1);
+}, 15_000);
+
+routeTest("the native tree forms create, switch and reject a stale selection", async () => {
+  const ordinary = await seedAccount(false);
+  const url = new URL("/dashboard/account/trees", appUrl);
+  let cookie = ordinary.cookie;
+  async function page() {
+    return (await fetch(url, { headers: { cookie } })).text();
+  }
+  async function submit(field: string, value: string) {
+    const form = renderedForm(await page(), field === "name" ? "name" : "operation");
+    expect(form.method.toLowerCase()).toBe("post");
+    form.inputs.set(field, value);
+    return fetch(url, { method: "POST", headers: { cookie, origin: url.origin }, body: form.inputs });
+  }
+
+  try {
+    const names = ["Gia phả miền Bắc", "Gia phả miền Nam"];
+    const treeIds: string[] = [];
+    for (const name of names) {
+      const response = await submit("name", name);
+      const hint = response.headers.getSetCookie().find(c => c.startsWith("family_tree_selected="));
+      expect(hint).toBeDefined();
+      expect(hint).toMatch(/HttpOnly/i);
+      cookie = ordinary.cookie + "; " + hint!.split(";")[0];
+      treeIds.push(hint!.split(";")[0].split("=")[1]);
+      expect(await response.text()).toContain(name);
+    }
+    const switched = await submit("treeId", treeIds[0]);
+    expect(switched.headers.getSetCookie().join(" ")).toContain("family_tree_selected=" + treeIds[0]);
+    cookie = ordinary.cookie + "; family_tree_selected=" + treeIds[0];
+    expect(countElements(await page(), 'button[aria-pressed="true"][value="' + treeIds[0] + '"]')).toBe(1);
+    await database.query("DELETE FROM family_trees WHERE id=$1", [treeIds[0]]);
+    const stale = await submit("treeId", treeIds[0]);
+    expect(stale.headers.getSetCookie().join(" ")).not.toContain(treeIds[0]);
+    const html = await stale.text();
+    expect(html).toContain("Bạn không có quyền chọn cây gia phả này.");
+    expect(html).not.toContain(names[0]);
+    expect(countElements(html, 'button[aria-pressed="true"][value="' + treeIds[1] + '"]')).toBe(1);
+  } finally {
+    await database.query("DELETE FROM family_trees WHERE id IN (SELECT tree_id FROM tree_memberships WHERE user_id=$1)", [ordinary.id]);
+  }
 }, 15_000);

@@ -16,7 +16,7 @@ export default function HeritageBottomNav() {
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
 
-  if (pathname === "/dashboard/users") return null;
+  if (pathname === "/dashboard/users" || pathname === "/dashboard/account/trees") return null;
 
   const active = pathname === "/dashboard"
     ? "home"

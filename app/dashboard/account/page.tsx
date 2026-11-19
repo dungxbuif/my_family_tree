@@ -17,6 +17,9 @@ export default async function AccountPage() {
           <p className="body-sm text-secondary">Email</p>
           <p className="break-all text-foreground">{user.email}</p>
         </div>
+        <a href="/dashboard/account/trees" className="btn min-h-11">
+          Cây gia phả của tôi
+        </a>
         {profile.is_super_admin && (
           // Open a document so browser Back also triggers the form's unload guard.
           <a href="/dashboard/users" className="btn min-h-11">

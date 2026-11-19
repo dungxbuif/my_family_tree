@@ -70,6 +70,18 @@ người dùng**. Tài khoản mới được tạo ở trạng thái đang ho�
 Khi bị khóa, các phiên đăng nhập hiện tại kết thúc. Người dùng đăng nhập lại
 sau khi tài khoản được kích hoạt.
 
+Mỗi tài khoản đang hoạt động mở **Tài khoản → Cây gia phả của tôi** để tạo và
+chuyển cây gia phả. Hệ thống tạo cây và cấp quyền Chủ sở hữu cho bạn trong
+cùng một giao dịch, sau đó chọn cây mới. Bạn có thể tạo nhiều cây. Danh sách hiển thị
+vai trò hiện tại của bạn trong từng cây còn hoạt động. Khi mở lại danh sách,
+máy chủ kiểm tra lại quyền trước khi dùng lựa chọn đã lưu trong trình duyệt.
+Nếu bạn mất quyền hoặc cây đã lưu trữ, hệ thống chọn cây còn truy cập được tạo
+sớm nhất. Khi danh sách trống, bạn có thể tạo cây đầu tiên.
+
+Chức năng chọn cây hiện áp dụng trên trang **Cây gia phả của tôi**. Việc phát
+hành đa cây vẫn chờ kiểm thử cách ly dữ liệu trên các màn hình gia đình, chức
+năng nhập/xuất và kho lưu trữ.
+
 Quản trị viên hệ thống không thể tự khóa hoặc tự xóa tài khoản đang đăng nhập.
 Trước khi xóa tài khoản còn liên kết với hồ sơ thành viên, cần gỡ liên kết.
 Nếu tài khoản là Chủ sở hữu duy nhất của một cây gia phả, cần bổ sung Chủ sở hữu

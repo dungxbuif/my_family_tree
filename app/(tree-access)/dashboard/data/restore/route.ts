@@ -18,10 +18,7 @@ async function readForm(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > limit) {
-        void reader.cancel().catch(() => {});
-        throw new BackupTooLarge();
-      }
+      if (bytes > limit) throw new BackupTooLarge();
       chunks.push(new Uint8Array(value));
     }
   } finally {
@@ -36,7 +33,12 @@ export async function POST(request: Request) {
   const wantsJson = request.headers.get("accept")?.includes("application/json");
   const headers = { "Cache-Control": "private, no-store" };
   function fail(status: number, code: string, error: string) {
-    if (wantsJson) return Response.json({ code, error }, { status, headers });
+    // An oversized stream can finish with unread request bytes. Close this HTTP/1
+    // connection after the response so subsequent requests use a clean socket.
+    const errorHeaders =
+      status === 413 ? { ...headers, Connection: "close" } : headers;
+    if (wantsJson)
+      return Response.json({ code, error }, { status, headers: errorHeaders });
     const escaped = error
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
@@ -45,7 +47,10 @@ export async function POST(request: Request) {
       `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Phục hồi dữ liệu</title><main><h1>Phục hồi dữ liệu</h1><p role="alert">${escaped}</p><a href="/dashboard/data">Chọn lại tệp phục hồi</a></main></html>`,
       {
         status,
-        headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
+        headers: {
+          ...errorHeaders,
+          "Content-Type": "text/html; charset=utf-8",
+        },
       },
     );
   }

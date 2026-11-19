@@ -316,17 +316,10 @@ export function parseGedcom(gedcom: string): {
   }
   if (currentRecord) records.push(currentRecord);
 
-  const families = new Set(
-    records.filter((r) => r.type === "FAM").map((r) => r.id),
-  );
-  for (const record of records.filter((r) => r.type === "INDI")) {
-    for (const line of record.lines) {
-      if (!/^1\s+(?:FAMC|FAMS)(?:\s|$)/.test(line)) continue;
-      const pointer = /^1\s+(?:FAMC|FAMS)\s+@([^@]+)@$/.exec(line);
-      if (!pointer || !families.has(pointer[1]))
-        throw Error("Tệp GEDCOM tham chiếu gia đình không tồn tại.");
-    }
-  }
+  const expectedMembers = new Map<
+    string,
+    { FAMS: Set<string>; FAMC: Set<string> }
+  >();
 
   // Parse Individuals
   for (const record of records.filter((r) => r.type === "INDI")) {
@@ -361,7 +354,17 @@ export function parseGedcom(gedcom: string): {
 
       if (level === 1) {
         currentTag = tag;
-        if (tag === "NAME") {
+        if (tag === "FAMS" || tag === "FAMC") {
+          const pointer = /^@([^@]+)@$/.exec(val);
+          if (!pointer) throw Error("Tham chiếu gia đình GEDCOM không hợp lệ.");
+          const familyId = pointer[1];
+          const expected = expectedMembers.get(familyId) ?? {
+            FAMS: new Set<string>(),
+            FAMC: new Set<string>(),
+          };
+          expected[tag].add(uuid);
+          expectedMembers.set(familyId, expected);
+        } else if (tag === "NAME") {
           fullName = val.replace(/\//g, "").trim();
         } else if (tag === "SEX") {
           if (val === "M") gender = "male";
@@ -451,7 +454,11 @@ export function parseGedcom(gedcom: string): {
   }
 
   // Parse Families
+  const familyIds = new Set<string>();
   for (const record of records.filter((r) => r.type === "FAM")) {
+    if (familyIds.has(record.id))
+      throw Error("Tệp GEDCOM có mã gia đình trùng lặp.");
+    familyIds.add(record.id);
     let husb = null;
     let wife = null;
     const children: string[] = [];
@@ -464,12 +471,23 @@ export function parseGedcom(gedcom: string): {
         const uuid = idMap.get(refId);
         if (!uuid) throw Error("Tệp GEDCOM tham chiếu thành viên không tồn tại.");
 
+        if ((tag === "HUSB" && husb) || (tag === "WIFE" && wife))
+          throw Error("Tệp GEDCOM có vai trò gia đình trùng lặp.");
         if (tag === "HUSB") husb = uuid;
         else if (tag === "WIFE") wife = uuid;
         else if (tag === "CHIL") children.push(uuid);
       }
     }
 
+    const expected = expectedMembers.get(record.id);
+    if (expected) {
+      if (husb) expected.FAMS.delete(husb);
+      if (wife) expected.FAMS.delete(wife);
+      for (const child of children) expected.FAMC.delete(child);
+      if (expected.FAMS.size || expected.FAMC.size)
+        throw Error("Vai trò thành viên trong gia đình GEDCOM không khớp.");
+      expectedMembers.delete(record.id);
+    }
     if ((husb && husb === wife) || children.some(id => id === husb || id === wife)) throw Error("Quan hệ GEDCOM không hợp lệ.");
     if (husb && wife) {
       relationships.push({
@@ -497,6 +515,9 @@ export function parseGedcom(gedcom: string): {
       }
     }
   }
+
+  if (expectedMembers.size)
+    throw Error("Tệp GEDCOM tham chiếu gia đình không tồn tại.");
 
   // Deduplicate relationships to prevent database unique constraint errors
   const uniqueRelationships: GedcomRelationship[] = [];

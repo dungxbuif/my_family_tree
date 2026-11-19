@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { backupFileLimit } from "../utils/family/backup-limit";
 import { createFamilyTree } from "../utils/auth/tree-access";
 
 const app = process.env.FAMILY_TREE_TEST_APP_URL,
@@ -228,6 +229,26 @@ try {
     if (result.trim() !== "true") throw Error(result);
     console.log("Data, stats, lineage and kinship verified at", width);
   }
+  await db.query("UPDATE persons SET note=repeat('x',$2) WHERE tree_id=$1", [
+    tree,
+    backupFileLimit + 1,
+  ]);
+  const oversized = cli(
+    "run-code",
+    `async page => {
+    await page.goto(${JSON.stringify(app + "/dashboard/data")});
+    let downloads = 0;
+    page.on("download", () => downloads++);
+    await page.getByRole("button",{name:"Xuất JSON"}).click();
+    await page.getByRole("alert").filter({hasText:"PostgreSQL"}).waitFor({timeout:30000});
+    if(downloads || await page.getByText("Đã xuất bản sao lưu.").count()) throw Error("Oversized export was offered as a backup");
+    return true;
+  }`,
+  );
+  if (oversized.trim() !== "true") throw Error(oversized);
+  console.log(
+    "Oversized JSON shows the operator backup path without starting a download",
+  );
 } finally {
   try {
     cli("close");

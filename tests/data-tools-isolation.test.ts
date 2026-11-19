@@ -523,26 +523,94 @@ test("the bounded restore route accepts a large file and rejects oversize input 
       body: form,
     });
   };
-  const source = {
-    ...original,
-    persons: original.persons.map((p, i) => ({
-      ...p,
-      note: i === 0 ? "a".repeat(1150000) : p.note,
-    })),
-  };
+  await db.query(
+    "INSERT INTO persons(tree_id,full_name,gender,note) SELECT $1,'Large '||i,'other',repeat('x',320) FROM generate_series(1,15000) AS i",
+    [trees[0]],
+  );
+  const source = await tools(0).exportBackup();
+  const { createBackupFile } = await import("@/utils/family/backup-file");
+  const blob = await createBackupFile(source, "json");
+  expect(blob.size).toBeGreaterThan(10 * 1024 * 1024);
+  await tools(0).importBackup(original);
+  expect((await post(blob, "generated.json")).status).toBe(200);
+  const restored = await tools(0).exportBackup();
+  expect(restored.persons).toHaveLength(source.persons.length);
   expect(
-    (await post(new Blob([JSON.stringify(source)]), "large.json")).status,
-  ).toBe(200);
-  expect((await tools(0).exportBackup()).persons[0].note?.length).toBe(1150000);
+    restored.persons.filter((row) => row.note === "x".repeat(320)),
+  ).toHaveLength(15000);
+  const { backupFileLimit } = await import("@/utils/family/backup-limit");
   const tooLarge = await post(
-    new Blob([new Uint8Array(8 * 1024 * 1024 + 1)]),
+    new Blob([new Uint8Array(backupFileLimit + 1)]),
     "oversize.json",
   );
   expect(tooLarge.status).toBe(413);
   expect(await tooLarge.json()).toMatchObject({ code: "BACKUP_TOO_LARGE" });
+
+  // Exercise both HTTP/1 framing modes on the wire. No Content-Length means
+  // the server must count actual body chunks rather than trust a header.
+  const { request } = await import("node:http");
+  const restoreUrl = base + "/dashboard/data/restore?tree=" + trees[0];
+  async function oversizedRequest(declaredLength: boolean) {
+    return new Promise<{ status?: number; body: string }>((resolve, reject) => {
+      const req = request(
+        restoreUrl,
+        {
+          method: "POST",
+          agent: false,
+          headers: {
+            origin: base,
+            accept: "application/json",
+            "content-type": "multipart/form-data; boundary=size",
+            ...(declaredLength
+              ? { "content-length": backupFileLimit + 65537 }
+              : { "transfer-encoding": "chunked" }),
+            cookie: `family_tree_session=${token}; family_tree_selected=${trees[0]}`,
+          },
+        },
+        (res) => {
+          let body = "";
+          res.setEncoding("utf8").on("data", (chunk) => {
+            body += chunk;
+          });
+          res.on("end", () => {
+            resolve({ status: res.statusCode, body });
+            req.destroy();
+          });
+          res.on("error", reject);
+        },
+      );
+      req.on("error", reject);
+      req.setTimeout(6000, () =>
+        req.destroy(Error("Oversized upload was not rejected")),
+      );
+      if (declaredLength) {
+        req.flushHeaders(); // Expect rejection before sending any bytes.
+      } else {
+        const chunk = Buffer.alloc(1024 * 1024);
+        for (
+          let bytes = 0;
+          bytes <= backupFileLimit + 65536;
+          bytes += chunk.length
+        )
+          req.write(chunk);
+        req.end();
+      }
+    });
+  }
+  for (const declared of [true, false]) {
+    const rejection = await oversizedRequest(declared);
+    expect(rejection.status).toBe(413);
+    expect(JSON.parse(rejection.body)).toMatchObject({
+      code: "BACKUP_TOO_LARGE",
+    });
+  }
   expect(
-    (await post(new Blob(["0 @I1@ INDI\n1 FAMS @missing@"]), "truncated.ged"))
-      .status,
+    (
+      await post(
+        new Blob(["0 @I1@ INDI\n1 FAMS @F1@\n0 @F1@ FAM"]),
+        "truncated.ged",
+      )
+    ).status,
   ).toBe(400);
   expect((await tools(0).exportBackup()).relationships).toEqual(
     original.relationships,

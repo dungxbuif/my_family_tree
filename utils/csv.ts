@@ -1,5 +1,9 @@
 import JSZip from "jszip";
-import { backupFileLimit, BackupTooLarge } from "./family/backup-limit";
+import {
+  backupFileLimit,
+  BackupTooLarge,
+  checkBackupSize,
+} from "./family/backup-limit";
 import Papa from "papaparse";
 import type { Backup } from "./family/backup-format";
 
@@ -29,27 +33,35 @@ export async function exportToCsvZip(
   data: Pick<Backup, (typeof tables)[number]>,
 ) {
   const zip = new JSZip();
-  zip.file(
-    "manifest.json",
-    JSON.stringify({ version: 4, textEscaping: "apostrophe-v1" }),
-  );
+  const manifest = JSON.stringify({
+    version: 4,
+    textEscaping: "apostrophe-v1",
+  });
+  let expandedBytes = new Blob([manifest]).size;
+  zip.file("manifest.json", manifest);
   for (const table of tables) {
     const rows = data[table].map((row) =>
       Object.fromEntries(
         Object.entries(row).map(([key, value]) => [
           key,
-          typeof value === "string" && /^(?:'|[\t\r\n]|\s*[=+@＝＋＠－-])/.test(value)
+          typeof value === "string" &&
+          /^(?:'|[\t\r\n]|\s*[=+@＝＋＠－-])/.test(value)
             ? "'" + value
             : value,
         ]),
       ),
     );
-    zip.file(table + ".csv", "\uFEFF" + Papa.unparse(rows));
+    const csv = "\uFEFF" + Papa.unparse(rows);
+    expandedBytes += new Blob([csv]).size;
+    checkBackupSize(expandedBytes);
+    zip.file(table + ".csv", csv);
   }
-  return zip.generateAsync({ type: "blob" });
+  const file = await zip.generateAsync({ type: "blob" });
+  checkBackupSize(file.size);
+  return file;
 }
 export async function parseCsvZip(file: Blob) {
-  if (file.size > backupFileLimit) throw new BackupTooLarge();
+  checkBackupSize(file.size);
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   let remaining = backupFileLimit;
   // JSZip exposes a chunk stream on loaded entries. Bound the actual expanded

@@ -1,3 +1,4 @@
+import { backupLimitMiB } from "@/utils/family/backup-limit";
 import DataImportExport from "@/components/DataImportExport";
 import { currentFamilyPage } from "@/utils/family/browser";
 
@@ -33,7 +34,8 @@ export default async function DataManagementPage({
               className="grid min-w-0 gap-4 rounded-[20px] border border-border bg-surface p-4"
             >
               <label className="grid gap-2">
-                Tệp phục hồi (JSON, CSV Zip hoặc GEDCOM, tối đa 8 MiB)
+                Tệp phục hồi (JSON, CSV Zip hoặc GEDCOM, tối đa {backupLimitMiB}{" "}
+                MiB)
                 <input
                   className="min-h-11 w-full min-w-0"
                   type="file"

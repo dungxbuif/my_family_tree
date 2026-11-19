@@ -4,8 +4,10 @@ import { exportData } from "@/app/actions/data";
 import type { PersonOption } from "@/types";
 import {
   backupFileLimit,
+  backupLimitMiB,
   backupSizeMessage,
 } from "@/utils/family/backup-limit";
+import { createBackupFile } from "@/utils/family/backup-file";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -100,18 +102,7 @@ export default function DataImportExport({
     try {
       const data = await exportData(treeId, root ?? undefined);
       if ("error" in data) throw Error(data.error);
-      let blob: Blob;
-      if (format === "csv")
-        blob = await (await import("@/utils/csv")).exportToCsvZip(data);
-      else if (format === "ged")
-        blob = new Blob(
-          [(await import("@/utils/gedcom")).exportToGedcom(data)],
-          { type: "text/plain" },
-        );
-      else
-        blob = new Blob([JSON.stringify(data, null, 2)], {
-          type: "application/json",
-        });
+      const blob = await createBackupFile(data, format);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download =
@@ -193,8 +184,8 @@ export default function DataImportExport({
       <section className="min-w-0 rounded-[20px] border border-border bg-surface p-4 shadow-soft [&_[role=listbox]]:min-w-0">
         <h2 className="mb-3 text-lg font-semibold">Phục hồi dữ liệu</h2>
         <p className="mb-4 text-secondary">
-          Chọn tệp JSON, CSV (Zip) hoặc GEDCOM tối đa 8 MiB. JSON và CSV phiên
-          bản 4 chứa cả thông tin riêng tư và thư viện ảnh.
+          Chọn tệp JSON, CSV (Zip) hoặc GEDCOM tối đa {backupLimitMiB} MiB. JSON
+          và CSV phiên bản 4 chứa cả thông tin riêng tư và thư viện ảnh.
         </p>
         <input
           type="file"

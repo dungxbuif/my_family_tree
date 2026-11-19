@@ -20,8 +20,10 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// The restore handler authenticates before streaming its own bounded multipart body.
+// Bypass the proxy body clone and its separate size cap for this endpoint.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/storage|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/storage|dashboard/data/restore(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

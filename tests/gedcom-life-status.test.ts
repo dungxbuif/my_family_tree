@@ -58,3 +58,29 @@ test("a truncated GEDCOM cannot drop referenced families on restoration", () => 
       parseGedcom("0 HEAD\n0 @I1@ INDI\n1 NAME An\n1 " + tag + " @F2@\n0 TRLR"),
     ).toThrow();
 });
+
+test("GEDCOM individual pointers must match the family and role on round trip", () => {
+  const data = exportToGedcom({
+    persons: [
+      { id: "a", full_name: "Cha", gender: "male" },
+      { id: "b", full_name: "Mẹ", gender: "female" },
+      { id: "c", full_name: "Con", gender: "other" },
+    ],
+    relationships: [
+      { person_a: "a", person_b: "b", type: "marriage" },
+      { person_a: "a", person_b: "c", type: "biological_child" },
+      { person_a: "b", person_b: "c", type: "biological_child" },
+    ],
+  });
+  const restored = parseGedcom(data);
+  expect(restored.relationships).toHaveLength(3);
+  for (const incomplete of [
+    data.slice(0, data.indexOf("0 @F1@ FAM") + "0 @F1@ FAM".length),
+    data.replace("1 HUSB @I1@", ""),
+    data.replace("1 WIFE @I2@", ""),
+    data.replace("1 CHIL @I3@", ""),
+    data.replace("1 FAMC @F1@", "1 FAMS @F1@"),
+    data.replace("1 FAMS @F1@", "1 FAMC @F1@"),
+  ])
+    expect(() => parseGedcom(incomplete)).toThrow();
+});

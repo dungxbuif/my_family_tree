@@ -97,6 +97,9 @@ try {
   );
   const review = {};
   for (const scenario of [
+    "backFirst",
+    "storageFirst",
+    "backFirstLegacy",
     "restoreRead",
     "headerBack",
     "headerClose",
@@ -154,6 +157,9 @@ try {
     JSON.stringify(review, null, 2),
   );
   if (
+    review.backFirst !== true ||
+    review.storageFirst !== true ||
+    review.backFirstLegacy !== true ||
     review.restoreRead !== true ||
     review.headerBack !== true ||
     review.headerClose !== true ||

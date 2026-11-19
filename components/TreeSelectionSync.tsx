@@ -46,6 +46,17 @@ function revision() {
 
 type DraftRecovery = { host: HTMLElement; treeId?: string; role?: TreeRole };
 
+function historyIndex(): number {
+  const { navigation } = window as Window & {
+    navigation?: { currentEntry: NavigationHistoryEntry | null };
+  };
+  return (
+    navigation?.currentEntry?.index ??
+    history.state?.familyTreeHistoryIndex ??
+    0
+  );
+}
+
 export default function TreeSelectionSync({
   initialRevision,
   treeId,
@@ -66,11 +77,13 @@ export default function TreeSelectionSync({
   const [restoring, setRestoring] = useState(false);
   const stale = useRef(false);
   const restoreRevision = useRef<string | null>(null);
-  const frozenModal = useRef<{ href: string; state: unknown } | null>(null);
+  const renderedEntryIndex = useRef(0);
+  const frozenModalIndex = useRef<number | null>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const search = useSearchParams();
   useLayoutEffect(() => {
+    renderedEntryIndex.current = historyIndex();
     history.replaceState(
       { ...history.state, familyTreeRevision: current.current.revision },
       "",
@@ -105,10 +118,10 @@ export default function TreeSelectionSync({
           document.documentElement.style.visibility = "";
           document.documentElement.dataset.staleTreeDraft = "true";
           window.dispatchEvent(new Event("familytreedraftstate"));
-          // Native in-tree dialogs own their own history entry. The detail modal
-          // uses replaceState, so retain its current URL for a same-document Back.
+          // A popstate can discover the stale cookie after the browser has
+          // already left this modal's entry. The router still renders its form.
           if (host.closest('[role="dialog"]') && !host.closest("dialog")) {
-            frozenModal.current = { href: location.href, state: history.state };
+            frozenModalIndex.current = renderedEntryIndex.current;
           }
           const required = host.closest("form")?.dataset.recoveryRole;
           setDraft({
@@ -127,15 +140,6 @@ export default function TreeSelectionSync({
       if (current.current.revision !== revision()) recover();
     }
     function restoreEntry(event: PopStateEvent) {
-      if (frozenModal.current) {
-        event.stopImmediatePropagation();
-        history.pushState(
-          frozenModal.current.state,
-          "",
-          frozenModal.current.href,
-        );
-        return;
-      }
       const saved = event.state?.familyTreeRevision;
       if (
         (saved !== undefined && saved !== revision()) ||
@@ -143,6 +147,13 @@ export default function TreeSelectionSync({
       ) {
         if (!stale.current) event.stopImmediatePropagation();
         recover();
+      }
+      if (frozenModalIndex.current !== null) {
+        // Keep Next on the editor for both the attempted traversal and
+        // the return to the original entry. Its Forward stack survives.
+        event.stopImmediatePropagation();
+        const delta = frozenModalIndex.current - historyIndex();
+        if (delta) history.go(delta);
       }
     }
     function storage(event: StorageEvent) {
@@ -201,7 +212,7 @@ export default function TreeSelectionSync({
     };
   }, [router, role]);
   useEffect(() => {
-    if (!draft || !frozenModal.current) return;
+    if (!draft || frozenModalIndex.current === null) return;
     function protectFrozenDocument(event: BeforeUnloadEvent) {
       if (document.documentElement.dataset.discardTreeDraft) return;
       event.preventDefault();
@@ -264,7 +275,7 @@ export default function TreeSelectionSync({
         throw new Error();
       }
       restoreRevision.current = null;
-      frozenModal.current = null;
+      frozenModalIndex.current = null;
       stale.current = false;
       delete document.documentElement.dataset.staleTreeDraft;
       setDraft(null);
@@ -321,7 +332,7 @@ export default function TreeSelectionSync({
               disabled={restoring}
               onClick={() => {
                 document.documentElement.dataset.discardTreeDraft = "true";
-                if (frozenModal.current) {
+                if (frozenModalIndex.current !== null) {
                   const url = new URL(location.href);
                   url.searchParams.delete("memberModalId");
                   location.replace(url.href);

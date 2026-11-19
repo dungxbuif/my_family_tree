@@ -1,18 +1,13 @@
 import FamilyStats from "@/components/FamilyStats";
-import { Person, Relationship } from "@/types";
-import { getDataClient } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 
 export const metadata = {
   title: "Thống kê gia phả",
 };
 
 export default async function StatsPage() {
-  const dataClient = getDataClient();
-
-  const { data: persons } = await dataClient.from<Person>("persons").select("*");
-  const { data: relationships } = await dataClient
-    .from<Relationship>("relationships")
-    .select("*");
+  const { people } = await currentFamilyPage();
+  const { persons, relationships } = await people.graph();
 
   return (
     <div className="flex-1 w-full relative flex flex-col pb-12">

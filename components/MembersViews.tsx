@@ -2,6 +2,7 @@
 
 import { useMemberListView } from "@/context/MemberListContext";
 import MemberList from "@/components/MemberList";
+import TreeAddMember from "./TreeAddMember";
 import RootSelector from "@/components/RootSelector";
 import { Person, Relationship } from "@/types";
 import { useEffect, useMemo, useRef } from "react";
@@ -27,12 +28,14 @@ const BubbleMapTree = dynamic(
 );
 
 interface MembersViewsProps {
+  treeId: string;
   persons: Person[];
   relationships: Relationship[];
   canEdit?: boolean;
 }
 
 export default function MembersViews({
+  treeId,
   persons,
   relationships,
   canEdit = false,
@@ -89,7 +92,7 @@ export default function MembersViews({
     };
   }, [persons, relationships, rootId]);
 
-  const activeRootId = rootId || defaultRootId;
+  const activeRootId = defaultRootId;
 
   // Khôi phục lựa chọn từ localStorage
   useEffect(() => {
@@ -99,9 +102,9 @@ export default function MembersViews({
 
     if (!urlRootId) {
       try {
-        const savedRootId = localStorage.getItem("members_rootId");
+        const savedRootId = localStorage.getItem(`members_rootId_${treeId}`);
 
-        if (!urlRootId && savedRootId && savedRootId !== rootId) {
+        if (!urlRootId && savedRootId && personsMap.has(savedRootId) && savedRootId !== rootId) {
           setRootId(savedRootId);
         }
       } catch (e) {
@@ -119,18 +122,19 @@ export default function MembersViews({
 
     const timeout = setTimeout(() => {
       try {
-        if (activeRootId) localStorage.setItem("members_rootId", activeRootId);
+        if (activeRootId) localStorage.setItem(`members_rootId_${treeId}`, activeRootId);
       } catch (e) {
         console.warn("Failed to write to localStorage:", e);
       }
     }, 100);
 
     return () => clearTimeout(timeout);
-  }, [currentView, activeRootId]);
+  }, [currentView, activeRootId, treeId]);
 
   return (
     <>
       <main className="flex min-h-0 flex-1 flex-col overflow-visible bg-transparent">
+        {currentView !== "list" && canEdit && <div className="py-2"><TreeAddMember treeId={treeId} /></div>}
         {currentView !== "list" && persons.length > 0 && activeRootId && (
           <div className="sticky top-20 z-30 mx-auto flex w-full flex-col flex-wrap items-stretch gap-3 border-b border-border bg-neutral/95 py-3 sm:flex-row sm:items-center sm:justify-between">
             <RootSelector persons={persons} currentRootId={activeRootId} />

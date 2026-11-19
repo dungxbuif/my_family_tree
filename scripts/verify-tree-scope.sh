@@ -2,7 +2,7 @@
 set -eu
 report_dir=$(mktemp -d)
 trap 'rm -rf "$report_dir"' EXIT
-for suite in utils/auth/tree-access.test.ts tests/tree-isolation.test.ts; do
+for suite in utils/auth/tree-access.test.ts tests/tree-isolation.test.ts tests/secondary-tree-isolation.test.ts tests/data-tools-isolation.test.ts; do
   if [ ! -s "$suite" ]; then
     echo "Production promotion requires $suite" >&2
     exit 1

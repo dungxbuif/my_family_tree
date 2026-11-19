@@ -1,36 +1,13 @@
 import KinshipFinder from "@/components/KinshipFinder";
-import { Person, Relationship } from "@/types";
-import { getDataClient } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 
 export const metadata = {
   title: "Tra cứu danh xưng",
 };
 
 export default async function KinshipPage() {
-  const dataClient = getDataClient();
-
-  const { data: persons } = await dataClient
-    .from<
-      Pick<
-        Person,
-        | "id"
-        | "full_name"
-        | "gender"
-        | "birth_year"
-        | "birth_order"
-        | "generation"
-        | "is_in_law"
-        | "avatar_url"
-      >
-    >("persons")
-    .select(
-      "id, full_name, gender, birth_year, birth_order, generation, is_in_law, avatar_url",
-    )
-    .order("birth_year", { ascending: true, nullsFirst: false });
-
-  const { data: relationships } = await dataClient
-    .from<Pick<Relationship, "type" | "person_a" | "person_b">>("relationships")
-    .select("type, person_a, person_b");
+  const { people } = await currentFamilyPage();
+  const { persons, relationships } = await people.graph();
 
   return (
     <div className="flex-1 w-full relative flex flex-col pb-12">

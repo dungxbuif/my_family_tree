@@ -9,10 +9,16 @@ The first protected production tag must include the completed tree-context
 authorization and tree-scoped family writes, including imports, exports and
 private details. The protected-tag job `validate_tree_scope` runs
 `scripts/verify-tree-scope.sh` against an ephemeral migrated PostgreSQL
-database. It requires passing `utils/auth/tree-access.test.ts` and
-`tests/tree-isolation.test.ts` at that same source commit. The image build
+database. It requires executed, passing suites at that same source commit.
+
+- `utils/auth/tree-access.test.ts` checks current Tree Membership.
+- `tests/tree-isolation.test.ts` checks Person, private details and Relationship operations.
+- `tests/secondary-tree-isolation.test.ts` must cover Events, Gallery and Storage.
+- `tests/data-tools-isolation.test.ts` must cover data tools, including import and export.
+
+The image build
 depends on this job, and ops promotion depends on the build. Keep the first
-cutover on hold until both suites and the operator rehearsal below pass.
+cutover on hold until all four suites and the operator rehearsal below pass.
 The application slug is `my-family-tree`, and the Swarm service is `family-tree`.
 
 ## Rehearse and capture a recovery point

@@ -72,13 +72,23 @@ Máy chạy kiểm thử cần Bun, npx và Google Chrome.
 ```sh
 bun scripts/test-tree-selector-browser.mjs
 bun scripts/test-tree-membership-browser.mjs
+bun scripts/test-tree-add-browser.mjs
 ```
 
 Script tạo tài khoản và cây tạm thời, chạy Playwright CLI ở 320×568, 430×932
 và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm trong
 `output/playwright/tree-selector/`. Đặt `PLAYWRIGHT_CLI` nếu cần dùng đường dẫn
 đến wrapper Playwright CLI đã cài. Kiểm thử quản lý quyền ghi kết quả vào
-`output/playwright/tree-membership/`.
+`output/playwright/tree-membership/`. Kiểm thử thêm thành viên ghi kết quả vào
+`output/playwright/tree-add/`.
+
+Trong **Cây gia phả**, chủ sở hữu và người chỉnh sửa có thể chọn **Thêm thành viên**.
+Mở một người trên sơ đồ rồi chọn **Thêm thành viên** để lưu hồ sơ mới cùng
+quan hệ với người đó. Nút ở ngoài hồ sơ tạo người chưa có quan hệ. Sau khi
+lưu, sơ đồ lấy người vừa tạo làm gốc. Nút **Hủy** giữ vị trí trước đó.
+Chỉ chủ sở hữu có quyền đọc và sửa thông tin riêng tư, bao gồm email có
+thể thiết lập liên kết tài khoản. Muốn xóa hồ sơ đã liên kết, chủ sở hữu
+cần hủy liên kết trong phần quản lý quyền trước.
 
 ## Đăng nhập và quản lý tài khoản
 

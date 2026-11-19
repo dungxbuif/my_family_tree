@@ -22,6 +22,10 @@ test("release validation requires passing authorization and scoped writes", () =
     writeFileSync(join(root, "tests/tree-isolation.test.ts"), "export {};");
     expect(run().status).not.toBe(0);
     writeFileSync(join(root, "tests/tree-isolation.test.ts"), passing);
+    for (const suite of ["tests/secondary-tree-isolation.test.ts", "tests/data-tools-isolation.test.ts"]) {
+      expect(run().stderr).toContain(suite);
+      writeFileSync(join(root, suite), passing);
+    }
     expect(run().status).toBe(0);
   } finally {
     rmSync(root, { recursive: true });

@@ -2,9 +2,10 @@
 
 import { ViewMode } from "@/components/ViewToggle";
 import { useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 interface MemberListViewState {
+  focusCreated: React.RefObject<string | null>;
   memberModalId: string | null;
   setMemberModalId: (id: string | null) => void;
   showCreateMember: boolean;
@@ -33,6 +34,7 @@ export function MemberListProvider({
   initialShowAvatar?: boolean;
 }) {
   const searchParams = useSearchParams();
+  const focusCreated = useRef<string | null>(null);
 
   // Initialize state directly from URL to avoid flash of wrong view
   const [memberModalId, setMemberModalId] = useState<string | null>(
@@ -124,6 +126,7 @@ export function MemberListProvider({
   return (
     <MemberListContext.Provider
       value={{
+        focusCreated,
         memberModalId,
         setMemberModalId: updateModalId,
         showCreateMember,
@@ -147,6 +150,7 @@ export function useMemberListView(): MemberListViewState {
   // (e.g., on the /dashboard/members/[id] standalone page)
   if (context === undefined) {
     return {
+      focusCreated: { current: null },
       memberModalId: null,
       setMemberModalId: () => { },
       showCreateMember: false,

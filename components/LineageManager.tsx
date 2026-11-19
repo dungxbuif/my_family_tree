@@ -342,7 +342,7 @@ export default function LineageManager({
           is_in_law: u.new_is_in_law,
         }));
 
-      const result = await batchUpdateLineage(changedOnly);
+      const result = await batchUpdateLineage(changedOnly, persons[0].tree_id);
       if (result.error) throw new Error(result.error);
 
       setApplied(true);

@@ -49,8 +49,8 @@ export interface AdminUserData {
 
 export interface Person {
   tree_id: string;
-  email: string | null;
-  linked_user_id: string | null;
+  email?: string | null;
+  linked_user_id?: string | null;
   id: string;
   full_name: string;
   gender: Gender;
@@ -82,6 +82,8 @@ export interface Person {
   generation: number | null;
   other_names: string | null;
 }
+
+export type PersonOption = Pick<Person, "id" | "full_name" | "birth_year" | "gender" | "avatar_url" | "generation">;
 
 export interface Relationship {
   tree_id: string;

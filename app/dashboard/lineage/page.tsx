@@ -1,29 +1,11 @@
 import LineageManager from "@/components/LineageManager";
-import { Person, Relationship } from "@/types";
-import { getProfile, getDataClient } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 import { redirect } from "next/navigation";
 
 export default async function LineagePage() {
-  const profile = await getProfile();
-
-  if (profile?.role !== "admin") {
-    redirect("/dashboard");
-  }
-
-  const dataClient = getDataClient();
-
-  const { data: personsData } = await dataClient
-    .from<Person>("persons")
-    .select("*")
-    .order("birth_year", { ascending: true, nullsFirst: false });
-
-  const { data: relsData } = await dataClient
-    .from<Relationship>("relationships")
-    .select("*");
-
-  // Identify "roots" - people with no parents
-  const persons = personsData || [];
-  const relationships = relsData || [];
+  const { people } = await currentFamilyPage();
+  const { persons, relationships, role } = await people.graph();
+  if (role === "viewer") redirect("/dashboard");
 
   return (
     <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col pt-8 relative w-full">

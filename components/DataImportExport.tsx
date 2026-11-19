@@ -2,7 +2,7 @@
 
 import { exportData, importData } from "@/app/actions/data";
 import { getPersonSelectorList } from "@/app/actions/member";
-import { Person } from "@/types";
+import type { PersonOption } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, Download, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -20,7 +20,7 @@ export default function DataImportExport() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const [persons, setPersons] = useState<Person[]>([]);
+  const [persons, setPersons] = useState<PersonOption[]>([]);
   const [exportRootId, setExportRootId] = useState<string | null>(null);
 
   useEffect(() => {

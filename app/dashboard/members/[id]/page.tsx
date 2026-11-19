@@ -1,7 +1,7 @@
 import { HeritagePageHero } from "@/components/heritage";
+import DeleteMemberButton from "@/components/DeleteMemberButton";
 import MemberDetailContent from "@/context/MemberDetailContent";
-import { Person } from "@/types";
-import { getProfile, getDataClient } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 import { GitBranch, Pencil } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -10,44 +10,15 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-interface PrivateDetails extends Record<string, unknown> {
-  person_id: string;
-  phone_number: string | null;
-  occupation: string | null;
-  current_residence: string | null;
-}
-
 export default async function MemberDetailPage({ params }: PageProps) {
   const { id } = await params;
 
-  const profile = await getProfile();
-
-  const isAdmin = profile?.role === "admin";
-  const canEdit = profile?.role === "admin" || profile?.role === "editor";
-
-  const db = getDataClient();
-
-  // Fetch Person Public Data
-  const { data: person, error } = await db
-    .from<Person>("persons")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error || !person) {
-    notFound();
-  }
-
-  // Fetch Private Data if Admin
-  let privateData: PrivateDetails | null = null;
-  if (isAdmin) {
-    const { data } = await db
-      .from<PrivateDetails>("person_details_private")
-      .select("*")
-      .eq("person_id", id)
-      .single();
-    privateData = data;
-  }
+  const { people } = await currentFamilyPage();
+  const detail = await people.detail(id);
+  if (!detail) notFound();
+  const { person, privateData, role } = detail;
+  const isOwner = role === "owner";
+  const canEdit = role !== "viewer";
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-28 pt-4 sm:px-6 md:pb-8 lg:px-8">
@@ -62,14 +33,15 @@ export default async function MemberDetailPage({ params }: PageProps) {
           <MemberDetailContent
             person={person}
             privateData={privateData}
-            isAdmin={isAdmin}
+            isOwner={isOwner}
             canEdit={canEdit}
           />
         </div>
         {canEdit && (
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Link href={`/dashboard/members/${id}/edit`} className="btn min-h-13 border-amber-500 text-primary"><Pencil className="size-5" />Chỉnh sửa</Link>
-            <Link href={`/dashboard/members/${id}/edit#relationships`} className="btn-primary min-h-13"><GitBranch className="size-5" />Thêm quan hệ</Link>
+            <Link href="#relationships" className="btn-primary min-h-13"><GitBranch className="size-5" />Thêm quan hệ</Link>
+            <DeleteMemberButton memberId={id} treeId={person.tree_id} className="col-span-2" />
           </div>
         )}
       </main>

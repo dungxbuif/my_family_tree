@@ -34,7 +34,7 @@ async function waitForApp() {
 
 try {
   await waitForApp();
-  const tests = Bun.spawn([process.execPath, "test", "tests/account-routes.test.ts"], {
+  const tests = Bun.spawn([process.execPath, "test", "tests/account-routes.test.ts", "tests/tree-isolation.test.ts"], {
     env: {
       ...process.env,
       FAMILY_TREE_TEST_APP_URL: appUrl,

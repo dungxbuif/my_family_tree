@@ -7,11 +7,12 @@ import { useState } from "react";
 
 interface DeleteMemberButtonProps {
   memberId: string;
+  treeId: string;
   className?: string;
 }
 
 export default function DeleteMemberButton({
-  memberId,
+  memberId, treeId,
   className = "",
 }: DeleteMemberButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -29,7 +30,7 @@ export default function DeleteMemberButton({
     setIsDeleting(true);
     setError(null);
     try {
-      const result = await deleteMemberProfile(memberId);
+      const result = await deleteMemberProfile(memberId, treeId);
       if (result?.error) {
         setError(result.error);
         setIsDeleting(false);

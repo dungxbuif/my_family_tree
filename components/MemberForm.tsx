@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 interface MemberFormProps {
+  treeId: string;
   initialData?: Person;
   isEditing?: boolean;
-  isAdmin?: boolean;
+  isOwner?: boolean;
   /** Called with the saved person's ID after a successful save. Overrides default router.push. */
   onSuccess?: (personId: string) => void;
   /** Called when user clicks Cancel. Overrides default router.back(). */
@@ -31,13 +32,15 @@ interface MemberFormProps {
 }
 
 export default function MemberForm({
-  initialData,
+  treeId, initialData,
   isEditing = false,
-  isAdmin = false,
+  isOwner = false,
   onSuccess,
   onCancel,
 }: MemberFormProps) {
   const router = useRouter();
+  const submission = useRef("");
+  const [email, setEmail] = useState(initialData?.email ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -284,6 +287,8 @@ export default function MemberForm({
         ? await uploadImage(avatarFile, "avatars")
         : avatarUrl;
       const formData = new FormData();
+      formData.set("treeId", treeId);
+      if (!initialData?.id) formData.set("submissionId", submission.current ||= crypto.randomUUID());
       if (initialData?.id) {
         formData.append("id", initialData.id);
       }
@@ -309,7 +314,8 @@ export default function MemberForm({
         formData.append("death_lunar_day", finalDeathLunarDay.toString());
       }
 
-      if (isAdmin) {
+      if (isOwner) {
+        formData.set("email", email);
         formData.append("phone_number", phoneNumber);
         formData.append("occupation", occupation);
         formData.append("current_residence", currentResidence);
@@ -317,7 +323,7 @@ export default function MemberForm({
 
       const result = await saveMember(formData);
 
-      if (result.error) {
+      if (!result.success) {
         throw new Error(result.error);
       }
 
@@ -753,8 +759,8 @@ export default function MemberForm({
         </div>
       </motion.div>
 
-      {/* Private Information Section (Admin Only) */}
-      {isAdmin && (
+      {/* Private Information Section (Owner Only) */}
+      {isOwner && (
         <motion.div
           variants={formSectionVariants}
           initial="hidden"
@@ -771,9 +777,12 @@ export default function MemberForm({
             </span>
             <span>Thông tin riêng tư</span>
             <span className="text-[10px] ml-auto sm:ml-2 font-bold bg-amber-200/80 text-amber-800 uppercase tracking-wider px-2.5 py-1 rounded-md shadow-xs border border-amber-300/60">
-              Chỉ Admin
+              Chỉ chủ sở hữu
             </span>
           </h3>
+          <label className="mb-4 block font-semibold">Email
+            <input type="text" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClasses} />
+          </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
             <div>
               <label className="flex items-center gap-1.5 text-sm font-semibold text-amber-900/80 mb-1.5">

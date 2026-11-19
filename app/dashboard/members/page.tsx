@@ -2,10 +2,9 @@ import { MemberListProvider } from "@/context/MemberListContext";
 import MembersViews from "@/components/MembersViews";
 import MemberDetailModal from "@/components/modal/MemberDetailModal";
 import ViewToggle from "@/components/ViewToggle";
-import { getProfile, getDataClient } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 
 import { ViewMode } from "@/components/ViewToggle";
-import { Person, Relationship } from "@/types";
 import { HeritagePageHero } from "@/components/heritage";
 
 interface PageProps {
@@ -16,21 +15,9 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
   const initialView = view as ViewMode | undefined;
   const initialShowAvatar = avatar !== "hide";
 
-  const profile = await getProfile();
-  const canEdit = profile?.role === "admin" || profile?.role === "editor";
-
-  const db = getDataClient();
-
-  const [personsRes, relsRes] = await Promise.all([
-    db
-      .from<Person>("persons")
-      .select("*")
-      .order("birth_year", { ascending: true }),
-    db.from<Relationship>("relationships").select("*"),
-  ]);
-
-  const persons = personsRes.data || [];
-  const relationships = relsRes.data || [];
+  const { people } = await currentFamilyPage();
+  const { persons, relationships, role, treeId } = await people.graph();
+  const canEdit = role !== "viewer";
 
   // Prepare map and roots for tree views
   const personsMap = new Map();
@@ -58,6 +45,7 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
 
   return (
     <MemberListProvider
+      key={treeId}
       initialView={initialView}
       initialRootId={finalRootId}
       initialShowAvatar={initialShowAvatar}
@@ -65,10 +53,10 @@ export default async function FamilyTreePage({ searchParams }: PageProps) {
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pb-24 pt-4 sm:px-6 md:pb-8 lg:px-8">
         <HeritagePageHero title={initialView === "list" ? "Thành viên" : "Cây gia phả"} subtitle={initialView === "list" ? "Danh sách thành viên trong dòng họ" : "Sơ đồ các thế hệ trong dòng họ"} backHref="/dashboard" />
         <ViewToggle />
-        <MembersViews persons={persons} relationships={relationships} canEdit={canEdit} />
+        <MembersViews treeId={treeId} persons={persons} relationships={relationships} canEdit={canEdit} />
       </div>
 
-      <MemberDetailModal />
+      <MemberDetailModal treeId={treeId} role={role} graph />
     </MemberListProvider>
   );
 }

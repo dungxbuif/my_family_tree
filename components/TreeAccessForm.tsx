@@ -4,34 +4,29 @@ import { useActionState, useEffect, useRef, useState, useSyncExternalStore, type
 import { submitTreeAccess } from "@/app/actions/tree-membership";
 import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
 import type { AccessMember } from "@/utils/auth/tree-membership";
+import type { NativeAccessOutcome } from "@/utils/auth/native-access-submission";
 import type { AccessNotice } from "@/utils/auth/browser-tree-membership";
-import { accessOperations, accessPath, deniedAccess, treeRoles, type AccessOperation } from "@/utils/tree-access-labels";
+import { accessOperations, accessPath, accessErrors, treeRoles, type AccessOperation } from "@/utils/tree-access-labels";
 
 const control = "body-md mt-1 block min-h-[52px] w-full min-w-0 rounded-lg border border-border bg-surface px-3";
-const errors = {
-  FORBIDDEN: deniedAccess,
-  UNAVAILABLE: "Không thể thực hiện thay đổi với thông tin đã nhập.",
-  CONFIRM: "Vui lòng xác nhận thay đổi trước khi tiếp tục.",
-  LAST_OWNER: "Cây gia phả cần ít nhất một chủ sở hữu đang hoạt động. Hãy cấp quyền chủ sở hữu cho người khác trước.",
-  LINKED: "Hãy gỡ liên kết hồ sơ trước khi gỡ quyền truy cập.",
-  UNCERTAIN: "Chưa thể xác nhận kết quả. Mở danh sách trong thẻ mới để kiểm tra. Thông tin đã gửi được giữ ở đây.",
-};
 function subscribe(notify: () => void) {
   window.addEventListener("online", notify);
   window.addEventListener("offline", notify);
   return () => { window.removeEventListener("online", notify); window.removeEventListener("offline", notify); };
 }
 
-export default function TreeAccessForm({ tree, operation, member, people, unavailable, submission, permalink }: {
+export default function TreeAccessForm({ tree, operation, member, people, unavailable, submission, permalink, correction }: {
   tree: { id: string; name: string }; operation: AccessOperation; member?: AccessMember;
-  people: { id: string; label: string }[]; unavailable: boolean; submission: string; permalink: string;
+  people: { id: string; label: string }[]; unavailable: boolean; submission: string; permalink: string; correction?: NativeAccessOutcome;
 }) {
-  const [native, action] = useActionState(submitTreeAccess, null, permalink);
-  const [notice, setNotice] = useState<AccessNotice | null>(native?.notice ?? null);
-  const [email, setEmail] = useState(native?.draft?.email ?? "");
+  const [form, setForm] = useState({ submission, permalink });
+  const [native, action] = useActionState(submitTreeAccess, null, form.permalink);
+  const [receiptUrl, setReceiptUrl] = useState<string>();
+  const [notice, setNotice] = useState<AccessNotice | null>(native ?? (correction?.rejection ? { code: correction.rejection } : null));
+  const [email, setEmail] = useState(correction?.draft.email ?? "");
   const initialRole = member?.role ?? "viewer";
-  const [role, setRole] = useState(native?.draft?.role || initialRole);
-  const [person, setPerson] = useState(native?.draft?.personId ?? "");
+  const [role, setRole] = useState<string>(correction?.draft.role ?? initialRole);
+  const [person, setPerson] = useState(correction?.draft.personId ?? "");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const destructive = operation === "unlink" || operation === "remove";
@@ -39,14 +34,15 @@ export default function TreeAccessForm({ tree, operation, member, people, unavai
   const online = useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
   const code = notice && "code" in notice ? notice.code : null;
   const saved = notice && "ok" in notice;
-  const readOnly = saved || code === "FORBIDDEN" || code === "UNCERTAIN";
+  const readOnly = Boolean(receiptUrl) || saved || code === "FORBIDDEN" || code === "UNCERTAIN";
   const dirty = Boolean(email || role !== initialRole || person || confirmed);
-  useUnsavedNavigation(code === "UNCERTAIN" || (!readOnly && (dirty || busy)), code === "UNCERTAIN"
+  useUnsavedNavigation(!receiptUrl && (code === "UNCERTAIN" || (!readOnly && (dirty || busy))), code === "UNCERTAIN"
     ? "Chưa thể xác nhận kết quả. Rời trang sẽ bỏ thông tin đã gửi. Bạn có muốn rời trang?"
     : "Thay đổi quyền truy cập chưa được lưu. Bạn có muốn rời trang?");
   useEffect(() => {
-    if (saved) window.location.replace(accessPath + "?saved=1&treeId=" + tree.id);
-  }, [saved, tree.id]);
+    if (receiptUrl) window.location.replace(receiptUrl);
+    else if (saved) window.location.replace(accessPath + "?saved=1&treeId=" + tree.id);
+  }, [receiptUrl, saved, tree.id]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +56,19 @@ export default function TreeAccessForm({ tree, operation, member, people, unavai
         method: "POST", headers: { "X-Requested-With": "TreeAccessManager" }, body, redirect: "error",
       });
       if (response.status === 401 || response.status === 403) setNotice({ code: "FORBIDDEN" });
-      else if (response.ok) setNotice(await response.json() as AccessNotice);
+      else if (response.ok) {
+        const result = await response.json() as AccessNotice & { retryUrl?: string; outcomeUrl?: string };
+        if (result.outcomeUrl) setReceiptUrl(result.outcomeUrl);
+        if (result.retryUrl) {
+          const url = new URL(result.retryUrl, window.location.origin);
+          const nextId = url.searchParams.get("submission");
+          if (nextId) {
+            window.history.replaceState(window.history.state, "", url);
+            setForm({ submission: nextId, permalink: result.retryUrl });
+          }
+        }
+        setNotice(result);
+      }
       else setNotice({ code: "UNCERTAIN" });
     } catch {
       setNotice({ code: "UNCERTAIN" });
@@ -76,7 +84,7 @@ export default function TreeAccessForm({ tree, operation, member, people, unavai
     <h2 className="font-sans text-[22px] font-semibold leading-[30px] text-primary">{accessOperations[operation]}</h2>
     <p className="body-sm text-secondary [overflow-wrap:anywhere]">{tree.name}</p>
     {member && <p className="[overflow-wrap:anywhere]">{member.email}{operation === "unlink" && " · " + member.personName}</p>}
-    {code && <p role="alert" className="body-md text-error">{errors[code]}</p>}
+    {code && <p role="alert" className="body-md text-error">{accessErrors[code]}</p>}
     {code === "UNCERTAIN" && <section aria-label="Thông tin đã gửi" className="grid min-w-0 gap-2 [overflow-wrap:anywhere]">
       {email && <p className="whitespace-pre-wrap">Email · {email}</p>}
       {(operation === "role" || operation === "add") && <p>Vai trò · {treeRoles[role as keyof typeof treeRoles]}</p>}
@@ -88,7 +96,7 @@ export default function TreeAccessForm({ tree, operation, member, people, unavai
       <fieldset disabled={busy} className="grid min-w-0 gap-4">
         <input type="hidden" name="operation" value={operation} />
         <input type="hidden" name="treeId" value={tree.id} />
-        <input type="hidden" name="submission" value={submission} />
+        <input type="hidden" name="submission" value={form.submission} />
         {member && <input type="hidden" name="userId" value={member.userId} />}
         {operation === "unlink" && <input type="hidden" name="personId" value={member?.personId ?? ""} />}
         {(operation === "add" || operation === "link") && <label className="body-md font-semibold">

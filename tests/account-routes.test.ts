@@ -313,10 +313,18 @@ routeTest("the current Owner manages access by native exact-email POST and anoth
     });
     const rejectedHtml = await rejected.text();
     expect(rejectedHtml).toContain("Không thể thực hiện thay đổi với thông tin đã nhập.");
-    expect(renderedForm(rejectedHtml, "email").inputs.get("email")).toBe(form.inputs.get("email"));
+    const corrected = renderedForm(rejectedHtml, "email");
+    expect(corrected.inputs.get("email")).toBe(form.inputs.get("email"));
+    expect(corrected.inputs.get("submission")).not.toBe(form.inputs.get("submission"));
     form.inputs.set("email", target.id + "@example.test");
-    const result = await fetch(new URL(form.action || edit, edit), {
-      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs, redirect: "manual",
+    const replay = await fetch(new URL(root + "/mutation", edit), {
+      method: "POST", headers: { cookie, "X-Requested-With": "TreeAccessManager" }, body: form.inputs,
+    });
+    expect(await replay.json()).toMatchObject({ code: "UNAVAILABLE", outcomeUrl: root + "/outcome/" + form.inputs.get("submission") });
+    expect((await database.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id=$2", [tree, target.id])).rowCount).toBe(0);
+    corrected.inputs.set("email", target.id + "@example.test");
+    const result = await fetch(new URL(corrected.action || rejected.url, rejected.url), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: corrected.inputs, redirect: "manual",
     });
     expect(result.status).toBe(303);
     expect((await database.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2", [tree,target.id])).rows)
@@ -467,10 +475,154 @@ routeTest("a native self-removal keeps its uncertain outcome after commit and ne
     const staleTab = await fetch(new URL("/dashboard/account/trees/access/mutation", edit), {
       method: "POST", headers: { cookie, "X-Requested-With": "TreeAccessManager" }, body: form.inputs,
     });
-    expect(await staleTab.json()).toEqual({ code: "UNCERTAIN" });
+    expect(await staleTab.json()).toMatchObject({ code: "UNCERTAIN", outcomeUrl: destination.pathname });
     expect((await database.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,owner.id])).rows).toEqual([{ role: "owner" }]);
   } finally {
     await database.query(`DROP FUNCTION IF EXISTS ${tag}() CASCADE`);
     await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);
+
+async function waitForDatabaseBoundary(condition: () => Promise<boolean>) {
+  for (let attempt = 0; attempt < 120; attempt++) {
+    if (await condition()) return;
+    await Bun.sleep(15);
+  }
+  throw Error("Timed out waiting for the submission boundary");
+}
+
+routeTest("native and hydrated self-removal share one claim before either can mutate", async () => {
+  const owner = await seedAccount(false), backup = await seedAccount(false), tree = randomUUID();
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=remove&treeId=" + tree + "&userId=" + owner.id, appUrl);
+  const claimGate = await database.connect(), writeGate = await database.connect();
+  const requests: Promise<Response>[] = [];
+  let completed = 0;
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships(tree_id,user_id,role) SELECT t.id,u,'owner' FROM t,unnest($2::uuid[]) u`, [tree,[owner.id,backup.id]]);
+    const entry = await fetch(edit, { headers: { cookie } });
+    const form = renderedForm(await entry.text(), "operation");
+    form.inputs.set("confirm", "yes");
+    const id = form.inputs.get("submission");
+    const count = () => database.query("SELECT confirmed,draft FROM native_access_submissions WHERE id=$1", [id]);
+    expect((await count()).rowCount).toBe(0);
+    await claimGate.query("BEGIN");
+    await writeGate.query("BEGIN");
+    const claimPid = (await claimGate.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    const writePid = (await writeGate.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await claimGate.query("LOCK native_access_submissions IN SHARE MODE");
+    await writeGate.query("SELECT pg_advisory_xact_lock(917208342)");
+    const blocked = async (pids: number[]) => (await database.query(
+      "SELECT FROM pg_stat_activity WHERE datname=current_database() AND pg_blocking_pids(pid) && $1::int[]", [pids])).rowCount ?? 0;
+    const start = (url: URL, headers: Record<string,string>) => {
+      const response = fetch(url, { method: "POST", headers: { cookie, origin: edit.origin, ...headers }, body: form.inputs, redirect: "manual" });
+      requests.push(response.then(value => { completed++; return value; }));
+    };
+    start(new URL("/dashboard/account/trees/access/mutation", edit), { "X-Requested-With": "TreeAccessManager" });
+    await waitForDatabaseBoundary(async () => await blocked([claimPid, writePid]) === 1);
+    start(new URL(form.action || entry.url, entry.url), {});
+    await waitForDatabaseBoundary(async () => await blocked([claimPid, writePid]) === 2);
+    expect((await count()).rowCount).toBe(0);
+    await claimGate.query("COMMIT");
+    await waitForDatabaseBoundary(async () => {
+      const entrants = await blocked([writePid]);
+      return entrants === 2 || (completed > 0 && entrants === 1);
+    });
+    const domainEntrants = await blocked([writePid]);
+    const beforeWrite = await count();
+    await writeGate.query("COMMIT");
+    const [hydrated,native] = await Promise.all(requests);
+    expect(domainEntrants).toBe(1);
+    expect(beforeWrite.rows).toEqual([{confirmed:false,draft:{ operation:"remove",treeId:tree,userId:owner.id }}]);
+    expect(native.status).toBe(303);
+    expect([true,"UNCERTAIN"]).toContain(await hydrated.json().then(data => data.ok ?? data.code));
+    expect((await count()).rows).toEqual([{confirmed:true,draft:{ operation:"remove",treeId:tree,userId:owner.id }}]);
+    expect((await database.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id=$2", [tree,owner.id])).rowCount).toBe(0);
+    const html = await (await fetch(entry.url, { headers: { cookie } })).text();
+    expect(html).toContain("Đã cập nhật quyền truy cập.");
+    expect(html).toContain(owner.id);
+    expect(countElements(html, "main form")).toBe(0);
+  } finally {
+    await claimGate.query("ROLLBACK");
+    await writeGate.query("ROLLBACK");
+    claimGate.release(); writeGate.release();
+    await Promise.allSettled(requests);
+    await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);
+
+routeTest("an abandoned receipt stops waiting at its deadline and cannot be taken over by either adapter", async () => {
+  const owner = await seedAccount(false), target = await seedAccount(false), tree = randomUUID();
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=add&treeId=" + tree, appUrl);
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships SELECT id,$2,'owner',now() FROM t`, [tree,owner.id]);
+    const entry = await fetch(edit, { headers: { cookie } }), form = renderedForm(await entry.text(), "email");
+    const id = form.inputs.get("submission"), email = target.id + "@example.test", claimToken = randomUUID();
+    form.inputs.set("email", email);
+    const expiredId = randomUUID();
+    await database.query(`WITH expired_session AS (
+      UPDATE sessions SET expires_at=now()-interval '1 minute' WHERE user_id=$1 RETURNING id,expires_at
+    ) INSERT INTO native_access_submissions(session_id,id,draft,expires_at)
+      SELECT id,$2,'{}',expires_at FROM expired_session`, [target.id, expiredId]);
+    await database.query(`INSERT INTO native_access_submissions(session_id,id,draft,expires_at,claim_token,pending_until)
+      SELECT id,$2,$3,expires_at,$4,now()+interval '30 seconds' FROM sessions WHERE user_id=$1`,
+      [owner.id,id,JSON.stringify({ operation:"add",treeId:tree,email,role:"viewer" }),claimToken]);
+    const read = async () => (await fetch(entry.url, { headers: { cookie } })).text();
+    expect(await read()).toContain("Đang chờ xác nhận");
+    await database.query("UPDATE native_access_submissions SET pending_until=now()-interval '1 second' WHERE id=$1", [id]);
+    const stale = await read();
+    expect(stale).not.toContain("Đang chờ xác nhận");
+    expect(stale).toContain("Chưa thể xác nhận kết quả");
+    expect(stale).toContain(email);
+    expect(countElements(stale, "main form")).toBe(0);
+    const repeat = await fetch(new URL(form.action || entry.url,entry.url), {
+      method:"POST", headers:{cookie,origin:edit.origin},body:form.inputs,redirect:"manual",
+    });
+    expect(repeat.status).toBe(303);
+    const json = await fetch(new URL("/dashboard/account/trees/access/mutation",edit), {
+      method:"POST", headers:{cookie,"X-Requested-With":"TreeAccessManager"},body:form.inputs,
+    });
+    expect(await json.json()).toMatchObject({ code:"UNCERTAIN" });
+    expect((await database.query("SELECT FROM native_access_submissions WHERE id=$1", [expiredId])).rowCount).toBe(0);
+    expect((await database.query("SELECT claim_token,confirmed FROM native_access_submissions WHERE id=$1",[id])).rows)
+      .toEqual([{ claim_token:claimToken, confirmed:false }]);
+    expect((await database.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,target.id])).rowCount).toBe(0);
+  } finally { await database.query("DELETE FROM family_trees WHERE id=$1",[tree]); }
+}, 15000);
+
+routeTest("the winning worker rechecks its deadline after waiting for the tree", async () => {
+  const owner = await seedAccount(false), target = await seedAccount(false), tree = randomUUID();
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=add&treeId=" + tree, appUrl);
+  const barrier = await database.connect();
+  let submission: Promise<Response> | undefined;
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships SELECT id,$2,'owner',now() FROM t`, [tree,owner.id]);
+    const entry = await fetch(edit, { headers: { cookie } }), form = renderedForm(await entry.text(), "email");
+    const id = form.inputs.get("submission");
+    form.inputs.set("email", target.id + "@example.test");
+    await barrier.query("BEGIN");
+    await barrier.query("SELECT FROM family_trees WHERE id=$1 FOR UPDATE",[tree]);
+    submission = fetch(new URL("/dashboard/account/trees/access/mutation",edit), {
+      method:"POST", headers:{cookie,"X-Requested-With":"TreeAccessManager"},body:form.inputs,
+    });
+    const pid = (await barrier.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+    await waitForDatabaseBoundary(async () => {
+      const waiting = await database.query("SELECT FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))", [pid]);
+      return Boolean(waiting.rowCount);
+    });
+    expect((await database.query("UPDATE native_access_submissions SET pending_until=now()-interval '1 second' WHERE id=$1",[id])).rowCount).toBe(1);
+    await barrier.query("COMMIT");
+    expect(await (await submission).json()).toMatchObject({ code:"UNCERTAIN" });
+    expect((await database.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,target.id])).rowCount).toBe(0);
+    expect((await database.query("SELECT confirmed FROM native_access_submissions WHERE id=$1",[id])).rows).toEqual([{ confirmed:false }]);
+  } finally {
+    await barrier.query("ROLLBACK"); barrier.release();
+    await submission;
+    await database.query("DELETE FROM family_trees WHERE id=$1",[tree]);
   }
 }, 15000);

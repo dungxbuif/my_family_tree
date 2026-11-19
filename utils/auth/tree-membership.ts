@@ -11,7 +11,7 @@ export type AccessCommand =
   | { operation: "link"; personId: string; email: string }
   | { operation: "person-email"; personId: string; email: string }
   | { operation: "unlink"; personId: string; userId: string };
-type AccessCode = "FORBIDDEN" | "UNAVAILABLE" | "LAST_OWNER" | "LINKED";
+type AccessCode = "FORBIDDEN" | "UNAVAILABLE" | "LAST_OWNER" | "LINKED" | "UNCERTAIN";
 export type AccessResult = { ok: true } | { code: AccessCode };
 const forbidden = { code: "FORBIDDEN" } as const;
 const unavailable = { code: "UNAVAILABLE" } as const;
@@ -66,6 +66,10 @@ export async function updatePersonEmailInTransaction(
   client: PoolClient, actor: string, treeId: string, personId: string, rawEmail: string,
 ): Promise<AccessResult> {
   if (!await lockOwnedTree(client, actor, treeId)) return forbidden;
+  return updatePersonEmail(client, treeId, personId, rawEmail);
+}
+
+async function updatePersonEmail(client: PoolClient, treeId: string, personId: string, rawEmail: string) {
   if (!uuid.test(personId) || typeof rawEmail !== "string") return unavailable;
   const email = await normalizeEmail(client, rawEmail);
   if (!email && rawEmail.trim()) return unavailable;
@@ -106,12 +110,20 @@ async function changeMember(
   return success;
 }
 
-export async function manageTreeAccess(actor: string, treeId: string, command: AccessCommand, database: Database = pool): Promise<AccessResult> {
+export async function manageTreeAccess(actor: string, treeId: string, command: AccessCommand, database: Database = pool,
+  claim?: { id: string; token: string }): Promise<AccessResult> {
   return withTransaction(async client => {
-    if (command.operation === "person-email") {
-      return updatePersonEmailInTransaction(client, actor, treeId, command.personId, command.email);
-    }
+    if (claim) await client.query("SET LOCAL statement_timeout='30s'");
     if (!await lockOwnedTree(client, actor, treeId)) return forbidden;
+    if (claim) {
+      // Recheck after waiting for the tree lock. An abandoned form cannot start
+      // a mutation after its deadline, even if its original process resumes.
+      const current = await client.query(`SELECT FROM native_access_submissions r JOIN sessions s ON s.id=r.session_id
+        WHERE r.id=$1 AND r.claim_token=$2 AND s.user_id=$3 AND r.pending_until>clock_timestamp()
+          AND r.draft->>'treeId'=$4 AND s.expires_at>clock_timestamp()`, [claim.id, claim.token, actor, treeId]);
+      if (!current.rowCount) return { code: "UNCERTAIN" } as const;
+    }
+    if (command.operation === "person-email") return updatePersonEmail(client, treeId, command.personId, command.email);
     if (command.operation === "role" || command.operation === "remove") return changeMember(client, treeId, command);
     if (command.operation === "unlink") {
       if (!uuid.test(command.personId) || !uuid.test(command.userId)) return unavailable;

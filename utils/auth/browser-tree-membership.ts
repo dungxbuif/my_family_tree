@@ -18,7 +18,7 @@ export function readAccessDraft(fields: FormData): AccessDraft {
   return { email: field("email"), role: field("role"), personId: field("personId") };
 }
 
-export async function changeBrowserAccess(userId: string, fields: FormData): Promise<AccessNotice> {
+export async function changeBrowserAccess(userId: string, fields: FormData, claim: { id: string; token: string }): Promise<AccessNotice> {
   const treeId = fields.get("treeId");
   const { current } = await getBrowserTreeSelection(userId);
   if (!current || current.role !== "owner" || current.id !== treeId) return { code: "FORBIDDEN" };
@@ -32,5 +32,5 @@ export async function changeBrowserAccess(userId: string, fields: FormData): Pro
   else if (operation === "unlink" && typeof target === "string" && typeof personId === "string") command = { operation, userId: target, personId };
   else return { code: "UNAVAILABLE" };
   if ((operation === "remove" || operation === "unlink") && fields.get("confirm") !== "yes") return { code: "CONFIRM" };
-  return manageTreeAccess(userId, treeId, command);
+  return manageTreeAccess(userId, treeId, command, undefined, claim);
 }

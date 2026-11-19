@@ -106,9 +106,11 @@ quyền này cho một tài khoản đang hoạt động khác trong mỗi cây 
 Để gắn tài khoản với một người trong gia phả, chọn **Liên kết hồ sơ**, nhập
 email đầy đủ và chọn hồ sơ. Mã bên cạnh tên giúp phân biệt các hồ sơ trùng tên.
 Nếu kết nối gián đoạn khi lưu, hãy mở lại danh sách trong thẻ mới để kiểm tra
-kết quả. Thẻ hiện tại giữ thông tin đã gửi. Khi gửi biểu mẫu không dùng
-JavaScript, bạn có thể mở lại địa chỉ biểu mẫu trong cùng phiên đăng nhập để xem
-kết quả đã ghi, kể cả sau khi tự gỡ quyền. Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
+kết quả. Thẻ hiện tại giữ thông tin đã gửi. Mở lại địa chỉ biểu mẫu trong cùng
+phiên đăng nhập để xem kết quả, kể cả sau khi tự gỡ quyền. Nếu sau 30 giây hệ
+thống vẫn chưa xác nhận, địa chỉ đó tiếp tục hiển thị thông tin đã gửi để đối
+chiếu. Khi hệ thống xác nhận đã từ chối, bạn có thể sửa và gửi biểu mẫu mới.
+Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
 Người xem. Mỗi tài khoản có thể liên kết với một hồ sơ trong mỗi cây. Gỡ liên
 kết trước khi đổi sang tài khoản khác hoặc gỡ quyền truy cập. Thay đổi email
 của hồ sơ đã liên kết vẫn giữ nguyên tài khoản gắn với hồ sơ.

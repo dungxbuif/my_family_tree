@@ -21,11 +21,11 @@ function personOptions(people: AccessSnapshot["people"]) {
 }
 
 export default async function EditAccessPage({ searchParams }: {
-  searchParams: Promise<{ operation?: string; treeId?: string; userId?: string; personId?: string; submission?: string }>;
+  searchParams: Promise<{ operation?: string; treeId?: string; userId?: string; personId?: string; submission?: string; retryOf?: string }>;
 }) {
   const user = await getUser();
   if (!user) redirect("/login");
-  const { treeId, operation, userId, personId, submission } = await searchParams;
+  const { treeId, operation, userId, personId, submission, retryOf } = await searchParams;
   const params = new URLSearchParams();
   for (const [name, value] of Object.entries({ treeId, operation, userId, personId })) {
     if (typeof value === "string") params.set(name, value);
@@ -47,7 +47,11 @@ export default async function EditAccessPage({ searchParams }: {
     || (operation === "unlink" && (!personId || member?.personId !== personId))
     || (operation === "remove" && Boolean(member?.personId))
     || (operation === "link" && !data.people.length);
-  return <TreeAccessForm tree={data.tree} operation={operation as AccessOperation} member={member}
+  const previous = token && typeof retryOf === "string" && await readNativeAccessOutcome(token, retryOf);
+  const correction = previous && previous.rejection && previous.draft.treeId === treeId
+    && previous.draft.operation === operation && previous.draft.userId === userId ? previous : undefined;
+  if (correction && retryOf) params.set("retryOf", retryOf);
+  return <TreeAccessForm tree={data.tree} operation={operation as AccessOperation} member={member} correction={correction}
     submission={submission} permalink={accessPath + "/edit?" + params}
     unavailable={unavailable} people={operation === "link" ? personOptions(data.people) : []} />;
 }

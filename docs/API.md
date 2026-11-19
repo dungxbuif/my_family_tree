@@ -8,12 +8,14 @@ Sau khi chọn **Tạo khóa**, sao chép toàn bộ giá trị vào nơi lưu b
 
 | Quyền của khóa | Thao tác | Vai trò trong cây |
 | --- | --- | --- |
-| `read` | Liệt kê cây, đọc danh sách và từng hồ sơ | Chủ sở hữu, người chỉnh sửa hoặc người xem |
-| `write` | Tạo và cập nhật hồ sơ | Chủ sở hữu hoặc người chỉnh sửa |
+| `read` | Liệt kê cây, đọc hồ sơ, quan hệ, sự kiện, thư viện ảnh và thống kê | Chủ sở hữu, người chỉnh sửa hoặc người xem |
+| `write` | Tạo hồ sơ, quan hệ, sự kiện, ảnh và cập nhật hồ sơ, sự kiện | Chủ sở hữu hoặc người chỉnh sửa |
 | `private` | Đọc hoặc ghi email, số điện thoại, nghề nghiệp, nơi ở | Chủ sở hữu, kèm `read` để đọc hoặc `write` để ghi |
-| `delete` | Xóa hồ sơ | Chủ sở hữu hoặc người chỉnh sửa |
+| `delete` | Xóa hồ sơ, quan hệ, sự kiện và mục thư viện ảnh | Chủ sở hữu hoặc người chỉnh sửa |
 
 Ứng dụng kiểm tra trạng thái tài khoản và vai trò ở từng yêu cầu. Hạ quyền hoặc xóa quyền truy cập cây có hiệu lực với khóa hiện tại. Super Admin cũng cần có quyền trong cây.
+
+Để dùng cùng khóa qua một trình khách MCP, xem [hướng dẫn kết nối MCP](MCP.md).
 
 ## Gọi REST
 
@@ -33,8 +35,16 @@ curl --fail-with-body \
 | POST | `/api/v1/persons?familyTreeId=<tree-id>` | Tạo hồ sơ, trả 201 và `{"data":{"id":"…"}}` |
 | PATCH | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | Chỉ cập nhật các trường đã gửi, trả 200 và ID |
 | DELETE | `/api/v1/persons/<id>?familyTreeId=<tree-id>` | Xóa hồ sơ, trả 200 và ID. Cần gỡ Person Link và các quan hệ trước khi xóa |
+| GET, POST | `/api/v1/relationships?familyTreeId=<tree-id>` | Liệt kê hoặc tạo quan hệ |
+| DELETE | `/api/v1/relationships/<id>?familyTreeId=<tree-id>` | Gỡ quan hệ |
+| GET, POST | `/api/v1/events?familyTreeId=<tree-id>` | Liệt kê hoặc tạo sự kiện tùy chỉnh |
+| PATCH, DELETE | `/api/v1/events/<id>?familyTreeId=<tree-id>` | Cập nhật các trường đã gửi hoặc xóa sự kiện |
+| GET, POST | `/api/v1/gallery?familyTreeId=<tree-id>` | Liệt kê hoặc thêm thông tin ảnh đã tải lên |
+| DELETE | `/api/v1/gallery/<id>?familyTreeId=<tree-id>` | Gỡ mục khỏi thư viện |
+| GET | `/api/v1/stats?familyTreeId=<tree-id>` | Số lượng `persons`, `relationships`, `events`, `gallery` trong cây |
+| GET | `/api/v1/export?familyTreeId=<tree-id>` | Bản sao lưu JSON phiên bản 4, gồm trường riêng tư. Cần vai trò Chủ sở hữu và cả hai quyền `read`, `private` |
 
-Cả hai danh sách nhận `limit` từ 1 đến 100, mặc định 50, và `offset` từ 0, mặc định 0. Trang tiếp theo dùng `offset` tăng bằng số mục đã nhận. Kết thúc khi nhận được ít hơn `limit` mục. Thay đổi đồng thời trong cây có thể làm dịch chuyển vị trí trong danh sách.
+Mỗi danh sách nhận `limit` từ 1 đến 100, mặc định 50, và `offset` từ 0, mặc định 0. Trang tiếp theo dùng `offset` tăng bằng số mục đã nhận. Kết thúc khi nhận được ít hơn `limit` mục. Thay đổi đồng thời trong cây có thể làm dịch chuyển vị trí trong danh sách.
 
 Gửi JSON với `Content-Type: application/json`, tối đa 64 KiB cho mỗi thân yêu cầu. Ví dụ tạo hồ sơ với năm sinh và tình trạng sống chưa rõ.
 
@@ -46,6 +56,20 @@ Gửi JSON với `Content-Type: application/json`, tối đa 64 KiB cho mỗi th
 - Các thành phần ngày nhận số nguyên hoặc `null` để bỏ trống. Dùng `birth_year/month/day`, `death_year/month/day` hoặc `death_lunar_year/month/day`, chẳng hạn `birth_month`. Cặp năm/tháng được giữ nguyên độ chính xác khi chưa biết ngày.
 - `is_deceased` nhận `true`, `false`, `null`. `is_in_law` nhận boolean. `birth_order` và `generation` nhận số nguyên hoặc `null`.
 - Gửi `email`, `phone_number`, `occupation`, `current_residence` ở cấp ngoài của JSON để cập nhật thông tin riêng tư. Email khớp chính xác có thể thiết lập Person Link theo quy tắc của cây. Liên kết đã tồn tại được giữ theo ID tài khoản.
+
+### Nội dung của các yêu cầu ghi
+
+| Tài nguyên | Trường bắt buộc khi tạo | Trường khác |
+| --- | --- | --- |
+| Quan hệ | `person_a`, `person_b`, `type` | `note` |
+| Sự kiện | `name`, `event_date` (ngày dương lịch `YYYY-MM-DD`) | `location`, `content` |
+| Thư viện | `title`, `image_url` | `description`, `event_date` |
+
+Quan hệ nhận `marriage`, `biological_child` hoặc `adopted_child`. Với quan hệ cha mẹ và con, `person_a` là cha/mẹ. Cả hai ID phải thuộc cây đang thao tác. Quan hệ trùng lặp hoặc tạo vòng lặp trả 409.
+
+Tên, tên khác, nghề nghiệp, nơi ở và địa điểm tối đa 500 ký tự. Giới hạn của email là 320, số điện thoại 100, URL ảnh 2048, ghi chú, mô tả và nội dung sự kiện 8192. Ảnh cần đường dẫn `/api/storage/…` của ảnh đã tải lên bằng ứng dụng, thuộc đúng cây và đúng thư mục. Dữ liệu base64 hoặc URL ngoài trả 400.
+
+Mỗi POST thành công trả 201, PATCH và DELETE trả 200 với `{"data":{"id":"…"}}`. Bản xuất chứa tối đa 100 bản ghi mỗi bảng và tối đa 1 MiB JSON. Nếu vượt giới hạn, yêu cầu trả 400. Chủ sở hữu có thể dùng công cụ sao lưu trong giao diện để xuất cây lớn hơn.
 
 Lỗi trả về dạng `{"code":"FORBIDDEN","message":"Từ chối truy cập.","requestId":"…"}`. Dùng `requestId` khi báo lỗi và giữ kín khóa. Mã trạng thái gồm 400 `INVALID_INPUT`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 `CONFLICT` và 500 `INTERNAL_ERROR`. Khóa hết hạn, thu hồi, sai hoặc thuộc tài khoản bị khóa/xóa đều trả 401.
 

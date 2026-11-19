@@ -33,6 +33,7 @@ test("release validation requires passing authorization and scoped writes", () =
       "tests/secondary-tree-isolation.test.ts",
       "tests/data-tools-isolation.test.ts",
       "tests/agent-rest.test.ts",
+      "tests/agent-mcp.test.ts",
     ]) {
       expect(run().stderr).toContain(suite);
       writeFileSync(join(root, suite), passing);

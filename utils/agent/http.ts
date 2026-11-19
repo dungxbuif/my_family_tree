@@ -19,16 +19,12 @@ export function failure(error: unknown) {
   if (status === 401) response.headers.set("WWW-Authenticate", "Bearer");
   return response;
 }
-export async function readObject(
+export async function readJsonValue(
   request: Request,
-): Promise<Record<string, unknown>> {
-  const limit = 64 * 1024;
-  if (
-    request.headers.get("content-type")?.split(";")[0].trim() !==
-      "application/json" ||
-    Number(request.headers.get("content-length")) > limit
-  )
-    throw new AgentError("INVALID_INPUT");
+  limit: number,
+): Promise<unknown> {
+  if (Number(request.headers.get("content-length")) > limit)
+    throw new AgentError("PAYLOAD_TOO_LARGE");
   const reader = request.body?.getReader();
   if (!reader) throw new AgentError("INVALID_INPUT");
   const chunks: Uint8Array[] = [];
@@ -40,19 +36,34 @@ export async function readObject(
       size += value.byteLength;
       if (size > limit) {
         void reader.cancel().catch(() => {});
-        throw new AgentError("INVALID_INPUT");
+        throw new AgentError("PAYLOAD_TOO_LARGE");
       }
       chunks.push(value);
     }
-    const obj: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (!obj || typeof obj !== "object" || Array.isArray(obj))
-      throw new AgentError("INVALID_INPUT");
-    return obj as Record<string, unknown>;
-  } catch {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    if (error instanceof AgentError) throw error;
     throw new AgentError("INVALID_INPUT");
   } finally {
     reader.releaseLock();
   }
+}
+export async function readObject(
+  request: Request,
+): Promise<Record<string, unknown>> {
+  if (
+    request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !==
+    "application/json"
+  )
+    throw new AgentError("INVALID_INPUT");
+  try {
+    const value = await readJsonValue(request, 64 * 1024);
+    if (value && typeof value === "object" && !Array.isArray(value))
+      return value as Record<string, unknown>;
+  } catch {
+    // The REST credential and family endpoints retain their original 400 contract.
+  }
+  throw new AgentError("INVALID_INPUT");
 }
 export function bearer(request: Request) {
   const forwarded = request.headers.get("x-forwarded-proto");
@@ -81,7 +92,7 @@ export async function rest(
     // Decode outside the transaction so a slow client cannot hold database locks.
     // Input errors are handled inside the authenticated command.
     const body =
-      action === "create_person" || action === "update_person"
+      request.method === "POST" || request.method === "PATCH"
         ? await readObject(request).catch(() => null)
         : undefined;
     const response = await runFamilyCommand(token, "rest", {
@@ -92,7 +103,7 @@ export async function rest(
       offset: params.get("offset"),
       body,
     });
-    return json(response, action === "create_person" ? 201 : 200);
+    return json(response, request.method === "POST" ? 201 : 200);
   } catch (error) {
     return failure(error);
   }

@@ -30,6 +30,7 @@ const app = Bun.spawn(
       ...process.env,
       DATABASE_URL: process.env.FAMILY_TREE_TEST_DATABASE_URL,
       // Loopback-only backend of the disposable HTTPS integration ingress.
+      MCP_ALLOWED_ORIGINS: "https://family.test",
       AGENT_TRUST_TLS_PROXY: "1",
       NEXT_TELEMETRY_DISABLED: "1",
       NEXT_FONT_GOOGLE_MOCKED_RESPONSES: fileURLToPath(

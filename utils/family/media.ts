@@ -26,7 +26,9 @@ export type GalleryDraft = {
   imageUrl: string;
 };
 const missing = () =>
-  new FamilyDataError("Không tìm thấy mục này trong cây gia phả.");
+  new FamilyDataError("Không tìm thấy mục này trong cây gia phả.", {
+    kind: "unavailable",
+  });
 export class MediaUploadConflict extends FamilyDataError {}
 export class UnavailableImage extends FamilyDataError {}
 const invalidImage = () =>
@@ -67,6 +69,26 @@ export async function requireAttachment(
 
 export function familyMedia(actor: string, tree: string, access: Access) {
   return {
+    calendar: (page?: { limit: number; offset: number }) =>
+      access(
+        false,
+        async (client) =>
+          (
+            await client.query<CustomEventRecord>(
+              "SELECT id,name,content,event_date::text,location,created_by FROM custom_events WHERE tree_id=$1 ORDER BY event_date,id LIMIT $2 OFFSET $3",
+              [tree, page?.limit ?? null, page?.offset ?? 0],
+            )
+          ).rows,
+      ),
+    event: (id: string) =>
+      access(false, async (client) => {
+        const { rows } = await client.query<CustomEventRecord>(
+          "SELECT name,content,event_date::text,location FROM custom_events WHERE tree_id=$1 AND id=$2",
+          [tree, id],
+        );
+        if (!rows.length) throw missing();
+        return rows[0];
+      }),
     saveEvent: (draft: EventDraft) =>
       access(true, async (client) => {
         if (!draft.name?.trim() || !/^\d{4}-\d\d-\d\d$/.test(draft.event_date))
@@ -104,7 +126,7 @@ export function familyMedia(actor: string, tree: string, access: Access) {
         )
           throw missing();
       }),
-    gallery: () =>
+    gallery: (page?: { limit: number; offset: number }) =>
       access(
         false,
         async (client) =>
@@ -112,8 +134,8 @@ export function familyMedia(actor: string, tree: string, access: Access) {
             await client.query<GalleryItem>(
               `SELECT g.id,g.tree_id,g.title,g.description,m.object_url AS image_url,g.event_date::text,g.created_at::text,g.created_by
       FROM gallery_items g LEFT JOIN tree_media m ON m.tree_id=g.tree_id AND m.object_url=g.image_url AND m.folder='gallery' AND m.cleanup_claim IS NULL
-      WHERE g.tree_id=$1 ORDER BY g.event_date DESC NULLS LAST,g.created_at DESC,g.id`,
-              [tree],
+      WHERE g.tree_id=$1 ORDER BY g.event_date DESC NULLS LAST,g.created_at DESC,g.id LIMIT $2 OFFSET $3`,
+              [tree, page?.limit ?? null, page?.offset ?? 0],
             )
           ).rows,
       ),

@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import type { PoolClient, QueryResultRow } from "pg";
 import { createHash } from "node:crypto";
 import type {
   Backup,
@@ -23,42 +23,47 @@ export async function exportBackup(
   client: PoolClient,
   tree: string,
   root?: string,
+  bounds?: { maxRows: number; maxBytes: number },
 ): Promise<Backup> {
-  const persons = (
-    await client.query<BackupPerson>(
-      `
+  // Refuse oversized agent backups as a whole. The row and byte checks run in
+  // PostgreSQL before any potentially large historical values cross the wire.
+  async function collection<T extends QueryResultRow>(
+    sql: string,
+  ): Promise<T[]> {
+    if (!bounds) return (await client.query<T>(sql, [tree])).rows;
+    const {
+      rows: [page],
+    } = await client.query(
+      `WITH page AS MATERIALIZED (${sql} LIMIT $2),
+       size AS (SELECT count(*) AS n, coalesce(sum(octet_length(row_to_json(p)::text)),0) AS bytes FROM page p)
+       SELECT CASE WHEN n < $2 AND bytes <= $3 THEN (SELECT coalesce(json_agg(p),'[]') FROM page p) END AS items FROM size`,
+      [tree, bounds.maxRows + 1, bounds.maxBytes],
+    );
+    if (page.items === null)
+      throw new FamilyDataError("Bản xuất vượt giới hạn. Vui lòng sử dụng công cụ sao lưu của cây.");
+    return page.items;
+  }
+
+  const persons = await collection<BackupPerson>(
+    `
     SELECT ${backupFields.persons.map((k) => (k === "avatar_url" ? "m.object_url AS avatar_url" : "p." + k)).join(",")}
     FROM persons p LEFT JOIN tree_media m ON m.object_url=p.avatar_url AND m.tree_id=p.tree_id AND m.folder='avatars' AND m.cleanup_claim IS NULL
     WHERE p.tree_id=$1 ORDER BY p.id`,
-      [tree],
-    )
-  ).rows;
-  const relationships = (
-    await client.query<BackupEdge>(
-      "SELECT id,type,person_a,person_b,note FROM relationships WHERE tree_id=$1 ORDER BY id",
-      [tree],
-    )
-  ).rows;
-  const details = (
-    await client.query<BackupPrivate>(
-      "SELECT person_id,phone_number,occupation,current_residence FROM person_details_private WHERE tree_id=$1 ORDER BY person_id",
-      [tree],
-    )
-  ).rows;
-  const events = (
-    await client.query<BackupEvent>(
-      "SELECT id,name,content,event_date::text,location FROM custom_events WHERE tree_id=$1 ORDER BY id",
-      [tree],
-    )
-  ).rows;
-  const gallery = (
-    await client.query<BackupGallery>(
-      `SELECT g.id,g.title,g.description,g.event_date::text,m.object_url AS image_url
+  );
+  const relationships = await collection<BackupEdge>(
+    "SELECT id,type,person_a,person_b,note FROM relationships WHERE tree_id=$1 ORDER BY id",
+  );
+  const details = await collection<BackupPrivate>(
+    "SELECT person_id,phone_number,occupation,current_residence FROM person_details_private WHERE tree_id=$1 ORDER BY person_id",
+  );
+  const events = await collection<BackupEvent>(
+    "SELECT id,name,content,event_date::text,location FROM custom_events WHERE tree_id=$1 ORDER BY id",
+  );
+  const gallery = await collection<BackupGallery>(
+    `SELECT g.id,g.title,g.description,g.event_date::text,m.object_url AS image_url
     FROM gallery_items g LEFT JOIN tree_media m ON m.object_url=g.image_url AND m.tree_id=g.tree_id AND m.folder='gallery' AND m.cleanup_claim IS NULL
     WHERE g.tree_id=$1 ORDER BY g.id`,
-      [tree],
-    )
-  ).rows;
+  );
   let included: Set<string> | undefined;
   if (root !== undefined) {
     if (!persons.some((p) => p.id === root)) throw unavailable();

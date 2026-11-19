@@ -1,6 +1,12 @@
 import type { PoolClient } from "pg";
-import type { Person, RelationshipType } from "@/types";
-import { FamilyDataError, publicColumns, requirePerson } from "./records";
+import type { Person, Relationship, RelationshipType } from "@/types";
+import {
+  FamilyDataError,
+  publicColumns,
+  requirePerson,
+  unavailable,
+  uuid,
+} from "./records";
 
 export type Edge = {
   person_a: string;
@@ -29,7 +35,8 @@ export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
     AND ((person_a=$2 AND person_b=$3) OR (type='marriage' AND person_a=$3 AND person_b=$2))`,
     [tree, a, b, type],
   );
-  if (duplicate.rowCount) throw new FamilyDataError("Quan hệ này đã tồn tại.");
+  if (duplicate.rowCount)
+    throw new FamilyDataError("Quan hệ này đã tồn tại.", { kind: "conflict" });
   if (type !== "marriage") {
     const cycle = await client.query(
       `WITH RECURSIVE descendants(id) AS (
@@ -37,12 +44,38 @@ export async function insertEdge(client: PoolClient, tree: string, edge: Edge) {
       WHERE r.tree_id=$1 AND r.type<>'marriage') SELECT FROM descendants WHERE id=$3`,
       [tree, b, a],
     );
-    if (cycle.rowCount) throw new FamilyDataError("Quan hệ này tạo vòng lặp.");
+    if (cycle.rowCount)
+      throw new FamilyDataError("Quan hệ này tạo vòng lặp.", {
+        kind: "conflict",
+      });
   }
-  await client.query(
-    "INSERT INTO relationships(tree_id,person_a,person_b,type,note) VALUES($1,$2,$3,$4,$5)",
+  const { rows } = await client.query<{ id: string }>(
+    "INSERT INTO relationships(tree_id,person_a,person_b,type,note) VALUES($1,$2,$3,$4,$5) RETURNING id",
     [tree, a, b, type, edge.note ?? null],
   );
+  return rows[0].id;
+}
+
+export async function listEdges(
+  client: PoolClient,
+  tree: string,
+  page?: { limit: number; offset: number },
+) {
+  return (
+    await client.query<Relationship>(
+      "SELECT id,tree_id,person_a,person_b,type,note,created_at,updated_at FROM relationships WHERE tree_id=$1 ORDER BY id LIMIT $2 OFFSET $3",
+      [tree, page?.limit ?? null, page?.offset ?? 0],
+    )
+  ).rows;
+}
+
+export async function removeEdge(client: PoolClient, tree: string, id: string) {
+  if (!uuid.test(id)) throw unavailable();
+  const deleted = await client.query(
+    "DELETE FROM relationships WHERE tree_id=$1 AND id=$2",
+    [tree, id],
+  );
+  if (!deleted.rowCount) throw unavailable();
 }
 
 export async function readFamily(client: PoolClient, tree: string, id: string) {

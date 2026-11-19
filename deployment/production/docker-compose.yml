@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:${FAMILY_TREE_PORT:-18085}:3000"
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
       SITE_NAME: ${SITE_NAME:-My Family Tree}
       UPLOAD_DIR: /app/uploads
       S3_ENDPOINT: ${S3_ENDPOINT}

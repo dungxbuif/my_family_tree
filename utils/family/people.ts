@@ -1,6 +1,5 @@
-import type { CustomEventRecord } from "@/utils/eventHelpers";
 import type { Pool, PoolClient } from "pg";
-import type { Person, PersonOption, Relationship, TreeRole } from "@/types";
+import type { Person, PersonOption, TreeRole } from "@/types";
 import { pool, withTransaction } from "@/utils/db/client";
 import {
   FamilyDataError,
@@ -13,7 +12,7 @@ import {
 } from "./records";
 import { exportBackup, importBackup } from "./backup";
 import { familyMedia } from "./media";
-import { insertEdge, readFamily, type Edge } from "./relationships";
+import { insertEdge, readFamily, listEdges, removeEdge, type Edge } from "./relationships";
 import { validateLifeDates } from "./life-dates";
 import { createOnce, savePerson } from "./save-person";
 import { requireTreeRole, removePerson, personDetail } from "./person-records";
@@ -129,14 +128,7 @@ export function familyPeople(
     addEdge: (edge: Edge) =>
       access(true, (client) => insertEdge(client, treeId, edge)),
     removeEdge: (id: string) =>
-      access(true, async (client) => {
-        if (!uuid.test(id)) throw unavailable();
-        const deleted = await client.query(
-          "DELETE FROM relationships WHERE tree_id=$1 AND id=$2",
-          [treeId, id],
-        );
-        if (!deleted.rowCount) throw unavailable();
-      }),
+      access(true, (client) => removeEdge(client, treeId, id)),
     remove: (id: string) =>
       access(true, (client) => removePerson(client, treeId, id)),
     lineage: (
@@ -171,24 +163,8 @@ export function familyPeople(
             [treeId],
           )
         ).rows,
-        relationships: (
-          await client.query<Relationship>(
-            "SELECT * FROM relationships WHERE tree_id=$1 ORDER BY id",
-            [treeId],
-          )
-        ).rows,
+        relationships: await listEdges(client, treeId),
       })),
-    calendar: () =>
-      access(
-        false,
-        async (client) =>
-          (
-            await client.query<CustomEventRecord>(
-              "SELECT id,name,content,event_date::text,location,created_by FROM custom_events WHERE tree_id=$1",
-              [treeId],
-            )
-          ).rows,
-      ),
     selector: () =>
       access(
         false,

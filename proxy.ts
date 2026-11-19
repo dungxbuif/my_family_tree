@@ -24,6 +24,6 @@ export function proxy(request: NextRequest) {
 // Bypass the proxy body clone and its separate size cap for this endpoint.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/storage|dashboard/data/restore(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/storage|api/mcp(?:/|$)|dashboard/data/restore(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

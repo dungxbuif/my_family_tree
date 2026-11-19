@@ -66,7 +66,7 @@ export default async function checkSelector(page) {
     await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     check(await colors() === before, width + ": touch cancellation did not restore button");
     check(before !== held, width + ": no immediate touch feedback");
-    await page.locator("main a").focus();
+    await page.getByRole("link", { name: "← Tài khoản", exact: true }).focus();
     await page.keyboard.press("Tab");
     check(await page.locator("button[aria-pressed]").first().evaluate(el => el.matches(":focus-visible")), width + ": keyboard focus did not reach first tree");
     await page.evaluate(() => window.scrollTo(0, 0));

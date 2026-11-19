@@ -16,6 +16,7 @@ import {
   recoverAvatarPut,
   reopenLeapDate,
 } from "../tests/browser/tree-recovery.mjs";
+import { checkFrozenModal } from "../tests/browser/tree-frozen-modal.mjs";
 import checkAdd, { checkDemotion } from "../tests/browser/tree-add.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
@@ -95,6 +96,23 @@ try {
     "--httpOnly",
   );
   const review = {};
+  for (const scenario of [
+    "restoreRead",
+    "headerBack",
+    "headerClose",
+    "browserBack",
+  ]) {
+    try {
+      review[scenario] = JSON.parse(
+        cli(
+          "run-code",
+          `async page => (${checkFrozenModal.toString()})(page, ${JSON.stringify(scenario)})`,
+        ),
+      );
+    } catch (error) {
+      review[scenario] = String(error.stdout ?? error.message).slice(-500);
+    }
+  }
   for (const check of [
     recoverAvatarPut,
     formStates,
@@ -136,6 +154,10 @@ try {
     JSON.stringify(review, null, 2),
   );
   if (
+    review.restoreRead !== true ||
+    review.headerBack !== true ||
+    review.headerClose !== true ||
+    review.browserBack !== true ||
     review.reopenLeapDate !== true ||
     review.recoverSelectionBody !== true ||
     review.restoreDirtyTree !== true ||

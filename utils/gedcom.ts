@@ -1,3 +1,5 @@
+import { recordedLifeStatus } from "./dateHelpers";
+
 export interface GedcomPerson {
   id?: string;
   full_name?: string | null;
@@ -8,6 +10,9 @@ export interface GedcomPerson {
   death_year?: number | null;
   death_month?: number | null;
   death_day?: number | null;
+  death_lunar_year?: number | null;
+  death_lunar_month?: number | null;
+  death_lunar_day?: number | null;
   is_deceased?: boolean | null;
   is_in_law?: boolean;
   birth_order?: number | null;
@@ -20,6 +25,10 @@ export interface GedcomRelationship {
   type?: string;
   person_a?: string;
   person_b?: string;
+}
+
+function recordedDateParts(...parts: (number | null | undefined)[]) {
+  return parts.map((part) => part ?? "?").join(" ");
 }
 
 export function exportToGedcom(data: {
@@ -165,20 +174,29 @@ export function exportToGedcom(data: {
       }
     }
 
-    if (person.is_deceased === false) gedcom += "1 _LIVING Y\n";
+    const deceased = recordedLifeStatus(person);
+    if (deceased === false) gedcom += "1 _LIVING Y\n";
 
     // Death
-    if (person.is_deceased) {
+    if (deceased) {
       gedcom += "1 DEAT Y\n";
-      if (person.death_year || person.death_month || person.death_day) {
-        const day = formatNum(person.death_day ?? null);
-        const mont = getMonthName(person.death_month ?? null);
-        const yea = person.death_year ? String(person.death_year) : "";
-        const dateParts = [day, mont, yea].filter(Boolean);
-        if (dateParts.length > 0) {
-          gedcom += `2 DATE ${dateParts.join(" ")}\n`;
-        }
+      const { death_year: year, death_month: month, death_day: day } = person;
+      if (year && (!day || month)) {
+        const date = [formatNum(day ?? null), getMonthName(month ?? null), year]
+          .filter(Boolean)
+          .join(" ");
+        gedcom += `2 DATE ${date}\n`;
+      } else if (year || month || day) {
+        // A day without its month or year cannot be expressed as a standard DATE.
+        gedcom += `2 _SOLAR_DATE ${recordedDateParts(year, month, day)}\n`;
       }
+      const lunar = [
+        person.death_lunar_year,
+        person.death_lunar_month,
+        person.death_lunar_day,
+      ];
+      if (lunar.some(Boolean))
+        gedcom += `2 _LUNAR_DATE ${recordedDateParts(...lunar)}\n`;
     }
 
     // Family Links
@@ -312,6 +330,9 @@ export function parseGedcom(gedcom: string): {
     let death_day = null;
     let death_month = null;
     let death_year = null;
+    let death_lunar_year = null,
+      death_lunar_month = null,
+      death_lunar_day = null;
     let note = "";
 
     let currentTag = "";
@@ -356,6 +377,26 @@ export function parseGedcom(gedcom: string): {
             birth_month = parseMonthName(parts[0]);
             birth_year = parseInt(parts[1]) || null;
           }
+        } else if (
+          currentTag === "DEAT" &&
+          (tag === "_SOLAR_DATE" || tag === "_LUNAR_DATE")
+        ) {
+          const parts = val.trim().split(/\s+/);
+          if (
+            parts.length === 3 &&
+            parts.every((part) => /^(?:-?\d+|\?)$/.test(part))
+          ) {
+            const date = parts.map((part) =>
+              part === "?" ? null : Number(part),
+            );
+            if (date.some((part) => part !== null)) {
+              is_deceased = true;
+              if (tag === "_SOLAR_DATE")
+                [death_year, death_month, death_day] = date;
+              else
+                [death_lunar_year, death_lunar_month, death_lunar_day] = date;
+            }
+          }
         } else if (currentTag === "DEAT" && tag === "DATE") {
           is_deceased = true;
           const cleanVal = val.replace(/^(ABT|EST|AFT|BEF|CAL)\s+/i, "");
@@ -385,6 +426,9 @@ export function parseGedcom(gedcom: string): {
       death_day: Number.isNaN(death_day) ? null : death_day,
       death_month,
       death_year: Number.isNaN(death_year) ? null : death_year,
+      death_lunar_year,
+      death_lunar_month,
+      death_lunar_day,
       is_in_law: false,
       birth_order: null,
       generation: null,

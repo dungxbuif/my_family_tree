@@ -86,7 +86,7 @@ Khi mất kết nối lúc thêm người, lần thử lại dùng cùng mã bi�
 
 Khi thẻ khác chuyển cây, bản nháp đang mở cho phép sao chép nội dung. Chọn **Ở lại với bản nháp** rồi **Chọn lại cây của bản nháp** để xác thực lại quyền và tiếp tục lưu, hoặc bỏ bản nháp để xem cây mới.
 
-GEDCOM dùng thẻ mở rộng `1 _LIVING Y` cho người được ghi rõ còn sống và `1 DEAT Y` cho người đã mất. Nếu thiếu cả hai thông tin, trạng thái là chưa rõ. Thông tin đã mất được ưu tiên nếu có cả hai thẻ. Tháng âm lịch nhuận được lưu bằng số âm. Ngày mất dương lịch đầy đủ có thể xác định tháng nhuận trong dữ liệu cũ ghi tháng không dấu.
+GEDCOM dùng thẻ mở rộng `1 _LIVING Y` cho người được ghi rõ còn sống và `1 DEAT Y` cho người đã mất. Nếu thiếu cả hai thông tin, trạng thái là chưa rõ. Chỉ cần có dữ liệu ngày mất, bản xuất ghi `1 DEAT Y` kể cả khi cờ cũ ghi còn sống hoặc chưa rõ. Thông tin đã mất được ưu tiên nếu có cả hai thẻ. Bên dưới `DEAT`, thẻ `DATE` lưu ngày dương lịch chuẩn. Thẻ mở rộng `_SOLAR_DATE` lưu ngày dương lịch thiếu thành phần mà `DATE` không biểu diễn được, còn `_LUNAR_DATE` lưu ngày âm lịch. Hai thẻ mở rộng dùng thứ tự năm, tháng, ngày và dấu `?` cho phần chưa rõ. Tháng âm lịch nhuận được lưu bằng số âm. Ngày mất dương lịch đầy đủ có thể xác định tháng nhuận trong dữ liệu cũ ghi tháng không dấu.
 
 Trong **Cây gia phả**, chủ sở hữu và người chỉnh sửa có thể chọn **Thêm thành viên**.
 Mở một người trên sơ đồ rồi chọn **Thêm thành viên** để lưu hồ sơ mới cùng

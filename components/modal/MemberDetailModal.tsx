@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMemberListView } from "@/context/MemberListContext";
+import { useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
 import TreeAddMember from "../TreeAddMember";
 
 export default function MemberDetailModal({treeId,role,graph = false}: {treeId:string;role:TreeRole;graph?:boolean}) {
@@ -21,6 +22,7 @@ export default function MemberDetailModal({treeId,role,graph = false}: {treeId:s
   } = useMemberListView();
   const isOwner = role === "owner", canEdit = role !== "viewer";
   const router = useRouter();
+  const frozen = useStaleTreeDraft();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const prefersReducedMotion = useReducedMotion();
@@ -36,7 +38,11 @@ export default function MemberDetailModal({treeId,role,graph = false}: {treeId:s
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const returnToDetails = () => {
+    if (!document.documentElement.dataset.staleTreeDraft) setIsEditing(false);
+  };
   const closeModal = useCallback(() => {
+    if (document.documentElement.dataset.staleTreeDraft) return;
     setMemberModalId(null);
     setShowCreateMember(false);
     setIsEditing(false);
@@ -201,9 +207,9 @@ export default function MemberDetailModal({treeId,role,graph = false}: {treeId:s
               {isEditing ? (
                 /* In edit mode — show back button */
                 <button
-                  onClick={() => {
-                    setIsEditing(false);
-                  }}
+                  aria-label="Quay lại"
+                  disabled={frozen}
+                  onClick={returnToDetails}
                   className="inline-flex items-center justify-center shrink-0 gap-1.5 px-3 py-2.5 bg-stone-100/80 text-stone-700 rounded-full hover:bg-stone-200 font-medium text-sm border border-stone-200/50 hover:-translate-y-1 hover:shadow-soft-hover transition-all duration-300"
                 >
                   <ArrowLeft className="size-4" />
@@ -234,6 +240,7 @@ export default function MemberDetailModal({treeId,role,graph = false}: {treeId:s
               )}
               <button
                 onClick={closeModal}
+                disabled={frozen}
                 ref={closeButtonRef}
                   className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/50 bg-stone-100/80 text-stone-600 shadow-sm transition-colors hover:bg-stone-200 hover:text-stone-900"
                 aria-label="Đóng"
@@ -298,7 +305,7 @@ export default function MemberDetailModal({treeId,role,graph = false}: {treeId:s
                     isEditing={true}
                     isOwner={isOwner}
                     onSuccess={handleEditSuccess}
-                    onCancel={() => setIsEditing(false)}
+                    onCancel={returnToDetails}
                   />
                 </motion.div>
               ) : showCreateMember && canEdit ? (

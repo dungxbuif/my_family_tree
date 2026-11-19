@@ -86,12 +86,16 @@ export function getSolarDateString(
   }
 }
 
-export function recordedLifeStatus(person: Person): boolean | null {
+type DeathFacts = Partial<Pick<Person,
+  "is_deceased" | "death_year" | "death_month" | "death_day" |
+  "death_lunar_year" | "death_lunar_month" | "death_lunar_day"
+>>;
+export function recordedLifeStatus(person: DeathFacts): boolean | null {
   if (person.death_year || person.death_month || person.death_day ||
       person.death_lunar_year || person.death_lunar_month || person.death_lunar_day) {
     return true;
   }
-  return person.is_deceased;
+  return person.is_deceased ?? null;
 }
 
 export function calculateAge(

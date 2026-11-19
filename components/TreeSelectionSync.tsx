@@ -14,11 +14,15 @@ const signal = "family-tree-selection-revision";
 const sameDocumentEvent = "familytreeselected";
 type Selection = Pick<SelectionSnapshot, "currentId" | "revision">;
 
-function notifyPeers({ currentId, revision }: Selection) {
+function notifyPeers(selection?: Selection) {
   try {
     localStorage.setItem(
       signal,
-      JSON.stringify({ currentId, revision, nonce: crypto.randomUUID() }),
+      JSON.stringify({
+        currentId: selection?.currentId,
+        revision: selection?.revision,
+        nonce: crypto.randomUUID(),
+      }),
     );
   } catch {
     /* Check the revision on focus as well. */
@@ -61,6 +65,8 @@ export default function TreeSelectionSync({
   const [error, setError] = useState("");
   const [restoring, setRestoring] = useState(false);
   const stale = useRef(false);
+  const restoreRevision = useRef<string | null>(null);
+  const frozenModal = useRef<{ href: string; state: unknown } | null>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const search = useSearchParams();
@@ -99,6 +105,11 @@ export default function TreeSelectionSync({
           document.documentElement.style.visibility = "";
           document.documentElement.dataset.staleTreeDraft = "true";
           window.dispatchEvent(new Event("familytreedraftstate"));
+          // Native in-tree dialogs own their own history entry. The detail modal
+          // uses replaceState, so retain its current URL for a same-document Back.
+          if (host.closest('[role="dialog"]') && !host.closest("dialog")) {
+            frozenModal.current = { href: location.href, state: history.state };
+          }
           const required = host.closest("form")?.dataset.recoveryRole;
           setDraft({
             host,
@@ -116,6 +127,15 @@ export default function TreeSelectionSync({
       if (current.current.revision !== revision()) recover();
     }
     function restoreEntry(event: PopStateEvent) {
+      if (frozenModal.current) {
+        event.stopImmediatePropagation();
+        history.pushState(
+          frozenModal.current.state,
+          "",
+          frozenModal.current.href,
+        );
+        return;
+      }
       const saved = event.state?.familyTreeRevision;
       if (
         (saved !== undefined && saved !== revision()) ||
@@ -180,20 +200,53 @@ export default function TreeSelectionSync({
       document.removeEventListener("visibilitychange", visible);
     };
   }, [router, role]);
+  useEffect(() => {
+    if (!draft || !frozenModal.current) return;
+    function protectFrozenDocument(event: BeforeUnloadEvent) {
+      if (document.documentElement.dataset.discardTreeDraft) return;
+      event.preventDefault();
+      event.returnValue = " ";
+    }
+    function protectFrozenLink(event: MouseEvent) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
+        return;
+      const link =
+        event.target instanceof Element &&
+        event.target.closest<HTMLAnchorElement>("a[href]");
+      if (link && (!link.target || link.target === "_self")) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+    window.addEventListener("beforeunload", protectFrozenDocument);
+    document.addEventListener("click", protectFrozenLink, true);
+    return () => {
+      window.removeEventListener("beforeunload", protectFrozenDocument);
+      document.removeEventListener("click", protectFrozenLink, true);
+    };
+  }, [draft]);
+
   async function restore() {
     if (!draft?.treeId || restoring) return;
     setRestoring(true);
     setError("");
     try {
-      const fields = new FormData();
-      fields.set("operation", "select");
-      fields.set("treeId", draft.treeId);
-      // Even a lost write acknowledgement can be resolved by the read-only snapshot.
-      await fetch(selectionUrl, {
-        method: "POST",
-        headers: { "X-Requested-With": "FamilyTreeSelector" },
-        body: fields,
-      }).catch(() => undefined);
+      if (restoreRevision.current !== revision()) {
+        const fields = new FormData();
+        fields.set("operation", "select");
+        fields.set("treeId", draft.treeId);
+        const previous = revision();
+        const acknowledgement = await fetch(selectionUrl, {
+          method: "POST",
+          headers: { "X-Requested-With": "FamilyTreeSelector" },
+          body: fields,
+        }).catch(() => undefined);
+        const committed = revision();
+        // Cookie changes reach peers before this tab needs a verification read.
+        // A failed read can retry against that revision without another write.
+        if (committed !== previous) restoreRevision.current = committed;
+        if (acknowledgement?.ok || committed !== previous) notifyPeers();
+      }
       const snapshot = await readSelection();
       const membership = snapshot.trees.find(
         (tree) => tree.id === draft.treeId,
@@ -206,9 +259,12 @@ export default function TreeSelectionSync({
           draft.role !== "viewer" &&
           membership.role !== draft.role)
       ) {
+        restoreRevision.current = null;
         if (snapshot.revision === revision()) notifyPeers(snapshot);
         throw new Error();
       }
+      restoreRevision.current = null;
+      frozenModal.current = null;
       stale.current = false;
       delete document.documentElement.dataset.staleTreeDraft;
       setDraft(null);
@@ -265,7 +321,13 @@ export default function TreeSelectionSync({
               disabled={restoring}
               onClick={() => {
                 document.documentElement.dataset.discardTreeDraft = "true";
-                location.reload();
+                if (frozenModal.current) {
+                  const url = new URL(location.href);
+                  url.searchParams.delete("memberModalId");
+                  location.replace(url.href);
+                } else {
+                  location.reload();
+                }
               }}
             >
               Bỏ bản nháp và tải lại

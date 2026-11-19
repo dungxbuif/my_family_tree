@@ -22,11 +22,11 @@ function subscribe(notify: () => void) {
   return () => { window.removeEventListener("online", notify); window.removeEventListener("offline", notify); };
 }
 
-export default function TreeAccessForm({ tree, operation, member, people, unavailable }: {
+export default function TreeAccessForm({ tree, operation, member, people, unavailable, submission, permalink }: {
   tree: { id: string; name: string }; operation: AccessOperation; member?: AccessMember;
-  people: { id: string; label: string }[]; unavailable: boolean;
+  people: { id: string; label: string }[]; unavailable: boolean; submission: string; permalink: string;
 }) {
-  const [native, action] = useActionState(submitTreeAccess, null);
+  const [native, action] = useActionState(submitTreeAccess, null, permalink);
   const [notice, setNotice] = useState<AccessNotice | null>(native?.notice ?? null);
   const [email, setEmail] = useState(native?.draft?.email ?? "");
   const initialRole = member?.role ?? "viewer";
@@ -88,6 +88,7 @@ export default function TreeAccessForm({ tree, operation, member, people, unavai
       <fieldset disabled={busy} className="grid min-w-0 gap-4">
         <input type="hidden" name="operation" value={operation} />
         <input type="hidden" name="treeId" value={tree.id} />
+        <input type="hidden" name="submission" value={submission} />
         {member && <input type="hidden" name="userId" value={member.userId} />}
         {operation === "unlink" && <input type="hidden" name="personId" value={member?.personId ?? ""} />}
         {(operation === "add" || operation === "link") && <label className="body-md font-semibold">

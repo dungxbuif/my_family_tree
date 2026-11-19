@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Window } from "happy-dom";
-import AccessError from "@/app/dashboard/account/trees/access/error";
-import LoadingAccess from "@/app/dashboard/account/trees/access/loading";
+import AccessError from "@/app/(tree-access)/dashboard/account/trees/access/error";
+import LoadingAccess from "@/components/AccessLoading";
 import FamilyTreesLayout from "@/app/dashboard/account/trees/layout";
 
 test("access loading and read recovery retain a path back to the account and offer a GET retry", async () => {

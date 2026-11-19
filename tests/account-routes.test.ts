@@ -43,6 +43,9 @@ afterAll(async () => {
 
 type RenderedForm = { method: string; action: string; inputs: FormData };
 const htmlEntities: Record<string, string> = { "&quot;": '"', "&#x27;": "'", "&lt;": "<", "&gt;": ">", "&amp;": "&" };
+function decodeAttribute(value: string) {
+  return value.replace(/&(?:quot|#x27|lt|gt|amp);/g, entity => htmlEntities[entity]);
+}
 
 function renderedForm(html: string, field = "password"): RenderedForm {
   const forms: RenderedForm[] = [];
@@ -51,17 +54,14 @@ function renderedForm(html: string, field = "password"): RenderedForm {
       element(form) {
         forms.push({
           method: form.getAttribute("method") ?? "get",
-          action: form.getAttribute("action") ?? "",
+          action: decodeAttribute(form.getAttribute("action") ?? ""),
           inputs: new FormData(),
         });
       },
     })
     .on("form input[name]", {
       element(input) {
-        const value = (input.getAttribute("value") ?? "").replace(
-          /&(?:quot|#x27|lt|gt|amp);/g,
-          (entity) => htmlEntities[entity],
-        );
+        const value = decodeAttribute(input.getAttribute("value") ?? "");
         forms.at(-1)?.inputs.set(input.getAttribute("name")!, value);
       },
     })
@@ -357,6 +357,118 @@ routeTest("a failed native access write renders the submitted role and exact ema
     expect(countElements(html, '[aria-label="Thông tin đã gửi"]')).toBe(1);
     expect(html).toContain(draft);
     expect(html).toContain("Biên tập viên");
+  } finally {
+    await database.query(`DROP FUNCTION IF EXISTS ${tag}() CASCADE`);
+    await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);
+
+routeTest("a session recovers its committed self-demotion from the original form URL after losing the acknowledgement", async () => {
+  const owner = await seedAccount(false), backup = await seedAccount(false);
+  const tree = randomUUID();
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=role&userId=" + owner.id + "&treeId=" + tree, appUrl);
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships(tree_id,user_id,role) SELECT t.id,u,'owner' FROM t,unnest($2::uuid[]) u`, [tree,[owner.id,backup.id]]);
+    const entry = await fetch(edit, { headers: { cookie } });
+    const recoveryUrl = entry.url;
+    const form = renderedForm(await entry.text(), "operation");
+    form.inputs.set("role", "viewer");
+    // Discard the POST reply. Recovery only knows the URL the browser had before submission.
+    await fetch(new URL(form.action || recoveryUrl, recoveryUrl), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs, redirect: "manual",
+    });
+    expect((await database.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,owner.id])).rows).toEqual([{ role: "viewer" }]);
+    for (let attempt=0; attempt<2; attempt++) {
+      const html = await (await fetch(recoveryUrl, { headers: { cookie } })).text();
+      expect(html).toContain("Đã cập nhật quyền truy cập.");
+      expect(countElements(html, '[aria-label="Thông tin đã gửi"]')).toBe(1);
+      expect(html).toContain("Người xem");
+      expect(countElements(html, "main form")).toBe(0);
+    }
+    const foreign = await (await fetch(recoveryUrl, { headers: { cookie: backup.cookie } })).text();
+    expect(countElements(foreign, '[aria-label="Thông tin đã gửi"]')).toBe(0);
+  } finally { await database.query("DELETE FROM family_trees WHERE id=$1", [tree]); }
+}, 15000);
+
+routeTest("native confirmation renders the submitted link even while the Owner roster query cannot run", async () => {
+  const owner = await seedAccount(false), target = await seedAccount(false), tree = randomUUID(), person = randomUUID();
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const email = "\u2002" + target.id.toUpperCase() + "@EXAMPLE.TEST\u3000";
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=link&treeId=" + tree, appUrl);
+  const hold = await database.connect();
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships(tree_id,user_id,role) SELECT id,$2,'owner' FROM t`, [tree,owner.id]);
+    await database.query("INSERT INTO persons(id,tree_id,full_name,gender) VALUES($1,$2,'An','other')", [person,tree]);
+    const entry = await fetch(edit, { headers: { cookie } });
+    const form = renderedForm(await entry.text(), "email");
+    form.inputs.set("email", email);
+    form.inputs.set("personId", person);
+    const response = await fetch(new URL(form.action || entry.url, entry.url), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs, redirect: "manual",
+    });
+    expect(response.status).toBe(303);
+    const destination = new URL(response.headers.get("location")!, edit);
+    expect((await database.query("SELECT linked_user_id FROM persons WHERE id=$1",[person])).rows).toEqual([{ linked_user_id: target.id }]);
+    // Hold the roster's Person relation across the GET. Authentication and receipt reads still work.
+    await hold.query("BEGIN");
+    await hold.query("LOCK persons IN ACCESS EXCLUSIVE MODE");
+    const confirmation = await fetch(destination, { headers: { cookie }, signal: AbortSignal.timeout(1600) });
+    const html = await confirmation.text();
+    expect(confirmation.status).toBe(200);
+    expect(html).toContain("Đã cập nhật quyền truy cập.");
+    expect(html).toContain(email);
+    expect(html).toContain(person);
+    expect(countElements(html, "main form")).toBe(0);
+  } finally {
+    await hold.query("ROLLBACK");
+    hold.release();
+    await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 15000);
+
+routeTest("a native self-removal keeps its uncertain outcome after commit and never replays against restored access", async () => {
+  const owner = await seedAccount(false), backup = await seedAccount(false), tree = randomUUID();
+  const tag = "access_ack_" + tree.replaceAll("-", "");
+  const cookie = owner.cookie + "; family_tree_selected=" + tree;
+  const edit = new URL("/dashboard/account/trees/access/edit?operation=remove&treeId=" + tree + "&userId=" + owner.id, appUrl);
+  try {
+    await database.query(`WITH t AS (INSERT INTO family_trees(id,name) VALUES($1,'Kiểm tra') RETURNING id)
+      INSERT INTO tree_memberships(tree_id,user_id,role) SELECT t.id,u,'owner' FROM t,unnest($2::uuid[]) u`, [tree,[owner.id,backup.id]]);
+    const entry = await fetch(edit, { headers: { cookie } });
+    const form = renderedForm(await entry.text(), "operation");
+    const id = form.inputs.get("submission");
+    expect(typeof id).toBe("string");
+    await database.query(`CREATE FUNCTION ${tag}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'fixture acknowledgement unavailable'; END $$;
+      CREATE TRIGGER ${tag} BEFORE UPDATE ON native_access_submissions FOR EACH ROW
+        WHEN (NEW.draft->>'treeId'='${tree}') EXECUTE FUNCTION ${tag}()`);
+    form.inputs.set("confirm", "yes");
+    const post = () => fetch(new URL(form.action || entry.url, entry.url), {
+      method: "POST", headers: { cookie, origin: edit.origin }, body: form.inputs, redirect: "manual",
+    });
+    const write = await post();
+    expect(write.status).toBe(303);
+    expect((await database.query("SELECT FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,owner.id])).rowCount).toBe(0);
+    const destination = new URL(write.headers.get("location")!, edit);
+    for (const url of [entry.url, destination.href]) {
+      const html = await (await fetch(url, { headers: { cookie } })).text();
+      expect(html).toContain("Chưa thể xác nhận kết quả");
+      expect(html).toContain(owner.id);
+      expect(countElements(html, '[aria-label="Thông tin đã gửi"]')).toBe(1);
+      expect(countElements(html, "main form")).toBe(0);
+    }
+    const outside = await (await fetch(destination, { headers: { cookie: backup.cookie } })).text();
+    expect(countElements(outside, '[aria-label="Thông tin đã gửi"]')).toBe(0);
+    await database.query("INSERT INTO tree_memberships(tree_id,user_id,role) VALUES($1,$2,'owner')", [tree,owner.id]);
+    expect((await post()).headers.get("location")).toBe(write.headers.get("location"));
+    const staleTab = await fetch(new URL("/dashboard/account/trees/access/mutation", edit), {
+      method: "POST", headers: { cookie, "X-Requested-With": "TreeAccessManager" }, body: form.inputs,
+    });
+    expect(await staleTab.json()).toEqual({ code: "UNCERTAIN" });
+    expect((await database.query("SELECT role FROM tree_memberships WHERE tree_id=$1 AND user_id=$2",[tree,owner.id])).rows).toEqual([{ role: "owner" }]);
   } finally {
     await database.query(`DROP FUNCTION IF EXISTS ${tag}() CASCADE`);
     await database.query("DELETE FROM family_trees WHERE id=$1", [tree]);

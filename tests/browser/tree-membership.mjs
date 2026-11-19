@@ -144,3 +144,38 @@ export async function checkUnconfirmedDrafts(initialPage, email, personId) {
   if (issues.length) throw Error(issues.join("; "));
   return { draftsPreserved: 2, writeCount: writes };
 }
+
+export async function checkNativeOutcome(initialPage, email) {
+  // Use a separate browser context to exercise native forms without hydration.
+  const context = await initialPage.context().browser().newContext({ javaScriptEnabled: false, viewport: { width: 320, height: 568 } });
+  try {
+    await context.addCookies(await initialPage.context().cookies());
+    const page = await context.newPage();
+    page.setDefaultTimeout(5000);
+    const root = new URL("/dashboard/account/trees/access", initialPage.url()).href;
+    let writes = 0;
+    page.on("request", req => { if (req.method() === "POST") writes++; });
+    await page.goto(root, { waitUntil: "load" });
+    const add = page.getByRole("link", { name: "Thêm quyền truy cập", exact: true });
+    if (!await add.isVisible()) throw Error("No-JS list: " + page.url() + " " + (await page.locator("body").innerText()).slice(0, 900));
+    await add.click();
+    const raw = "\u2002" + email.toUpperCase() + "\u3000";
+    await page.getByLabel("Email đầy đủ của tài khoản").fill(raw);
+    await page.getByLabel("Vai trò").selectOption("owner");
+    await page.getByRole("button", { name: "Thêm quyền truy cập" }).click();
+    await page.getByRole("status").filter({ hasText: "Đã cập nhật quyền truy cập." }).waitFor();
+    await page.getByRole("link", { name: "Xem quyền truy cập" }).click();
+    const owner = page.locator("li").filter({ hasNot: page.getByRole("heading", { name: email, exact: true }) });
+    await owner.getByRole("link", { name: "Đổi vai trò" }).click();
+    const before = page.url();
+    await page.getByLabel("Vai trò").selectOption("viewer");
+    await page.getByRole("button", { name: "Đổi vai trò" }).click();
+    await page.getByRole("status").filter({ hasText: "Đã cập nhật quyền truy cập." }).waitFor();
+    await page.goto(before);
+    const draft = page.getByRole("region", { name: "Thông tin đã gửi" });
+    await draft.getByText(/Người xem/).waitFor();
+    if (await page.locator("main form").count() || writes !== 2) throw Error("Native recovery offers or repeated a write");
+    await page.screenshot({ path: "native-outcome-320.png" });
+    return { javaScriptEnabled: false, writes, recoveredSelfDemotion: true };
+  } finally { await context.close(); }
+}

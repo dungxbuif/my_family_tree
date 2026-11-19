@@ -10,3 +10,4 @@ SELECT to_regclass('public.users') IS NULL AS bootstrap \gset
 \endif
 COMMIT;
 \ir migrations/20261119100000_add_family_trees.sql
+\ir migrations/20261119102000_native_access_submissions.sql

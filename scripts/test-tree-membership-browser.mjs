@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { Pool } from "pg";
-import checkMembership, { checkUnconfirmedDrafts } from "../tests/browser/tree-membership.mjs";
+import checkMembership, { checkNativeOutcome, checkUnconfirmedDrafts } from "../tests/browser/tree-membership.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
 const appUrl = process.env.FAMILY_TREE_TEST_APP_URL;
@@ -38,7 +38,7 @@ try {
     return result;
   }
   const drafts = run(checkUnconfirmedDrafts);
-  const result = { ...run(checkMembership), drafts };
+  const result = { ...run(checkMembership), drafts, native: run(checkNativeOutcome) };
   const report = JSON.stringify(result, null, 2) + "\n";
   writeFileSync(resolve(output, "measurements.json"), report);
   process.stdout.write(report);

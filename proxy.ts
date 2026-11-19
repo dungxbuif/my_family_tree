@@ -10,6 +10,12 @@ export function proxy(request: NextRequest) {
   if (isDashboard && !token) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+  if (request.method === "GET" && request.nextUrl.pathname === "/dashboard/account/trees/access/edit"
+      && !request.nextUrl.searchParams.has("submission")) {
+    const location = request.nextUrl.clone();
+    location.searchParams.set("submission", crypto.randomUUID());
+    return NextResponse.redirect(location, { headers: { "Cache-Control": "private, no-store" } });
+  }
 
   return NextResponse.next();
 }

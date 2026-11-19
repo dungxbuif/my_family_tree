@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import { getUser } from "@/utils/auth/session";
+import { getSessionToken, getUser } from "@/utils/auth/session";
+import { readNativeAccessOutcome, submissionIdPattern } from "@/utils/auth/native-access-submission";
 import { currentOwnerAccess } from "@/utils/auth/browser-tree-membership";
 import { accessOperations, accessPath, deniedAccess, type AccessOperation } from "@/utils/tree-access-labels";
 import TreeAccessForm from "@/components/TreeAccessForm";
+import NativeAccessResult from "@/components/NativeAccessResult";
 import type { AccessSnapshot } from "@/utils/auth/tree-membership";
 
 function personOptions(people: AccessSnapshot["people"]) {
@@ -19,11 +21,22 @@ function personOptions(people: AccessSnapshot["people"]) {
 }
 
 export default async function EditAccessPage({ searchParams }: {
-  searchParams: Promise<{ operation?: string; treeId?: string; userId?: string; personId?: string }>;
+  searchParams: Promise<{ operation?: string; treeId?: string; userId?: string; personId?: string; submission?: string }>;
 }) {
   const user = await getUser();
   if (!user) redirect("/login");
-  const { treeId, operation, userId, personId } = await searchParams;
+  const { treeId, operation, userId, personId, submission } = await searchParams;
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries({ treeId, operation, userId, personId })) {
+    if (typeof value === "string") params.set(name, value);
+  }
+  if (typeof submission !== "string" || !submissionIdPattern.test(submission)) {
+    return <a className="btn min-h-11" href={accessPath + "/edit?" + params}>Mở biểu mẫu</a>;
+  }
+  params.set("submission", submission);
+  const token = await getSessionToken();
+  const outcome = token && await readNativeAccessOutcome(token, submission);
+  if (outcome) return <NativeAccessResult outcome={outcome} />;
   const data = treeId && await currentOwnerAccess(user.id, treeId);
   if (!data) return <p role="alert">{deniedAccess}</p>;
   const member = data.members.find(item => item.userId === userId);
@@ -35,5 +48,6 @@ export default async function EditAccessPage({ searchParams }: {
     || (operation === "remove" && Boolean(member?.personId))
     || (operation === "link" && !data.people.length);
   return <TreeAccessForm tree={data.tree} operation={operation as AccessOperation} member={member}
+    submission={submission} permalink={accessPath + "/edit?" + params}
     unavailable={unavailable} people={operation === "link" ? personOptions(data.people) : []} />;
 }

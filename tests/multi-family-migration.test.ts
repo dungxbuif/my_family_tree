@@ -164,10 +164,23 @@ test("System User and Person email use ECMAScript surrounding whitespace", () =>
   expect(sql(`SELECT public.normalize_email('${paddedEmail}')`)).toBe(paddedEmail.trim().toLowerCase());
 });
 
-test("backup, rehearsal and rollback compare each account’s captured access", () => {
+test("cutover, retry and rollback preserve every legacy edge, count and account's access", () => {
   const preflight = "\\i /app/scripts/preflight-multi-family-migration.sql";
   const verify = "\\i /app/scripts/verify-multi-family-migration.sql";
+  const child = "20000000-0000-0000-0000-000000000003";
+  const edges = [
+    { id: "50000000-0000-0000-0000-000000000001", type: "biological_child", person_a: person, person_b: child },
+    { id: "50000000-0000-0000-0000-000000000002", type: "marriage", person_a: person, person_b: spouse },
+    { id: "50000000-0000-0000-0000-000000000003", type: "adopted_child", person_a: spouse, person_b: child },
+  ];
+  sql(`INSERT INTO sessions(user_id,token_hash,expires_at) VALUES ('${owner}',encode(digest('synthetic','sha256'),'hex'),now()+interval '1 day');
+    INSERT INTO persons(id,full_name,gender) VALUES ('${child}','C','other');
+    UPDATE relationships SET id='${edges[1].id}';
+    INSERT INTO relationships(id,type,person_a,person_b) VALUES
+    ('${edges[2].id}','adopted_child','${spouse}','${child}'),('${edges[0].id}','biological_child','${person}','${child}');`);
   const snapshot = JSON.parse(sql(preflight));
+  expect(snapshot.counts).toEqual({users: 3, profiles: 3, sessions: 1, persons: 3, relationships: 3, private_details: 1, events: 1, gallery: 1});
+  expect(snapshot.relationships).toEqual(edges);
   expect(snapshot.access).toEqual([
     {user_id: owner, tree_id: legacy, role: "owner", is_super_admin: true, is_active: true},
     {user_id: editor, tree_id: legacy, role: "editor", is_super_admin: false, is_active: true},
@@ -179,6 +192,9 @@ test("backup, rehearsal and rollback compare each account’s captured access", 
     execFileSync("docker", ["exec", container, "pg_restore", "--exit-on-error", "--single-transaction", "-U", "postgres", "-d", target, "/tmp/cutover.dump"]);
     const check = target === "rehearsal" ? `\\i /app/docs/schema.sql\n${verify}` : preflight;
     expect(JSON.parse(sql(`\\c ${target}\n${check}`).split("\n").at(-1)!)).toEqual(snapshot);
+    if (target === "rehearsal") {
+      expect(JSON.parse(sql(`\\c rehearsal\n${check}`).split("\n").at(-1)!)).toEqual(snapshot);
+    }
   }
 });
 

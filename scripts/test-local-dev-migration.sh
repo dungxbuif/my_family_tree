@@ -24,7 +24,15 @@ BEGIN
       ('public.relationships', to_regclass('public.relationships')),
       ('public.person_details_private', to_regclass('public.person_details_private')),
       ('public.custom_events', to_regclass('public.custom_events')),
-      ('public.gallery_items', to_regclass('public.gallery_items'))
+      ('public.gallery_items', to_regclass('public.gallery_items')),
+      ('public.schema_migrations', to_regclass('public.schema_migrations')),
+      ('public.family_trees', to_regclass('public.family_trees')),
+      ('public.tree_memberships', to_regclass('public.tree_memberships')),
+      ('public.native_access_submissions', to_regclass('public.native_access_submissions')),
+      ('public.person_creation_receipts', to_regclass('public.person_creation_receipts')),
+      ('public.tree_media', to_regclass('public.tree_media')),
+      ('public.api_keys', to_regclass('public.api_keys')),
+      ('public.api_audit_logs', to_regclass('public.api_audit_logs'))
   ) AS required(name, regclass)
   WHERE regclass IS NULL;
 

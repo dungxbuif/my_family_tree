@@ -96,18 +96,20 @@ marketing/landing page or unauthenticated family-history summary.
 
 Details and forms are pushed onto their respective stacks; show a Back action and optional persistent Save/Cancel action but **do not** redundantly repeat a bottom nav below a full-screen form unless native navigation convention requires it.
 
-Suggested route names (technology-agnostic):
+The four destinations open `/dashboard`, `/dashboard/members?view=tree`,
+`/dashboard/members?view=list`, and `/dashboard/account`. Member detail and
+edit pages use `/dashboard/members/:id` and `/dashboard/members/:id/edit`.
+Owners and Editors can also open **Thêm thành viên** directly in the tree.
+Opening it from a selected person enables contextual relationship creation.
 
-```text
-/home
-/tree?focusPersonId=...&lineage=all
-/members
-/members/:personId
-/members/new?relatedTo=...&relationship=...
-/members/:personId/edit
-/events
-/account
-```
+Under **Tài khoản**, **Cây gia phả của tôi** opens `/dashboard/account/trees`
+for tree selection and creation. An Owner can open **Quản lý quyền truy cập**
+for the selected tree and add an existing active account by complete email.
+**Khóa API** opens `/dashboard/api-keys` for the signed-in user's credentials.
+**Quản lý người dùng** opens `/dashboard/users` for Super Admins. Account
+administration and tree membership are separate permissions. Long emails and
+one-time keys wrap inside the available width. Forms keep labels, focus and
+actions reachable above any navigation or safe-area inset.
 
 ## 4. Screen specifications
 

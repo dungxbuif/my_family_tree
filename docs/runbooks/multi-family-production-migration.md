@@ -9,16 +9,18 @@ The first protected production tag must include the completed tree-context
 authorization and tree-scoped family writes, including imports, exports and
 private details. The protected-tag job `validate_tree_scope` runs
 `scripts/verify-tree-scope.sh` against an ephemeral migrated PostgreSQL
-database, running application and private S3 test bucket. Every test in each of the four suites must run and pass at that source commit.
+database, running application, local HTTPS ingress and private S3 test bucket. Every test in each of the six suites must run and pass at that source commit.
 
 - `utils/auth/tree-access.test.ts` checks current Tree Membership.
 - `tests/tree-isolation.test.ts` checks Person, private details and Relationship operations.
 - `tests/secondary-tree-isolation.test.ts` checks Events, Gallery and Storage.
 - `tests/data-tools-isolation.test.ts` checks backup, restore, media ownership, rollback, statistics, lineage and kinship. [Tree backup format and restore procedure](family-tree-backup.md)
+- `tests/agent-rest.test.ts` checks key lifecycle, authentication, scopes, role changes and audited person operations.
+- `tests/agent-mcp.test.ts` checks the official Streamable HTTP client, all 18 tools, secondary REST routes, revocation and bounded results.
 
 The image build
 depends on this job, and ops promotion depends on the build. Keep the first
-cutover on hold until all four suites and the operator rehearsal below pass.
+cutover on hold until all six suites and the operator rehearsal below pass.
 The application slug is `my-family-tree`, and the Swarm service is `family-tree`.
 
 ## Rehearse and capture a recovery point
@@ -58,6 +60,9 @@ PGSERVICE="$REHEARSAL_SERVICE" pg_restore --exit-on-error --single-transaction -
 PGSERVICE="$REHEARSAL_SERVICE" psql -X -v ON_ERROR_STOP=1 -f docs/schema.sql
 PGSERVICE="$REHEARSAL_SERVICE" psql -XqAt -v ON_ERROR_STOP=1 -f scripts/verify-multi-family-migration.sql > "$snapshot/rehearsal.json"
 diff -u "$snapshot/before.json" "$snapshot/rehearsal.json"
+PGSERVICE="$REHEARSAL_SERVICE" psql -X -v ON_ERROR_STOP=1 -f docs/schema.sql
+PGSERVICE="$REHEARSAL_SERVICE" psql -XqAt -v ON_ERROR_STOP=1 -f scripts/verify-multi-family-migration.sql > "$snapshot/retry.json"
+diff -u "$snapshot/before.json" "$snapshot/retry.json"
 ```
 
 Preflight rejects duplicate trim/lower System User emails, invalid account
@@ -70,6 +75,26 @@ The email constraint and the unique System User email index use
 whitespace accepted by JavaScript `String.trim()` and lowercases the result.
 Use `public.normalize_email(users.email) = public.normalize_email($1)` for
 exact account lookup.
+
+### PostgreSQL 16 rehearsal on 2026-11-19
+
+`bun test tests/multi-family-migration.test.ts -t 'cutover, retry'` ran against
+PostgreSQL 16.15 with the legacy schema and synthetic data. A custom-format
+dump was restored into two empty databases. The first received the entire
+release schema twice. The second retained the restored legacy schema.
+Preflight, first migration, retry and recovery agreed on these counts.
+
+| Users | Profiles | Sessions | Persons | Relationships | Private details | Events | Gallery items |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 3 | 3 | 1 | 3 | 3 | 1 | 1 | 1 |
+
+In legacy tree `00000000-0000-0000-0000-000000000001`, the active admin
+mapped to active Owner and Super Admin, the active editor to active Editor,
+and the inactive member to inactive Viewer. The three sorted relationship
+UUIDs ended in 001, 002 and 003, respectively. They preserved the biological
+edge from person 001 to 003, the marriage between 001 and 002, and the
+adoptive edge from 002 to 003. The rehearsal compares the complete UUIDs,
+type and ordered endpoints of each edge at every stage.
 
 ## Release and verify
 
@@ -93,15 +118,26 @@ PGSERVICE="$PROD_SERVICE" psql -XqAt -v ON_ERROR_STOP=1 -f scripts/verify-multi-
 diff -u "$snapshot/before.json" "$snapshot/after.json"
 ```
 
-Each snapshot contains row counts and a user-ID-ordered access list with
+Each snapshot contains row counts, every relationship ordered by ID with its
+type and both endpoint IDs, and a user-ID-ordered access list with
 tree ID, owner/editor/viewer role, Super Admin status and account activation.
 Preflight derives expected access from legacy profiles. Verification reads
-the migrated flags and memberships. The two `diff` commands require an exact
-match for every user. Keep these files in the protected backup directory.
+the migrated flags and memberships. Each comparison requires an exact match.
+Keep these files in the protected backup directory.
 The verification SQL also checks legacy tree count and tree assignment. Run this one-time check during cutover while original
 memberships and counts are expected to match. Later releases use the migration
 ledger. The release also verifies the running digest, readiness, DB and object
 storage through the existing ops checks.
+
+Confirm the running service has `MCP_ALLOWED_ORIGINS` set to its canonical
+public HTTPS origin. From the restricted operator route, read
+`/api/openapi.json` and `/llms.txt` anonymously and verify that family data
+requires authentication. Check the existing browser sessions against the
+captured access expectations. On the first cutover, issue an operator key
+once credential writes reopen. Supply it through the secret manager and
+list the accessible trees through REST and MCP. Read a known record in the
+selected tree, revoke the temporary key, and confirm a subsequent call
+returns 401. Keep headers and private results out of the release log.
 
 ## Roll back
 
@@ -156,4 +192,4 @@ FAMILY_TREE_TEST_LIVE_S3=1 bun test tests/secondary-tree-isolation.test.ts
 bun scripts/test-secondary-browser.mjs
 ```
 
-The browser rehearsal creates temporary Editor and Viewer memberships, exercises both mobile widths with Chrome, and removes its accounts and trees. Its detached image objects expire under the same cleanup policy as application uploads.
+The browser rehearsal creates temporary Editor and Viewer memberships, exercises 320×568, 430×932 and 1280×800 with Chrome, and removes its accounts and trees. Its detached image objects expire under the same cleanup policy as application uploads.

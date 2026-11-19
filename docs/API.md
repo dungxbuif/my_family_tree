@@ -19,6 +19,8 @@ Sau khi chọn **Tạo khóa**, sao chép toàn bộ giá trị vào nơi lưu b
 
 ## Gọi REST
 
+Trên cùng máy chủ, `/api/openapi.json` cung cấp mô tả OpenAPI 3.1 của 18 thao tác REST. Tác nhân có thể đọc `/llms.txt` để tìm endpoint MCP, quyền và giới hạn. Hai tài liệu này cho phép truy cập ẩn danh. Mọi yêu cầu dữ liệu cần khóa.
+
 Gửi khóa trong header `Authorization: Bearer <khóa>` qua HTTPS. Ví dụ sau đọc biến môi trường do trình quản lý bí mật cung cấp. Thay tên miền bằng máy chủ của bạn.
 
 ```sh
@@ -66,6 +68,8 @@ Gửi JSON với `Content-Type: application/json`, tối đa 64 KiB cho mỗi th
 | Quan hệ | `person_a`, `person_b`, `type` | `note` |
 | Sự kiện | `name`, `event_date` (ngày dương lịch `YYYY-MM-DD`) | `location`, `content` |
 | Thư viện | `title`, `image_url` | `description`, `event_date` |
+
+Khi cập nhật sự kiện, máy chủ ghép các trường đã gửi vào bản ghi hiện tại rồi lưu. Bước lưu chuẩn hóa tên bằng cách bỏ khoảng trắng hai đầu và chuyển chuỗi rỗng của `location`, `content` thành `null`. Quy tắc này áp dụng cả cho giá trị cũ khi bỏ qua trường đó trong PATCH.
 
 Quan hệ nhận `marriage`, `biological_child` hoặc `adopted_child`. Với quan hệ cha mẹ và con, `person_a` là cha/mẹ. Cả hai ID phải thuộc cây đang thao tác. Quan hệ trùng lặp hoặc tạo vòng lặp trả 409.
 

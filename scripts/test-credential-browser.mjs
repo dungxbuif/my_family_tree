@@ -68,6 +68,16 @@ async function workflow(page, app, width) {
   }
   await page.getByText("Khóa lịch sử 1", { exact: true }).waitFor();
   await checkLayout();
+  const create = page.getByRole("button", { name: "Tạo khóa" });
+  await create.scrollIntoViewIfNeeded();
+  await create.focus();
+  if (!(await create.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return el === document.activeElement && el.contains(document.elementFromPoint(
+      box.x + box.width / 2, box.y + box.height / 2,
+    ));
+  }))) throw Error("The create action is obscured or cannot receive focus");
+  await page.screenshot({ path: "credential-form-" + width + ".png" });
   if ((await page.getByRole("article").count()) !== 20)
     throw Error("Credential history did not limit its first page to 20");
   const next = page.getByRole("button", { name: "Trang sau" }),

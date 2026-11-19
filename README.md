@@ -133,9 +133,14 @@ Người xem. Mỗi tài khoản có thể liên kết với một hồ sơ tron
 kết trước khi đổi sang tài khoản khác hoặc gỡ quyền truy cập. Thay đổi email
 của hồ sơ đã liên kết vẫn giữ nguyên tài khoản gắn với hồ sơ.
 
-Chức năng chọn cây hiện áp dụng trên trang **Cây gia phả của tôi** và trang quản lý quyền. Việc phát
-hành đa cây vẫn chờ kiểm thử cách ly dữ liệu trên các màn hình gia đình, chức
-năng nhập/xuất và kho lưu trữ.
+Cây đang chọn xác định dữ liệu của trang chủ, thành viên, sơ đồ, lịch, thư viện ảnh,
+thống kê, tra cứu danh xưng, sắp xếp gia phả và sao lưu/phục hồi. Máy chủ kiểm tra
+tư cách thành viên hiện tại cho từng thao tác.
+
+Trong **Tài khoản → Khóa API**, mỗi người dùng có thể tạo hoặc thu hồi khóa của mình.
+Trình khách REST và MCP chọn cây từ danh sách được cấp quyền rồi gửi `familyTreeId`
+với từng yêu cầu dữ liệu. Trên máy chủ đang chạy, `/api/openapi.json` mô tả 18
+thao tác REST và `/llms.txt` liệt kê 18 công cụ MCP. [Hướng dẫn REST](docs/API.md) · [Kết nối MCP](docs/MCP.md)
 
 Quản trị viên hệ thống không thể tự khóa hoặc tự xóa tài khoản đang đăng nhập.
 Trước khi xóa tài khoản còn liên kết với hồ sơ thành viên, cần gỡ liên kết.

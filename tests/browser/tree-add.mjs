@@ -45,12 +45,17 @@ export default async function checkAdd(page) {
       saveBottom: el
         .querySelector("button[type=submit]")
         .getBoundingClientRect().bottom,
+      saveReachable: (() => {
+        const button = el.querySelector("button[type=submit]");
+        const rect = button.getBoundingClientRect();
+        return button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })(),
     }));
     if (
       result.width !== result.pageWidth ||
       result.minTarget < 44 ||
       result.saveHeight !== 52 ||
-      result.saveBottom > height - 34
+      result.saveBottom > height - 34 || !result.saveReachable
     )
       throw new Error(JSON.stringify(result));
     await page.screenshot({ path: "tree-add-" + width + ".png" });

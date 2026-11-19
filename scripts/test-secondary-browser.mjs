@@ -46,7 +46,7 @@ function cli(...args) {
 }
 
 async function workflow(page, app, tree, other, width) {
-  await page.setViewportSize({ width, height: width === 320 ? 568 : 932 });
+  await page.setViewportSize({ width, height: width === 320 ? 568 : width === 430 ? 932 : 800 });
   page.setDefaultTimeout(10000);
   const select = async (id) => {
     await page.goto(app + "/dashboard/account/trees");
@@ -115,6 +115,7 @@ async function workflow(page, app, tree, other, width) {
   await checkFocus(dialog, page.getByRole("button", { name: "Thêm sự kiện" }));
   await dialog.getByLabel("Tên sự kiện").fill("Họp mặt " + width);
   await checkGeometry();
+  await page.screenshot({ path: "event-form-" + width + ".png" });
   await dialog.locator("button[type=submit]").click();
   const event = page.getByRole("button", {
     name: new RegExp("Họp mặt " + width),
@@ -224,7 +225,7 @@ try {
     "/",
     "--httpOnly",
   );
-  for (const width of process.argv.includes("--review") ? [] : [320, 430]) {
+  for (const width of process.argv.includes("--review") ? [] : [320, 430, 1280]) {
     const result = cli(
       "run-code",
       `async page => (${workflow.toString()})(page,...${JSON.stringify([app, ...trees, width])})`,

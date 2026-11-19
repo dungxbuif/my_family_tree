@@ -6,6 +6,8 @@ Máy chủ xử lý từng POST độc lập. Giao thức 2025 dùng `initialize
 
 ## Chọn cây và gọi công cụ
 
+Đọc `/llms.txt` trên cùng máy chủ để xem nhanh danh mục 18 công cụ và giới hạn. Tài liệu OpenAPI tại `/api/openapi.json` mô tả các trường dùng chung với REST. Máy chủ cho phép đọc hai tài liệu này trước khi tạo khóa. Khám phá công cụ qua giao thức MCP cần khóa còn hiệu lực.
+
 Gọi `list_family_trees` với `{"limit":10}`. Chọn một `id` từ kết quả, rồi truyền nó qua `familyTreeId` trong **từng** lệnh thao tác dữ liệu. Ví dụ sử dụng SDK TypeScript chính thức phiên bản 2.4.0 với Node 20 trở lên.
 
 ```ts
@@ -45,6 +47,8 @@ try {
 Ghi và xóa cần vai trò Chủ sở hữu hoặc Người chỉnh sửa. Ghi chi tiết riêng tư cần Chủ sở hữu với `write` và `private`. Máy chủ kiểm tra quyền hiện tại cho từng lệnh. Các trường của `body` giống REST, ví dụ `{"name":"Họp mặt","event_date":"2026-12-01"}` để tạo sự kiện. [Các trường dữ liệu và quy tắc quan hệ](API.md)
 
 Danh sách mặc định 50 mục, tối đa 100. Dùng `offset` từ 0 để duyệt trang. Bản xuất chứa đầy đủ các bảng của cây, tối đa 100 bản ghi mỗi bảng và 1 MiB. Ảnh gửi qua `image_url` phải là đường dẫn `/api/storage/…` đã được ứng dụng cấp, thuộc thư mục Gallery của cây và đã tải lên thành công. Mỗi POST chứa một đối tượng JSON, tối đa 4 MiB.
+
+`update_event` ghép thay đổi với sự kiện hiện tại. Khi lưu, tên được bỏ khoảng trắng hai đầu và chuỗi rỗng trong `location`, `content` được chuyển thành `null`, kể cả giá trị cũ của trường được bỏ qua.
 
 Mỗi lần gọi công cụ nhận tối đa 100 trường và phần tử mảng, tính cả các cấp lồng nhau. Phần JSON chứa dữ liệu kết quả có giới hạn 1 MiB trước khi SDK đóng gói nội dung văn bản và dữ liệu có cấu trúc. Nếu một trang dữ liệu lớn trả `INVALID_INPUT`, giảm `limit`. Nếu chỉ một hồ sơ đã vượt giới hạn, xem hồ sơ đó trong ứng dụng. Danh mục công cụ cố định trong suốt kết nối.
 

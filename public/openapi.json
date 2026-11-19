@@ -1,0 +1,1079 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Gia Phả Family Tree API",
+    "version": "1.0.0",
+    "description": "Send a user-owned Bearer key over HTTPS. Each request checks current account and tree access. Send the selected familyTreeId on all family data requests. Private person fields require the owner role and private scope in addition to read or write. Lists default to 50 rows, up to 100 per page. JSON request bodies are limited to 64 KiB. The serialized data envelope is limited to 1 MiB. Responses over the limit return INVALID_INPUT."
+  },
+  "servers": [{"url":"/","description":"Use this service's HTTPS origin."}],
+  "security": [{"bearerAuth":[]}],
+  "paths": {
+    "/api/v1/family-trees": {
+      "get": {
+        "operationId": "list_family_trees",
+        "summary": "List accessible, unarchived trees",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [{"$ref":"#/components/parameters/limit"},{"$ref":"#/components/parameters/offset"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"type":"array","items":{"$ref":"#/components/schemas/Tree"},"maxItems":100}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/persons": {
+      "get": {
+        "operationId": "list_people",
+        "summary": "List public person records",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [
+          {"$ref":"#/components/parameters/familyTreeId"},
+          {"$ref":"#/components/parameters/limit"},
+          {"$ref":"#/components/parameters/offset"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"type":"array","items":{"$ref":"#/components/schemas/Person"},"maxItems":100}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "post": {
+        "operationId": "create_person",
+        "summary": "Create a person",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/personCreate"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/persons/{id}": {
+      "get": {
+        "operationId": "get_person",
+        "summary": "Read one person",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/PersonDetail"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "patch": {
+        "operationId": "update_person",
+        "summary": "Update submitted person fields",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/personUpdate"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "delete": {
+        "operationId": "delete_person",
+        "summary": "Delete an unlinked person after removing relationships",
+        "x-required-scopes": ["delete"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/relationships": {
+      "get": {
+        "operationId": "list_relationships",
+        "summary": "List stored relationships",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [
+          {"$ref":"#/components/parameters/familyTreeId"},
+          {"$ref":"#/components/parameters/limit"},
+          {"$ref":"#/components/parameters/offset"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {"type":"array","items":{"$ref":"#/components/schemas/Relationship"},"maxItems":100}
+                  },
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "post": {
+        "operationId": "create_relationship",
+        "summary": "Create a relationship between members of this tree",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/edgeCreate"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/relationships/{id}": {
+      "delete": {
+        "operationId": "delete_relationship",
+        "summary": "Remove a relationship",
+        "x-required-scopes": ["delete"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "operationId": "list_events",
+        "summary": "List custom events",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [
+          {"$ref":"#/components/parameters/familyTreeId"},
+          {"$ref":"#/components/parameters/limit"},
+          {"$ref":"#/components/parameters/offset"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"type":"array","items":{"$ref":"#/components/schemas/Event"},"maxItems":100}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "post": {
+        "operationId": "create_event",
+        "summary": "Create a custom event",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/eventCreate"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/events/{id}": {
+      "patch": {
+        "operationId": "update_event",
+        "summary": "Update submitted event fields",
+        "description": "Saving trims the event name and normalizes empty location or content strings to null, including existing values omitted by a partial update.",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/eventUpdate"}}}
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "delete": {
+        "operationId": "delete_event",
+        "summary": "Delete a custom event",
+        "x-required-scopes": ["delete"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/gallery": {
+      "get": {
+        "operationId": "list_gallery",
+        "summary": "List gallery metadata",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [
+          {"$ref":"#/components/parameters/familyTreeId"},
+          {"$ref":"#/components/parameters/limit"},
+          {"$ref":"#/components/parameters/offset"}
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {"type":"array","items":{"$ref":"#/components/schemas/GalleryItem"},"maxItems":100}
+                  },
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      },
+      "post": {
+        "operationId": "create_gallery_item",
+        "summary": "Register metadata for an uploaded image in this tree",
+        "x-required-scopes": ["write"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json":{"schema":{"$ref":"#/components/schemas/galleryCreate"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/gallery/{id}": {
+      "delete": {
+        "operationId": "delete_gallery_item",
+        "summary": "Remove gallery metadata",
+        "x-required-scopes": ["delete"],
+        "x-tree-roles": ["owner","editor"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"},{"$ref":"#/components/parameters/id"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Saved"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "409": {"$ref":"#/components/responses/Error409"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "operationId": "get_family_stats",
+        "summary": "Count persons, relationships, custom events and gallery items",
+        "x-required-scopes": ["read"],
+        "x-tree-roles": ["owner","editor","viewer"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Stats"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    },
+    "/api/v1/export": {
+      "get": {
+        "operationId": "export_family_data",
+        "summary": "Export the complete v4 JSON backup, up to 100 records per collection",
+        "x-required-scopes": ["read","private"],
+        "x-tree-roles": ["owner"],
+        "parameters": [{"$ref":"#/components/parameters/familyTreeId"}],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"data":{"$ref":"#/components/schemas/Backup"}},
+                  "required": ["data"]
+                }
+              }
+            }
+          },
+          "400": {"$ref":"#/components/responses/Error400"},
+          "401": {"$ref":"#/components/responses/Error401"},
+          "403": {"$ref":"#/components/responses/Error403"},
+          "404": {"$ref":"#/components/responses/Error404"},
+          "500": {"$ref":"#/components/responses/Error500"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Create and revoke a user-bound key in Account → API keys."
+      }
+    },
+    "parameters": {
+      "familyTreeId": {
+        "in": "query",
+        "name": "familyTreeId",
+        "required": true,
+        "schema": {"type":"string","format":"uuid"},
+        "description": "Selected tree ID returned by list_family_trees."
+      },
+      "id": {"in":"path","name":"id","required":true,"schema":{"type":"string","format":"uuid"}},
+      "limit": {"in":"query","name":"limit","schema":{"type":"integer","minimum":1,"maximum":100,"default":50}},
+      "offset": {
+        "in": "query",
+        "name": "offset",
+        "schema": {"type":"integer","minimum":0,"maximum":2147483647,"default":0}
+      }
+    },
+    "schemas": {
+      "edgeCreate": {
+        "type": "object",
+        "properties": {
+          "person_a": {
+            "type": "string",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[\\da-f]{8}(?:-[\\da-f]{4}){3}-[\\da-f]{12}$"
+          },
+          "person_b": {
+            "type": "string",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[\\da-f]{8}(?:-[\\da-f]{4}){3}-[\\da-f]{12}$"
+          },
+          "type": {"type":"string","enum":["marriage","biological_child","adopted_child"]},
+          "note": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]}
+        },
+        "required": ["person_a","person_b","type"],
+        "additionalProperties": false
+      },
+      "eventCreate": {
+        "type": "object",
+        "properties": {
+          "name": {"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\0]*$"},
+          "event_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "location": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "content": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]}
+        },
+        "required": ["name","event_date"],
+        "additionalProperties": false
+      },
+      "eventUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\0]*$"},
+          "event_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "location": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "content": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]}
+        },
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "galleryCreate": {
+        "type": "object",
+        "properties": {
+          "title": {"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\0]*$"},
+          "image_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "allOf": [{"pattern":"^[^\\0]*$"},{"pattern":"^\\/api\\/storage\\/.*"}]
+          },
+          "description": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {"type":"null"}
+            ]
+          }
+        },
+        "required": ["title","image_url"],
+        "additionalProperties": false
+      },
+      "personCreate": {
+        "type": "object",
+        "properties": {
+          "full_name": {"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\0]*$"},
+          "gender": {"anyOf":[{"type":"string","enum":["male","female","other"]},{"type":"null"}]},
+          "note": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "other_names": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "avatar_url": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "allOf": [{"pattern":"^[^\\0]*$"},{"pattern":"^\\/api\\/storage\\/.*"}]
+                  },
+                  {"type":"string","const":""}
+                ]
+              },
+              {"type":"null"}
+            ]
+          },
+          "birth_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "generation": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_order": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "is_in_law": {"type":"boolean"},
+          "is_deceased": {"anyOf":[{"type":"boolean"},{"type":"null"}]},
+          "email": {"anyOf":[{"type":"string","maxLength":320,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "phone_number": {"anyOf":[{"type":"string","maxLength":100,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "occupation": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "current_residence": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]}
+        },
+        "required": ["full_name"],
+        "additionalProperties": false
+      },
+      "personUpdate": {
+        "type": "object",
+        "properties": {
+          "full_name": {"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\0]*$"},
+          "gender": {"anyOf":[{"type":"string","enum":["male","female","other"]},{"type":"null"}]},
+          "note": {"anyOf":[{"type":"string","maxLength":8192,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "other_names": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "avatar_url": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "allOf": [{"pattern":"^[^\\0]*$"},{"pattern":"^\\/api\\/storage\\/.*"}]
+                  },
+                  {"type":"string","const":""}
+                ]
+              },
+              {"type":"null"}
+            ]
+          },
+          "birth_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_year": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_month": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "death_lunar_day": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "generation": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "birth_order": {"anyOf":[{"type":"integer","minimum":-2147483648,"maximum":2147483647},{"type":"null"}]},
+          "is_in_law": {"type":"boolean"},
+          "is_deceased": {"anyOf":[{"type":"boolean"},{"type":"null"}]},
+          "email": {"anyOf":[{"type":"string","maxLength":320,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "phone_number": {"anyOf":[{"type":"string","maxLength":100,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "occupation": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]},
+          "current_residence": {"anyOf":[{"type":"string","maxLength":500,"pattern":"^[^\\0]*$"},{"type":"null"}]}
+        },
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "Tree": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "name": {"type":"string"},
+          "role": {"type":"string","enum":["owner","editor","viewer"]}
+        },
+        "required": ["id","name","role"]
+      },
+      "Person": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "full_name": {"type":"string"},
+          "gender": {"enum":["male","female","other"]},
+          "other_names": {"type":["string","null"]},
+          "note": {"type":["string","null"]},
+          "avatar_url": {"type":["string","null"]},
+          "is_deceased": {"type":["boolean","null"]},
+          "is_in_law": {"type":"boolean"},
+          "generation": {"type":["integer","null"]},
+          "birth_order": {"type":["integer","null"]},
+          "birth_year": {"type":["integer","null"]},
+          "birth_month": {"type":["integer","null"]},
+          "birth_day": {"type":["integer","null"]},
+          "death_year": {"type":["integer","null"]},
+          "death_month": {"type":["integer","null"]},
+          "death_day": {"type":["integer","null"]},
+          "death_lunar_year": {"type":["integer","null"]},
+          "death_lunar_month": {"type":["integer","null"]},
+          "death_lunar_day": {"type":["integer","null"]},
+          "tree_id": {"type":"string","format":"uuid"},
+          "created_at": {"type":"string","format":"date-time"},
+          "updated_at": {"type":"string","format":"date-time"}
+        },
+        "required": [
+          "id",
+          "full_name",
+          "gender",
+          "other_names",
+          "note",
+          "avatar_url",
+          "is_deceased",
+          "is_in_law",
+          "generation",
+          "birth_order",
+          "birth_year",
+          "birth_month",
+          "birth_day",
+          "death_year",
+          "death_month",
+          "death_day",
+          "death_lunar_year",
+          "death_lunar_month",
+          "death_lunar_day",
+          "tree_id",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "PersonDetail": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "full_name": {"type":"string"},
+          "gender": {"enum":["male","female","other"]},
+          "other_names": {"type":["string","null"]},
+          "note": {"type":["string","null"]},
+          "avatar_url": {"type":["string","null"]},
+          "is_deceased": {"type":["boolean","null"]},
+          "is_in_law": {"type":"boolean"},
+          "generation": {"type":["integer","null"]},
+          "birth_order": {"type":["integer","null"]},
+          "birth_year": {"type":["integer","null"]},
+          "birth_month": {"type":["integer","null"]},
+          "birth_day": {"type":["integer","null"]},
+          "death_year": {"type":["integer","null"]},
+          "death_month": {"type":["integer","null"]},
+          "death_day": {"type":["integer","null"]},
+          "death_lunar_year": {"type":["integer","null"]},
+          "death_lunar_month": {"type":["integer","null"]},
+          "death_lunar_day": {"type":["integer","null"]},
+          "tree_id": {"type":"string","format":"uuid"},
+          "created_at": {"type":"string","format":"date-time"},
+          "updated_at": {"type":"string","format":"date-time"},
+          "email": {"type":["string","null"]},
+          "privateData": {"anyOf":[{"$ref":"#/components/schemas/PrivateDetails"},{"type":"null"}]}
+        },
+        "required": [
+          "id",
+          "full_name",
+          "gender",
+          "other_names",
+          "note",
+          "avatar_url",
+          "is_deceased",
+          "is_in_law",
+          "generation",
+          "birth_order",
+          "birth_year",
+          "birth_month",
+          "birth_day",
+          "death_year",
+          "death_month",
+          "death_day",
+          "death_lunar_year",
+          "death_lunar_month",
+          "death_lunar_day",
+          "tree_id",
+          "created_at",
+          "updated_at"
+        ],
+        "description": "email and privateData appear only for an Owner using read and private scopes."
+      },
+      "PrivateDetails": {
+        "type": "object",
+        "properties": {
+          "phone_number": {"type":["string","null"]},
+          "occupation": {"type":["string","null"]},
+          "current_residence": {"type":["string","null"]}
+        },
+        "required": ["phone_number","occupation","current_residence"]
+      },
+      "Relationship": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "type": {"type":"string","enum":["marriage","biological_child","adopted_child"]},
+          "person_a": {"type":"string","format":"uuid"},
+          "person_b": {"type":"string","format":"uuid"},
+          "note": {"type":["string","null"]},
+          "tree_id": {"type":"string","format":"uuid"},
+          "created_at": {"type":"string","format":"date-time"},
+          "updated_at": {"type":"string","format":"date-time"}
+        },
+        "required": ["id","type","person_a","person_b","note","tree_id","created_at","updated_at"]
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "name": {"type":"string"},
+          "location": {"type":["string","null"]},
+          "content": {"type":["string","null"]},
+          "event_date": {"type":"string","format":"date"},
+          "created_by": {"type":["string","null"],"format":"uuid"}
+        },
+        "required": ["id","name","location","content","event_date","created_by"]
+      },
+      "GalleryItem": {
+        "type": "object",
+        "properties": {
+          "id": {"type":"string","format":"uuid"},
+          "title": {"type":"string"},
+          "description": {"type":["string","null"]},
+          "image_url": {"type":["string","null"]},
+          "event_date": {"type":["string","null"],"format":"date"},
+          "tree_id": {"type":"string","format":"uuid"},
+          "created_by": {"type":["string","null"],"format":"uuid"},
+          "created_at": {"type":"string","description":"PostgreSQL timestamp with time zone."}
+        },
+        "required": ["id","title","description","image_url","event_date","tree_id","created_by","created_at"]
+      },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "persons": {"type":"integer","minimum":0},
+          "relationships": {"type":"integer","minimum":0},
+          "events": {"type":"integer","minimum":0},
+          "gallery": {"type":"integer","minimum":0}
+        },
+        "required": ["persons","relationships","events","gallery"]
+      },
+      "Backup": {
+        "type": "object",
+        "properties": {
+          "version": {"const":4},
+          "timestamp": {"type":"string","format":"date-time"},
+          "persons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","format":"uuid"},
+                "full_name": {"type":"string"},
+                "gender": {"enum":["male","female","other"]},
+                "other_names": {"type":["string","null"]},
+                "note": {"type":["string","null"]},
+                "avatar_url": {"type":["string","null"]},
+                "is_deceased": {"type":["boolean","null"]},
+                "is_in_law": {"type":"boolean"},
+                "generation": {"type":["integer","null"]},
+                "birth_order": {"type":["integer","null"]},
+                "birth_year": {"type":["integer","null"]},
+                "birth_month": {"type":["integer","null"]},
+                "birth_day": {"type":["integer","null"]},
+                "death_year": {"type":["integer","null"]},
+                "death_month": {"type":["integer","null"]},
+                "death_day": {"type":["integer","null"]},
+                "death_lunar_year": {"type":["integer","null"]},
+                "death_lunar_month": {"type":["integer","null"]},
+                "death_lunar_day": {"type":["integer","null"]},
+                "email": {"type":["string","null"]}
+              },
+              "required": [
+                "id",
+                "full_name",
+                "gender",
+                "other_names",
+                "note",
+                "avatar_url",
+                "is_deceased",
+                "is_in_law",
+                "generation",
+                "birth_order",
+                "birth_year",
+                "birth_month",
+                "birth_day",
+                "death_year",
+                "death_month",
+                "death_day",
+                "death_lunar_year",
+                "death_lunar_month",
+                "death_lunar_day",
+                "email"
+              ]
+            },
+            "maxItems": 100
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","format":"uuid"},
+                "type": {"type":"string","enum":["marriage","biological_child","adopted_child"]},
+                "person_a": {"type":"string","format":"uuid"},
+                "person_b": {"type":"string","format":"uuid"},
+                "note": {"type":["string","null"]}
+              },
+              "required": ["id","type","person_a","person_b","note"]
+            },
+            "maxItems": 100
+          },
+          "person_details_private": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "person_id": {"type":"string","format":"uuid"},
+                "phone_number": {"type":["string","null"]},
+                "occupation": {"type":["string","null"]},
+                "current_residence": {"type":["string","null"]}
+              },
+              "required": ["person_id","phone_number","occupation","current_residence"]
+            },
+            "maxItems": 100
+          },
+          "custom_events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","format":"uuid"},
+                "name": {"type":"string"},
+                "location": {"type":["string","null"]},
+                "content": {"type":["string","null"]},
+                "event_date": {"type":"string","format":"date"}
+              },
+              "required": ["id","name","location","content","event_date"]
+            },
+            "maxItems": 100
+          },
+          "gallery_items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type":"string","format":"uuid"},
+                "title": {"type":"string"},
+                "description": {"type":["string","null"]},
+                "image_url": {"type":["string","null"]},
+                "event_date": {"type":["string","null"],"format":"date"}
+              },
+              "required": ["id","title","description","image_url","event_date"]
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "version",
+          "timestamp",
+          "persons",
+          "relationships",
+          "person_details_private",
+          "custom_events",
+          "gallery_items"
+        ]
+      },
+      "Saved": {"type":"object","properties":{"id":{"type":"string","format":"uuid"}},"required":["id"]},
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {"enum":["INVALID_INPUT","UNAUTHORIZED","FORBIDDEN","NOT_FOUND","CONFLICT","INTERNAL_ERROR"]},
+          "message": {"type":"string"},
+          "requestId": {"type":"string","format":"uuid"}
+        },
+        "required": ["code","message","requestId"]
+      }
+    },
+    "responses": {
+      "Error400": {
+        "description": "Invalid input or result exceeds the allowed size.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      },
+      "Error401": {
+        "description": "Invalid or unavailable Bearer credential.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      },
+      "Error403": {
+        "description": "Missing scope or tree permission.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      },
+      "Error404": {
+        "description": "Resource unavailable.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      },
+      "Error409": {
+        "description": "Data conflict.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      },
+      "Error500": {
+        "description": "Internal error.",
+        "content": {"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}
+      }
+    }
+  }
+}

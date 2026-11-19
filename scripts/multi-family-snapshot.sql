@@ -11,6 +11,10 @@ WITH access AS (
 )
 SELECT jsonb_build_object(
   'counts', to_jsonb(counts),
+  'relationships', coalesce((
+    SELECT jsonb_agg(to_jsonb(edge) ORDER BY edge.id)
+    FROM (SELECT id, type, person_a, person_b FROM public.relationships) AS edge
+  ), '[]'::jsonb),
   'access', coalesce((SELECT jsonb_agg(to_jsonb(access) ORDER BY user_id,tree_id) FROM access), '[]'::jsonb)
 ) AS snapshot FROM (
 SELECT (SELECT count(*) FROM public.users) AS users,

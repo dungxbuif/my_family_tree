@@ -33,7 +33,7 @@ const cli = (...args) =>
 let tree;
 async function workflow(page, app, tree, width) {
   page.setDefaultTimeout(8000);
-  await page.setViewportSize({ width, height: width === 320 ? 568 : 932 });
+  await page.setViewportSize({ width, height: width === 320 ? 568 : width === 430 ? 932 : 800 });
   const go = (path) => page.goto(app + "/dashboard/" + path);
   const geometry = async () => {
     const bad = await page.evaluate(() => {
@@ -147,6 +147,7 @@ async function workflow(page, app, tree, width) {
   await go("stats");
   await page.getByText("Thống kê gia phả", { exact: true }).first().waitFor();
   await geometry();
+  await page.screenshot({ path: "stats-" + width + ".png" });
   await go("lineage");
   await page.getByRole("button", { name: "Tính toán", exact: true }).click();
   await page.getByRole("button", { name: /Áp dụng/ }).click();
@@ -159,6 +160,7 @@ async function workflow(page, app, tree, width) {
   await page.getByRole("button", { name: /Thành viên A ·/ }).click();
   await page.getByRole("button", { name: /Cha thử/ }).click();
   await page.waitForURL((url) => url.searchParams.has("p1"));
+  await page.getByPlaceholder("Tìm tên...").waitFor({ state: "detached" });
   await page.getByRole("button", { name: /Thành viên B ·/ }).click();
   await page.getByRole("button", { name: /Con thử/ }).click();
   await page.getByText("Cha thử gọi Con thử là", { exact: true }).waitFor();
@@ -221,7 +223,7 @@ try {
     "/",
     "--httpOnly",
   );
-  for (const width of [320, 430]) {
+  for (const width of [320, 430, 1280]) {
     const result = cli(
       "run-code",
       `async page=>(${workflow.toString()})(page,...${JSON.stringify([app, tree, width])})`,

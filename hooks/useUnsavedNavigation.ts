@@ -1,5 +1,16 @@
 import { useEffect, useSyncExternalStore } from "react";
 
+export function currentHistoryIndex(): number {
+  const { navigation } = window as Window & {
+    navigation?: { currentEntry: NavigationHistoryEntry | null };
+  };
+  return (
+    navigation?.currentEntry?.index ??
+    history.state?.familyTreeHistoryIndex ??
+    0
+  );
+}
+
 function subscribeDraft(notify: () => void) {
   window.addEventListener("familytreedraftstate", notify);
   return () => window.removeEventListener("familytreedraftstate", notify);

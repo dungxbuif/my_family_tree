@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { TreeRole } from "@/types";
+import { currentHistoryIndex } from "@/hooks/useUnsavedNavigation";
 import {
   readSelection,
   selectionUrl,
@@ -46,17 +47,6 @@ function revision() {
 
 type DraftRecovery = { host: HTMLElement; treeId?: string; role?: TreeRole };
 
-function historyIndex(): number {
-  const { navigation } = window as Window & {
-    navigation?: { currentEntry: NavigationHistoryEntry | null };
-  };
-  return (
-    navigation?.currentEntry?.index ??
-    history.state?.familyTreeHistoryIndex ??
-    0
-  );
-}
-
 export default function TreeSelectionSync({
   initialRevision,
   treeId,
@@ -77,13 +67,11 @@ export default function TreeSelectionSync({
   const [restoring, setRestoring] = useState(false);
   const stale = useRef(false);
   const restoreRevision = useRef<string | null>(null);
-  const renderedEntryIndex = useRef(0);
   const frozenModalIndex = useRef<number | null>(null);
   const fallback = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const search = useSearchParams();
   useLayoutEffect(() => {
-    renderedEntryIndex.current = historyIndex();
     history.replaceState(
       { ...history.state, familyTreeRevision: current.current.revision },
       "",
@@ -118,12 +106,18 @@ export default function TreeSelectionSync({
           document.documentElement.style.visibility = "";
           document.documentElement.dataset.staleTreeDraft = "true";
           window.dispatchEvent(new Event("familytreedraftstate"));
-          // A popstate can discover the stale cookie after the browser has
-          // already left this modal's entry. The router still renders its form.
-          if (host.closest('[role="dialog"]') && !host.closest("dialog")) {
-            frozenModalIndex.current = renderedEntryIndex.current;
+          // A stale Back can already be on a different entry with the same URL.
+          // The form recorded its own position before any traversal.
+          const form = host.closest("form");
+          const entry = form?.dataset.treeDraftEntryIndex;
+          if (
+            entry !== undefined &&
+            host.closest('[role="dialog"]') &&
+            !host.closest("dialog")
+          ) {
+            frozenModalIndex.current = Number(entry);
           }
-          const required = host.closest("form")?.dataset.recoveryRole;
+          const required = form?.dataset.recoveryRole;
           setDraft({
             host,
             treeId: current.current.currentId,
@@ -152,7 +146,7 @@ export default function TreeSelectionSync({
         // Keep Next on the editor for both the attempted traversal and
         // the return to the original entry. Its Forward stack survives.
         event.stopImmediatePropagation();
-        const delta = frozenModalIndex.current - historyIndex();
+        const delta = frozenModalIndex.current - currentHistoryIndex();
         if (delta) history.go(delta);
       }
     }

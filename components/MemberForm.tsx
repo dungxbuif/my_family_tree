@@ -1,7 +1,10 @@
 "use client";
 
 import { Gender, Person } from "@/types";
-import { useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
+import {
+  currentHistoryIndex,
+  useStaleTreeDraft,
+} from "@/hooks/useUnsavedNavigation";
 import { saveMember } from "@/app/actions/member";
 import { recordedLifeStatus, recordedLunarMonth } from "@/utils/dateHelpers";
 import { uploadImage } from "@/utils/storage/client";
@@ -393,7 +396,16 @@ export default function MemberForm({
     "bg-white text-stone-900 placeholder-stone-500 block min-h-[52px] w-full rounded-2xl border border-stone-300 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[color:var(--color-primary-soft)] focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
-    <form data-recovery-role={isOwner ? "owner" : "editor"} onSubmit={handleSubmit} onChangeCapture={event => {event.currentTarget.dataset.dirtyTreeDraft = "true";}} className="space-y-6 sm:space-y-8">
+    <form
+      data-recovery-role={isOwner ? "owner" : "editor"}
+      onSubmit={handleSubmit}
+      onChangeCapture={({ currentTarget }) => {
+        currentTarget.dataset.dirtyTreeDraft = "true";
+        currentTarget.dataset.treeDraftEntryIndex ??=
+          String(currentHistoryIndex());
+      }}
+      className="space-y-6 sm:space-y-8"
+    >
       <div data-tree-recovery className="empty:hidden" />
       <motion.div
         variants={formSectionVariants}

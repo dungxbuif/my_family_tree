@@ -3,8 +3,9 @@ export async function checkFrozenModal(page, scenario) {
   const selectorUrl = new URL("/dashboard/account/trees", page.url()).href;
   const draft = await page.context().newPage();
   const peer = await page.context().newPage();
-  const backFirst = scenario === "backFirst" || scenario === "backFirstLegacy";
-  const historyCheck = backFirst || scenario === "storageFirst";
+  const backFirst = scenario.startsWith("backFirst");
+  const historyCheck = backFirst || scenario.startsWith("storageFirst");
+  const sameUrl = scenario.includes("SameUrl");
   await draft.addInitScript((legacy) => {
     const native = window.navigation;
     if (legacy) {
@@ -26,7 +27,10 @@ export async function checkFrozenModal(page, scenario) {
       },
       true,
     );
-  }, scenario === "backFirstLegacy");
+  }, scenario.endsWith("Legacy"));
+  const snapshot = () => draft.evaluate(() => window.historySnapshot());
+  const waitForEntry = (key) =>
+    draft.waitForFunction((key) => window.historySnapshot().key === key, key);
   const choose = async (pattern) => {
     await page.goto(selectorUrl);
     await page.getByRole("button", { name: pattern }).click();
@@ -38,7 +42,7 @@ export async function checkFrozenModal(page, scenario) {
     await draft.goto(new URL("/dashboard/account", treeUrl).href);
     const nav = draft.getByRole("navigation", { name: "Điều hướng chính" });
     await nav.getByRole("link", { name: "Cây gia phả" }).click();
-    if (historyCheck) {
+    if (historyCheck && !sameUrl) {
       await draft.waitForURL(treeUrl);
       await nav.getByRole("link", { name: "Thành viên" }).click();
       await draft.waitForURL(/view=list/);
@@ -49,9 +53,30 @@ export async function checkFrozenModal(page, scenario) {
       .getByRole("button", { name: "Xem thông tin An", exact: true })
       .click();
     const modal = draft.getByRole("dialog", { name: "Chi tiết thành viên" });
-    await modal
-      .getByRole("button", { name: "Chỉnh sửa An", exact: true })
-      .click();
+    const edit = modal.getByRole("button", {
+      name: "Chỉnh sửa An",
+      exact: true,
+    });
+    if (sameUrl) {
+      await edit.waitFor();
+      const details = await snapshot();
+      await modal.getByRole("button", { name: "Thêm thành viên" }).click();
+      const add = draft.getByRole("dialog", { name: "Thêm thành viên" });
+      await add.waitFor();
+      const contextual = await snapshot();
+      if (
+        contextual.key === details.key ||
+        contextual.url !== details.url ||
+        contextual.keys[contextual.index - 1] !== details.key
+      )
+        throw Error("Contextual Add must push a distinct entry at the details URL");
+      await add.getByRole("button", { name: "Hủy", exact: true }).click();
+      await waitForEntry(details.key);
+      await draft.evaluate(() => history.forward());
+      await waitForEntry(contextual.key);
+      await add.waitFor({ state: "hidden" });
+    }
+    await edit.click();
     const note = modal.locator("textarea");
     const draftValue = "Ghi chú chưa lưu " + scenario;
     await note.fill(draftValue);
@@ -109,9 +134,7 @@ export async function checkFrozenModal(page, scenario) {
         )
         .catch(async () => {
           throw Error(
-            scenario +
-              " did not return to the original modal entry: " +
-              (await draft.evaluate(() => location.href)),
+            `${scenario} expected to return to ${entry.key}, observed ${(await snapshot()).key}`,
           );
         });
       const observed = await draft.evaluate(() => ({
@@ -128,18 +151,45 @@ export async function checkFrozenModal(page, scenario) {
         throw Error(
           scenario + " changed the history stack or lost the dirty editor",
         );
-      await restore.click();
+      const [verification] = await Promise.all([
+        draft.waitForResponse(
+          (response) =>
+            response.url() === selectorUrl + "/selection" &&
+            response.request().method() === "GET" &&
+            response.ok(),
+        ),
+        restore.click(),
+      ]);
+      const verified = await verification.json();
+      const membership = verified.trees.find((tree) => tree.id === verified.currentId);
+      if (membership?.name !== "Gia phả kiểm thử" || membership.role !== "editor")
+        throw Error("Restore did not verify the editor's original tree");
       await modal
         .getByRole("button", { name: "Lưu thay đổi", disabled: false })
         .waitFor();
-      if (draft.url() !== entry.url || (await note.inputValue()) !== draftValue)
-        throw Error("Verified tree restore changed the modal URL or draft");
+      if (
+        (await snapshot()).key !== entry.key ||
+        draft.url() !== entry.url ||
+        (await note.inputValue()) !== draftValue
+      )
+        throw Error("Verified tree restore changed the modal entry or draft");
       await save.click();
       await note.waitFor({ state: "detached" });
       await modal
         .getByRole("button", { name: "Chỉnh sửa An", exact: true })
         .waitFor();
       await modal.getByText(draftValue, { exact: true }).waitFor();
+      if (sameUrl) {
+        await draft.evaluate(() => history.back());
+        await waitForEntry(entry.keys[entry.index - 1]);
+        await modal.getByText(draftValue, { exact: true }).waitFor();
+        await draft.evaluate(() => history.forward());
+        await waitForEntry(entry.key);
+        await modal.getByText(draftValue, { exact: true }).waitFor();
+        if (JSON.stringify((await snapshot()).keys) !== JSON.stringify(entry.keys))
+          throw Error("Save or Back/Forward replaced an original entry");
+        return true;
+      }
       await draft.evaluate(() => history.forward());
       await draft.waitForURL(/view=list/);
       await nav

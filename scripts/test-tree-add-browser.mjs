@@ -96,15 +96,20 @@ try {
     "--httpOnly",
   );
   const review = {};
-  for (const scenario of [
+  const frozenScenarios = [
     "backFirst",
     "storageFirst",
     "backFirstLegacy",
+    "backFirstSameUrl",
+    "storageFirstSameUrl",
+    "backFirstSameUrlLegacy",
+    "storageFirstSameUrlLegacy",
     "restoreRead",
     "headerBack",
     "headerClose",
     "browserBack",
-  ]) {
+  ];
+  for (const scenario of frozenScenarios) {
     try {
       review[scenario] = JSON.parse(
         cli(
@@ -157,13 +162,7 @@ try {
     JSON.stringify(review, null, 2),
   );
   if (
-    review.backFirst !== true ||
-    review.storageFirst !== true ||
-    review.backFirstLegacy !== true ||
-    review.restoreRead !== true ||
-    review.headerBack !== true ||
-    review.headerClose !== true ||
-    review.browserBack !== true ||
+    frozenScenarios.some((scenario) => review[scenario] !== true) ||
     review.reopenLeapDate !== true ||
     review.recoverSelectionBody !== true ||
     review.restoreDirtyTree !== true ||

@@ -86,8 +86,9 @@ export async function updatePersonEmailInTransaction(
 
 async function updatePersonEmail(client: PoolClient, treeId: string, personId: string, rawEmail: string) {
   if (!uuid.test(personId) || typeof rawEmail !== "string") return unavailable;
+  if (rawEmail.length > 512 || /\p{Cc}/u.test(rawEmail)) return { code: "INVALID_EMAIL" } as const;
   const email = await normalizeEmail(client, rawEmail);
-  if (rawEmail.length > 512 || (rawEmail.trim() && (!email || !validPersonEmail(email)))) {
+  if (rawEmail.trim() && (!email || !validPersonEmail(email))) {
     return { code: "INVALID_EMAIL" } as const;
   }
   const { rows: [person] } = await client.query<{ email: string | null; linked_user_id: string | null }>(

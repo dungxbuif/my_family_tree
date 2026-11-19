@@ -533,6 +533,22 @@ test("credential history uses an owner-scoped cursor and retains revoked rows at
     ]);
   }
 });
+test("Person email rejects control characters in local parts and preserves Unicode trim and quoted mailboxes", async () => {
+  const { secret } = await issue(allScopes);
+  const path = "persons?familyTreeId=" + trees[0];
+  for (const code of [1, 31, 127, 133, 159]) {
+    for (const local of ['"aCONTROLb"', '"a\\CONTROLb"', "aCONTROLb"]) {
+      const email = local.replace("CONTROL", String.fromCharCode(code)) + "@legacy";
+      const result = await rest(secret, path, "POST", { full_name: "Email", email });
+      expect(result.status).toBe(400);
+      expect((await result.json()).code).toBe("INVALID_INPUT");
+    }
+  }
+  for (const local of ['"tên có khoảng trắng"', "tên"]) {
+    const email = "\u2003" + local + "@" + randomUUID() + "\u3000";
+    expect((await rest(secret, path, "POST", { full_name: "Email", email })).status).toBe(201);
+  }
+});
 test("Person email syntax and length yield 400 while duplicate email and Person Links yield 409", async () => {
   const { secret } = await issue(allScopes),
     path = "persons?familyTreeId=" + trees[0];

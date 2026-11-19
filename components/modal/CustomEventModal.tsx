@@ -37,6 +37,7 @@ export default function CustomEventModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [editId, setEditId] = useState(eventToEdit?.id);
   const [name, setName] = useState(eventToEdit?.name || "");
   const [eventDate, setEventDate] = useState(eventToEdit?.event_date || "");
   const [location, setLocation] = useState(eventToEdit?.location || "");
@@ -134,7 +135,7 @@ export default function CustomEventModal({
 
     try {
       const payload = {
-        id: eventToEdit?.id,
+        id: editId,
         name,
         event_date: eventDate,
         location: location || null,
@@ -142,9 +143,12 @@ export default function CustomEventModal({
       };
 
       const result = await saveCustomEvent(payload,treeId);
-      if (result.error) throw new Error(result.error);
+      if (!result.success) throw new Error(result.error);
 
-      if (document.documentElement.dataset.staleTreeDraft) return;
+      if (document.documentElement.dataset.staleTreeDraft) {
+        setEditId(result.id);
+        return;
+      }
       onSuccess();
       onClose();
     } catch (err) {
@@ -160,13 +164,13 @@ export default function CustomEventModal({
   };
 
   const handleDelete = async () => {
-    if (!eventToEdit) return;
+    if (!editId) return;
     if (!window.confirm("Bạn có chắc chắn muốn xoá sự kiện này?")) return;
 
     setLoading(true);
     setError(null);
     try {
-      const result = await deleteCustomEvent(eventToEdit.id,treeId);
+      const result = await deleteCustomEvent(editId, treeId);
       if (result.error) throw new Error(result.error);
 
       if (document.documentElement.dataset.staleTreeDraft) return;
@@ -235,7 +239,7 @@ export default function CustomEventModal({
 
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-8 pt-16 pb-8">
               <h2 className="text-xl font-serif font-bold text-foreground mb-6">
-                {eventToEdit ? "Sửa Sự Kiện" : "Thêm Sự Kiện Tuỳ Chỉnh"}
+                {editId ? "Sửa Sự Kiện" : "Thêm Sự Kiện Tuỳ Chỉnh"}
               </h2>
 
               <AnimatePresence>
@@ -415,7 +419,7 @@ export default function CustomEventModal({
                   transition={{ delay: 0.1 }}
                   className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-4 pt-4 sm:pt-6"
                 >
-                  {eventToEdit ? (
+                  {editId ? (
                     <button
                       type="button"
                       onClick={handleDelete}

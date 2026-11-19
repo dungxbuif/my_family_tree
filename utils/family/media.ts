@@ -180,23 +180,39 @@ export function familyMedia(actor: string, tree: string, access: Access) {
       size: number,
       identity: Pick<UploadIdentity, "submissionId" | "sha256">,
     ) =>
-      access(true, async (client) => {
-        const upload = await presignUpload(folder, fileName, type, size, {
-          ...identity,
-          actorId: actor,
-          treeId: tree,
-        });
-        const result = await client.query(
-          `INSERT INTO tree_media(object_url,tree_id,folder,expected_bytes,cleanup_after) VALUES($1,$2,$3,$4,now()+interval '1 day')
-          ON CONFLICT(object_url) DO UPDATE SET cleanup_after=excluded.cleanup_after WHERE tree_media.tree_id=excluded.tree_id AND tree_media.folder=excluded.folder AND tree_media.cleanup_claim IS NULL AND tree_media.expected_bytes=excluded.expected_bytes`,
-          [upload.publicUrl, tree, folder, size],
-        );
-        if (!result.rowCount)
-          throw new MediaUploadConflict(
-            "Ảnh đang được cập nhật. Vui lòng thử lại.",
-          );
-        return upload;
-      }),
+      access(true, (client) =>
+        presignUpload(
+          folder,
+          fileName,
+          type,
+          size,
+          {
+            ...identity,
+            actorId: actor,
+            treeId: tree,
+          },
+          async (logicalUrl) => {
+            const generationUrl = logicalUrl.replace(
+              /(\.[^.]+)$/,
+              `-${crypto.randomUUID()}$1`,
+            );
+            const result = await client.query<{ object_url: string }>(
+              `INSERT INTO tree_media(logical_url,object_url,tree_id,folder,expected_bytes,cleanup_after)
+             VALUES($1,$2,$3,$4,$5,now()+interval '1 day')
+             ON CONFLICT(logical_url) DO UPDATE SET cleanup_after=excluded.cleanup_after
+             WHERE tree_media.tree_id=excluded.tree_id AND tree_media.folder=excluded.folder
+               AND tree_media.cleanup_claim IS NULL AND tree_media.expected_bytes=excluded.expected_bytes
+             RETURNING object_url`,
+              [logicalUrl, generationUrl, tree, folder, size],
+            );
+            if (!result.rowCount)
+              throw new MediaUploadConflict(
+                "Ảnh đang được cập nhật. Vui lòng thử lại.",
+              );
+            return result.rows[0].object_url;
+          },
+        ),
+      ),
     readMedia: (url: string, range?: string) =>
       access(false, async (client) => {
         const record = await client.query(

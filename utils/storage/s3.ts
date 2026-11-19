@@ -92,6 +92,7 @@ export async function presignUpload(
   type: string,
   size: number,
   upload: UploadIdentity,
+  reserveGeneration: (logicalUrl: string) => Promise<string>,
 ) {
   validateUpload(folder, name, type, size);
   const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -114,7 +115,7 @@ export async function presignUpload(
     .update(JSON.stringify(scope))
     .digest("hex");
   const { bucket, prefix, client } = config();
-  const key = [
+  const logicalKey = [
     prefix.replace(/^\/+|\/+$/g, ""),
     "trees",
     upload.treeId,
@@ -123,6 +124,8 @@ export async function presignUpload(
   ]
     .filter(Boolean)
     .join("/");
+  const publicUrl = await reserveGeneration(`/api/storage/${logicalKey}`);
+  const key = objectKey(publicUrl);
   const put = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -134,7 +137,7 @@ export async function presignUpload(
     expiresIn: 300,
     signableHeaders: new Set(["content-type", "content-length"]),
   });
-  return { key, publicUrl: `/api/storage/${key}`, uploadUrl };
+  return { key, publicUrl, uploadUrl };
 }
 
 // Callers pass only object URLs obtained from the tree_media ownership table.

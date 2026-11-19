@@ -77,10 +77,14 @@ export async function freezeAcknowledgement(page, app, section) {
     );
     if ((await field.inputValue()) !== value)
       throw Error("Lost draft after frozen acknowledgement");
-    await page.evaluate(() => {
-      window.confirm = () => true;
-    });
-    await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
+    await dialog
+      .getByRole("heading", {
+        name: event ? "Sửa Sự Kiện" : "Chỉnh sửa hình ảnh",
+      })
+      .waitFor();
+    await field.fill(value + " đã chỉnh sửa");
+    await dialog.locator('button[type="submit"]').click();
+    await dialog.waitFor({ state: "detached" });
     return true;
   } finally {
     release();

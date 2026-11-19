@@ -212,10 +212,13 @@ test("legacy adoption accepts only single-owner generated keys and leaves ambigu
     WITH t AS (INSERT INTO family_trees(id,name) VALUES('${secondTreeId}','Second') RETURNING id),
     m AS (INSERT INTO tree_memberships(tree_id,user_id,role) SELECT id,'${owner}','owner' FROM t)
     INSERT INTO gallery_items(tree_id,title,image_url) SELECT id,'copy','${shared}' FROM t;`);
+  const copied = "/api/storage/gallery/"+crypto.randomUUID()+".png";
+  sql(`INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${legacy}','Original','${copied}'),('${secondTreeId}','Copied','${copied}');
+      DELETE FROM gallery_items WHERE tree_id='${legacy}' AND image_url='${copied}';`);
   for (const url of [accepted,...rejected]) sql(`INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${legacy}','Photo','${url}')`);
   sql(`CREATE SCHEMA media_migration_fixture; SET search_path=media_migration_fixture,pg_catalog;\n${media}`);
   expect(owners()).toEqual(verified);
-  expect(sql("SELECT count(*) FROM gallery_items")).toBe("7");
+  expect(sql("SELECT count(*) FROM gallery_items")).toBe("8");
   sql(`DELETE FROM gallery_items WHERE tree_id='${secondTreeId}';\n${media}`);
   expect(owners()).toEqual(verified);
   // An already-applied preview migration could have imported a nested URL.
@@ -225,7 +228,14 @@ test("legacy adoption accepts only single-owner generated keys and leaves ambigu
   sql(claims);
   expect(owners()).toEqual(verified);
   expect(sql(`SELECT count(*) FROM gallery_items WHERE image_url='${rejected[1]}'`)).toBe("1");
-  sql(`INSERT INTO tree_media(object_url,tree_id,folder,cleanup_after,expected_bytes) VALUES('/api/storage/trees/${legacy}/avatars/image.png','${legacy}','avatars',now(),42);\n${claims}`);
-  expect(sql("SELECT count(*) FROM tree_media WHERE expected_bytes=42")).toBe("1");
-
+  // Simulate an installation that already imported the sole surviving copy in another tree.
+  const issued = "/api/storage/trees/"+secondTreeId+"/avatars/"+"a".repeat(64)+".png";
+  sql(`INSERT INTO tree_media(object_url,tree_id,folder,cleanup_after,expected_bytes) VALUES
+      ('${copied}','${secondTreeId}','gallery',now(),NULL),('${issued}','${secondTreeId}','avatars',now(),42);
+      INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${secondTreeId}','Copied','${copied}');\n${claims}`);
+  const generations = "\\i /app/docs/migrations/20261119112000_media_generations.sql";
+  sql(`${generations}\n${generations}`);
+  expect(owners()).toEqual([...verified,issued].sort());
+  expect(sql(`SELECT logical_url FROM tree_media WHERE expected_bytes=42`)).toBe(issued);
+  expect(sql(`SELECT count(*) FROM gallery_items WHERE image_url='${copied}'`)).toBe("1");
 });

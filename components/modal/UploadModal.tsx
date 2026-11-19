@@ -27,6 +27,9 @@ export default function UploadModal({
   onSuccess,
   initialData,
 }: UploadModalProps) {
+  const [saved, setSaved] = useState<{ id: string; imageUrl: string; file: File | null } | null>(null);
+  const editId = saved?.id ?? initialData?.id;
+  const currentUrl = saved?.imageUrl ?? initialData?.image_url;
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -86,7 +89,7 @@ export default function UploadModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!initialData?.image_url && !file) {
+    if (!currentUrl && !file) {
       setError("Vui lòng chọn ảnh.");
       return;
     }
@@ -99,26 +102,28 @@ export default function UploadModal({
     setError(null);
 
     try {
-      const uploadedImageUrl = file
+      const uploadedImageUrl = file && file !== saved?.file
         ? await uploadImage(file, "gallery", {treeId,submissionId})
-        : initialData?.image_url;
+        : currentUrl;
+      if (!uploadedImageUrl) throw new Error("Vui lòng chọn ảnh.");
       const formData = new FormData();
       formData.append("title", title);
       formData.append("treeId", treeId);
       formData.append("description", description);
       formData.append("eventDate", eventDate);
-      if (initialData) {
-        formData.append("id", initialData.id);
-      }
-      if (uploadedImageUrl) formData.append("imageUrl", uploadedImageUrl);
+      if (editId) formData.append("id", editId);
+      formData.append("imageUrl", uploadedImageUrl);
 
       const result = await uploadGalleryItem(formData);
 
-      if (result.error) {
+      if (!result.success) {
         throw new Error(result.error);
       }
 
-      if (document.documentElement.dataset.staleTreeDraft) return;
+      if (document.documentElement.dataset.staleTreeDraft) {
+        setSaved({ id: result.id, imageUrl: uploadedImageUrl, file });
+        return;
+      }
 
       // Success
       resetForm();
@@ -192,7 +197,7 @@ export default function UploadModal({
 
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-8 pt-16 pb-8">
               <h2 className="text-xl font-serif font-bold text-foreground mb-6">
-                {initialData
+                {editId
                   ? "Chỉnh sửa hình ảnh"
                   : "Thêm vào Phòng trưng bày"}
               </h2>
@@ -328,7 +333,7 @@ export default function UploadModal({
                   <button
                     type="submit"
                     form="upload-form"
-                    disabled={stale || isUploading || (!initialData?.image_url && !file) || !title}
+                    disabled={stale || isUploading || (!currentUrl && !file) || !title}
                     className="btn-primary flex items-center gap-2"
                   >
                     {isUploading ? (
@@ -336,7 +341,7 @@ export default function UploadModal({
                         <Loader2 className="size-4 animate-spin" />
                         Đang lưu...
                       </>
-                    ) : initialData ? (
+                    ) : editId ? (
                       "Lưu thay đổi"
                     ) : (
                       "Lưu hình ảnh"

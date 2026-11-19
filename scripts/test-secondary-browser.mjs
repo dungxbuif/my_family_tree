@@ -241,7 +241,24 @@ try {
   };
   for (const section of ["events", "gallery"]) {
     run(freezeAcknowledgement, app, section);
-    console.log("Preserved frozen acknowledgement for", section);
+    const original = "Bản nháp đang lưu " + section;
+    const result = await db.query(
+      section === "events"
+        ? "SELECT name AS title FROM custom_events WHERE tree_id=$1 AND name=ANY($2)"
+        : "SELECT title FROM gallery_items WHERE tree_id=$1 AND title=ANY($2)",
+      [trees[0], [original, original + " đã chỉnh sửa"]],
+    );
+    if (
+      result.rowCount !== 1 ||
+      result.rows[0].title !== original + " đã chỉnh sửa"
+    )
+      throw Error(
+        "Restored save must update the committed " +
+          section +
+          " row: " +
+          JSON.stringify(result.rows),
+      );
+    console.log("Restored and updated a single committed row for", section);
   }
   const {
     rows: [quarantined],
@@ -283,11 +300,11 @@ try {
     throw Error("Expected one reclaimed avatar");
   run(retryPrunedAvatar);
   const recovered = await db.query(
-    "SELECT FROM persons WHERE tree_id=$1 AND full_name='Ảnh sau khi dọn tệp' AND avatar_url=$2",
+    "SELECT FROM persons p JOIN tree_media m ON m.object_url=p.avatar_url AND m.tree_id=p.tree_id WHERE p.tree_id=$1 AND full_name='Ảnh sau khi dọn tệp' AND avatar_url<>$2",
     [trees[0], avatar],
   );
   if (recovered.rowCount !== 1)
-    throw Error("Expected one Person with the same restored object key");
+    throw Error("Expected one Person with a registered replacement object key");
   console.log(
     "Verified quarantined replacement, demotion of both open editors and same-file avatar recovery",
   );

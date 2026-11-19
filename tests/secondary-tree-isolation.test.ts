@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { deleteObject } from "@/utils/storage/s3";
 import { pruneTreeMedia } from "@/utils/storage/prune";
 import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createFamilyTree } from "@/utils/auth/tree-access";
@@ -475,7 +476,8 @@ mediaTest(
     expect((await pruneTreeMedia(a)).removed).toBe(1);
     await expect(service.save(fields)).rejects.toThrow("Ảnh");
     const retry = await sign();
-    expect(retry.key).toBe(first.key);
+    expect(retry.key).not.toBe(first.key);
+    fields.set("avatar_url", retry.publicUrl);
     expect(
       (
         await fetch(retry.uploadUrl, {
@@ -526,5 +528,92 @@ mediaTest(
       [failed],
     );
     expect((await pruneTreeMedia(a)).removed).toBe(1);
+  },
+);
+
+mediaTest(
+  "a delayed S3 delete for a reclaimed generation cannot remove the new attachment",
+  async () => {
+    const family = familyPeople(editor, a, db);
+    const bytes = Buffer.from("generation test");
+    const identity = {
+      submissionId: randomUUID(),
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const sign = () =>
+      family.issueUpload(
+        "avatars",
+        "a.png",
+        "image/png",
+        bytes.length,
+        identity,
+      );
+    const put = async (uploadUrl: string) =>
+      expect(
+        (
+          await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "content-type": "image/png" },
+            body: bytes,
+          })
+        ).ok,
+      ).toBe(true);
+    const old = await sign();
+    await put(old.uploadUrl);
+    const expire = () =>
+      db.query(
+        "UPDATE tree_media SET cleanup_after=now()-interval '10 years' WHERE object_url=$1",
+        [old.publicUrl],
+      );
+    await expire();
+    let observed!: () => void;
+    let release!: () => void;
+    const received = new Promise<void>((resolve) => {
+      observed = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const delayed = pruneTreeMedia(a, 1, async (target) => {
+      observed();
+      await resume;
+      await deleteObject(target);
+    });
+    try {
+      await Promise.race([
+        received,
+        delayed.then(() => { throw new Error("The first worker did not reach S3"); }),
+      ]);
+      await expire(); // Simulate the original worker losing its lease.
+      expect((await pruneTreeMedia(a, 1)).removed).toBe(1);
+      const fresh = await sign();
+      await put(fresh.uploadUrl);
+      const fields = new FormData();
+      fields.set("full_name", "Ảnh thế hệ mới");
+      fields.set("avatar_url", fresh.publicUrl);
+      fields.set("submissionId", identity.submissionId);
+      const id = await family.save(fields);
+      release();
+      await delayed;
+      const photo = await fetch(url + fresh.publicUrl, {
+        headers: { cookie: cookie(a) },
+      });
+      expect(photo.status).toBe(200);
+      expect(await photo.text()).toBe(bytes.toString());
+      expect(fresh.key).not.toBe(old.key);
+      expect((await sign()).key).toBe(fresh.key);
+      expect(await family.save(fields)).toBe(id);
+      expect(
+        (
+          await db.query(
+            "SELECT object_url FROM tree_media WHERE object_url=ANY($1)",
+            [[old.publicUrl, fresh.publicUrl]],
+          )
+        ).rows,
+      ).toEqual([{ object_url: fresh.publicUrl }]);
+    } finally {
+      release();
+      await delayed;
+    }
   },
 );

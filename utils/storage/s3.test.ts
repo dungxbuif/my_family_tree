@@ -1,8 +1,13 @@
 import { expect, test } from "bun:test";
-import { presignUpload, validateUpload } from "./s3";
+import { presignUpload as signUpload, validateUpload, type UploadFolder, type UploadIdentity } from "./s3";
 import { mkdtempSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// Low-level signer tests use the supplied URL as their registered generation.
+function presignUpload(folder: UploadFolder, name: string, type: string, size: number, identity: UploadIdentity) {
+  return signUpload(folder, name, type, size, identity, async url => url);
+}
 
 const upload = { actorId: crypto.randomUUID(), treeId: crypto.randomUUID(),
   submissionId: crypto.randomUUID(), sha256: "5a".repeat(32) };

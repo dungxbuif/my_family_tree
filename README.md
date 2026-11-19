@@ -82,7 +82,7 @@ và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm tr
 `output/playwright/tree-membership/`. Kiểm thử thêm thành viên ghi kết quả vào
 `output/playwright/tree-add/`.
 
-Khi mất kết nối lúc thêm người, lần thử lại dùng cùng mã biểu mẫu và cùng tệp ảnh. Nếu mở lại trang, chọn lại tệp và nhập lại nội dung đã gửi để nhận kết quả lần trước. Kiểm thử ảnh đại diện dùng API ký thật. Khởi chạy ứng dụng kiểm thử với `S3_ENDPOINT=http://127.0.0.1:33407`, `S3_BUCKET=family`, `S3_ACCESS_KEY_ID=test` và `S3_SECRET_ACCESS_KEY=test`. Playwright mặc định nhận các PUT của kho giả lập trong trình duyệt. Để chạy trên bucket kiểm thử S3 đã tạo tại địa chỉ loopback này, đặt `FAMILY_TREE_TEST_LIVE_S3=1`.
+Khi mất kết nối lúc thêm người, lần thử lại dùng cùng mã biểu mẫu và cùng tệp ảnh. Nếu mở lại trang, chọn lại tệp và nhập lại nội dung đã gửi để nhận kết quả lần trước. Kiểm thử ảnh đại diện dùng API ký thật. Khởi chạy ứng dụng kiểm thử với `S3_ENDPOINT=http://127.0.0.1:33407`, `S3_BUCKET=family`, `S3_ACCESS_KEY_ID=test` và `S3_SECRET_ACCESS_KEY=test`. Tạo bucket kiểm thử ở endpoint loopback và cho phép PUT từ origin của ứng dụng. Playwright gửi các PUT thật, sau đó ứng dụng xác nhận đối tượng trong bucket khi lưu hồ sơ.
 
 Khi thẻ khác chuyển cây, bản nháp đang mở cho phép sao chép nội dung. Chọn **Ở lại với bản nháp** rồi **Chọn lại cây của bản nháp** để xác thực lại quyền và tiếp tục lưu, hoặc bỏ bản nháp để xem cây mới.
 

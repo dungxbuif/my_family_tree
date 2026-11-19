@@ -10,18 +10,13 @@ CREATE TABLE IF NOT EXISTS public.tree_media (
   cleanup_after timestamptz NOT NULL
 );
 
--- Capture existing application-generated URLs once. A shared legacy key
--- cannot safely be assigned to either tree. Roll back for operator review.
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM public.schema_migrations WHERE version='20261119110000') THEN RETURN; END IF;
-  LOCK TABLE public.persons, public.gallery_items IN SHARE MODE;
-  INSERT INTO public.tree_media(object_url,tree_id,folder,cleanup_after)
-  SELECT DISTINCT url,tree_id,folder,now() FROM (
-    SELECT avatar_url AS url,tree_id,'avatars' AS folder FROM public.persons
-    UNION ALL SELECT image_url,tree_id,'gallery' FROM public.gallery_items
-  ) refs WHERE url ~ ('^/api/storage/([a-zA-Z0-9_-]+/)*' || folder || '/[a-zA-Z0-9_-]+\.(jpg|jpeg|png|webp|gif)$');
-END $$;
+SELECT NOT EXISTS (SELECT FROM public.schema_migrations WHERE version='20261119110000') AS import_media \gset
+\if :import_media
+LOCK TABLE public.persons, public.gallery_items IN SHARE MODE;
+\ir legacy-media-owners.sql
+INSERT INTO public.tree_media(object_url,tree_id,folder,cleanup_after)
+  SELECT url,tree_id,folder,now() FROM pg_temp.verified_legacy_media;
+\endif
 CREATE INDEX IF NOT EXISTS tree_media_cleanup ON public.tree_media(cleanup_after);
 CREATE INDEX IF NOT EXISTS gallery_media_refs ON public.gallery_items(tree_id,image_url);
 CREATE INDEX IF NOT EXISTS avatar_media_refs ON public.persons(tree_id,avatar_url) WHERE avatar_url IS NOT NULL;

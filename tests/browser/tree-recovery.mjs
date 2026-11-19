@@ -136,20 +136,20 @@ export async function restoreDirtyTree(page) {
   }
 }
 
-export async function recoverAvatarPut(page, live = false) {
+export async function recoverAvatarPut(page) {
   const keys = new Set();
   let puts = 0,
     writes = 0;
   const url = new URL("/dashboard/members/new", page.url()).href;
   await page.goto(url);
-  // Real presign endpoint; emulate a private S3 bucket, including an accepted PUT.
+  // Forward actual PUTs to the private test bucket before dropping the browser acknowledgement.
   await page.route(/X-Amz-(Signature|Algorithm)=/i, async (route) => {
     if (route.request().method() === "PUT") {
       keys.add(new URL(route.request().url()).pathname);
       puts++;
     }
     let status = 200;
-    if (live && route.request().method() === "PUT") {
+    if (route.request().method() === "PUT") {
       if (new URL(route.request().url()).hostname !== "127.0.0.1")
         throw new Error(
           "Live object-store tests require a disposable loopback endpoint.",
@@ -206,7 +206,7 @@ export async function recoverAvatarPut(page, live = false) {
   }
   await page.waitForURL(/\/members\/[0-9a-f-]{36}/, { timeout: 4500 });
   await page.unrouteAll();
-  return { keys: keys.size, puts, writes, live };
+  return { keys: keys.size, puts, writes, live:true };
 }
 
 export async function reopenLeapDate(page) {

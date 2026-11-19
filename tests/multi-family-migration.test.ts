@@ -196,18 +196,36 @@ test("receipt and life-status upgrades use the public schema under a custom sear
   expect(sql(`INSERT INTO persons(tree_id,full_name,gender) VALUES('${legacy}','Chưa rõ','other') RETURNING is_deceased IS NULL`)).toBe("t");
 });
 
-test("legacy media ownership is captured once and ambiguous keys roll back", () => {
+test("legacy adoption accepts only single-owner generated keys and leaves ambiguous metadata for review", () => {
   migrate();
   const media = "\\i /app/docs/migrations/20261119110000_tree_media.sql";
-  const url = "/api/storage/family-tree/gallery/aaa-bbb.png";
-  sql(`UPDATE gallery_items SET image_url='${url}';
+  const shared = "/api/storage/family-tree/gallery/"+crypto.randomUUID()+".png";
+  const accepted = "/api/storage/gallery/"+crypto.randomUUID()+".jpg";
+  const oldAvatar = "/api/storage/family-tree/avatars/" + "b".repeat(64) + ".webp";
+  sql(`UPDATE persons SET avatar_url='${oldAvatar}' WHERE id='${person}'`);
+  const owners = () => sql("SELECT object_url FROM tree_media ORDER BY object_url").split("\n");
+  const verified = [oldAvatar,accepted].sort();
+  const rejected = ["/api/storage/other/gallery/"+crypto.randomUUID()+".png",
+    "/api/storage/family-tree/trees/"+secondTreeId+"/gallery/"+"a".repeat(64)+".png",
+    "/api/storage/gallery/portrait.png","/api/storage/gallery/"+"a".repeat(64)+".png"];
+  sql(`UPDATE gallery_items SET image_url='${shared}';
     WITH t AS (INSERT INTO family_trees(id,name) VALUES('${secondTreeId}','Second') RETURNING id),
     m AS (INSERT INTO tree_memberships(tree_id,user_id,role) SELECT id,'${owner}','owner' FROM t)
-    INSERT INTO gallery_items(tree_id,title,image_url) SELECT id,'copy','${url}' FROM t;`);
-  expect(() => sql(media)).toThrow(/duplicate key/i);
-  expect(sql("SELECT to_regclass('public.tree_media') IS NULL")).toBe("t");
-  sql(`DELETE FROM gallery_items WHERE tree_id='${secondTreeId}'; CREATE SCHEMA media_migration_fixture; SET search_path=media_migration_fixture,pg_catalog;\n${media}`);
-  expect(sql("SELECT tree_id FROM tree_media")).toBe(legacy);
-  sql(`INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${secondTreeId}','copy','${url}');\n${media}`);
-  expect(sql("SELECT tree_id FROM tree_media")).toBe(legacy);
+    INSERT INTO gallery_items(tree_id,title,image_url) SELECT id,'copy','${shared}' FROM t;`);
+  for (const url of [accepted,...rejected]) sql(`INSERT INTO gallery_items(tree_id,title,image_url) VALUES('${legacy}','Photo','${url}')`);
+  sql(`CREATE SCHEMA media_migration_fixture; SET search_path=media_migration_fixture,pg_catalog;\n${media}`);
+  expect(owners()).toEqual(verified);
+  expect(sql("SELECT count(*) FROM gallery_items")).toBe("7");
+  sql(`DELETE FROM gallery_items WHERE tree_id='${secondTreeId}';\n${media}`);
+  expect(owners()).toEqual(verified);
+  // An already-applied preview migration could have imported a nested URL.
+  // Quarantine that old ledger row without authorizing any object deletion.
+  sql(`INSERT INTO tree_media(object_url,tree_id,folder,cleanup_after) VALUES('${rejected[1]}','${legacy}','gallery',now())`);
+  const claims="\\i /app/docs/migrations/20261119111000_media_cleanup_claims.sql";
+  sql(claims);
+  expect(owners()).toEqual(verified);
+  expect(sql(`SELECT count(*) FROM gallery_items WHERE image_url='${rejected[1]}'`)).toBe("1");
+  sql(`INSERT INTO tree_media(object_url,tree_id,folder,cleanup_after,expected_bytes) VALUES('/api/storage/trees/${legacy}/avatars/image.png','${legacy}','avatars',now(),42);\n${claims}`);
+  expect(sql("SELECT count(*) FROM tree_media WHERE expected_bytes=42")).toBe("1");
+
 });

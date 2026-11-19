@@ -188,6 +188,13 @@ mediaTest(
     expect(object.headers.get("cache-control")).toContain("no-store");
     expect(object.headers.get("content-type")).toBe("image/png");
     expect(await object.text()).toBe(bytes.toString());
+    const pastEnd = await read(publicUrl, a, "bytes=999-");
+    expect(pastEnd.status).toBe(416);
+    expect(pastEnd.headers.get("content-range")).toBe(
+      "bytes */" + bytes.length,
+    );
+    expect(pastEnd.headers.get("cache-control")).toContain("no-store");
+    expect((await read(publicUrl, b, "bytes=999-")).status).toBe(404);
     const partial = await read(publicUrl, a, "bytes=0-2");
     expect(partial.status).toBe(206);
     expect(await partial.text()).toBe("pri");
@@ -238,18 +245,18 @@ mediaTest(
           Key: publicUrl.slice("/api/storage/".length),
         }),
       );
-    expect(await pruneTreeMedia(a)).toBe(0);
+    expect((await pruneTreeMedia(a)).removed).toBe(0);
     expect((await head()).ContentLength).toBe(bytes.length);
     await db.query(
       "UPDATE tree_media SET cleanup_after=now() WHERE object_url=$1",
       [publicUrl],
     );
-    expect(await pruneTreeMedia(b)).toBe(0);
-    expect(await pruneTreeMedia(a)).toBe(1);
+    expect((await pruneTreeMedia(b)).removed).toBe(0);
+    expect((await pruneTreeMedia(a)).removed).toBe(1);
     await expect(head()).rejects.toMatchObject({
       $metadata: { httpStatusCode: 404 },
     });
-    expect(await pruneTreeMedia(a)).toBe(0);
+    expect((await pruneTreeMedia(a)).removed).toBe(0);
   },
   30000,
 );
@@ -400,16 +407,124 @@ mediaTest(
       "UPDATE tree_media SET cleanup_after=now() WHERE object_url=$1",
       [upload.publicUrl],
     );
-    expect(await pruneTreeMedia(a)).toBe(0);
+    expect((await pruneTreeMedia(a)).removed).toBe(0);
     await family.remove(id);
     expect((await read(a)).status).toBe(404);
-    expect(await pruneTreeMedia(a)).toBe(1);
+    expect((await pruneTreeMedia(a)).removed).toBe(1);
   },
 );
 
 test("the public image optimizer accepts static artwork and excludes private media", async () => {
-  const { hasLocalMatch } = await import("next/dist/shared/lib/match-local-pattern");
+  const { hasLocalMatch } = await import(
+    "next/dist/shared/lib/match-local-pattern"
+  );
   const { default: config } = await import("../next.config");
   expect(hasLocalMatch(config.images?.localPatterns, "/icon.png")).toBe(true);
-  expect(hasLocalMatch(config.images?.localPatterns, "/api/storage/family-tree/gallery/abc.png")).toBe(false);
+  expect(
+    hasLocalMatch(
+      config.images?.localPatterns,
+      "/api/storage/family-tree/gallery/abc.png",
+    ),
+  ).toBe(false);
 });
+
+test("an unverified Gallery record exposes its metadata and withholds its image URL", async () => {
+  const {
+    rows: [{ id }],
+  } = await db.query(
+    "INSERT INTO gallery_items(tree_id,title,image_url) VALUES($1,'Ảnh cần cập nhật',$2) RETURNING id",
+    [a, "https://example.test/a.jpg"],
+  );
+  const family = familyPeople(editor, a, db);
+  expect((await family.gallery()).find((x) => x.id === id)).toMatchObject({
+    title: "Ảnh cần cập nhật",
+    image_url: null,
+  });
+  await family.deleteGallery(id);
+  expect((await family.gallery()).some((x) => x.id === id)).toBe(false);
+});
+
+mediaTest(
+  "a Person can attach its issued avatar only after a successful PUT",
+  async () => {
+    const service = familyPeople(editor, a, db),
+      submissionId = randomUUID(),
+      bytes = Buffer.from("existing portrait");
+    const identity = {
+      submissionId,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const sign = () =>
+      service.issueUpload(
+        "avatars",
+        "a.png",
+        "image/png",
+        bytes.length,
+        identity,
+      );
+    const first = await sign();
+    const fields = new FormData();
+    fields.set("full_name", "Ảnh");
+    fields.set("submissionId", submissionId);
+    fields.set("avatar_url", first.publicUrl);
+    await expect(service.save(fields)).rejects.toThrow("Ảnh");
+    await db.query(
+      "UPDATE tree_media SET cleanup_after=now() WHERE object_url=$1",
+      [first.publicUrl],
+    );
+    expect((await pruneTreeMedia(a)).removed).toBe(1);
+    await expect(service.save(fields)).rejects.toThrow("Ảnh");
+    const retry = await sign();
+    expect(retry.key).toBe(first.key);
+    expect(
+      (
+        await fetch(retry.uploadUrl, {
+          method: "PUT",
+          body: bytes,
+          headers: { "content-type": "image/png" },
+        })
+      ).ok,
+    ).toBe(true);
+    const id = await service.save(fields);
+    expect(await service.save(fields)).toBe(id);
+  },
+);
+
+mediaTest(
+  "an individual failed object deletion yields to later eligible objects",
+  async () => {
+    const nextUrl = () =>
+      "/api/storage/family-tree/trees/" +
+      a +
+      "/gallery/" +
+      randomUUID() +
+      ".png";
+    const failed = nextUrl(),
+      clean = nextUrl();
+    await db.query(
+      "INSERT INTO tree_media(tree_id,folder,object_url,cleanup_after) VALUES($1,'gallery',$2,now()-interval '2 days'),($1,'gallery',$3,now()-interval '1 day')",
+      [a, failed, clean],
+    );
+    // A local storage adapter models one key-specific backend failure.
+    expect(
+      await pruneTreeMedia(a, 10, async (url) => {
+        // A different pool connection can acquire the row during S3 I/O.
+        expect((await db.query("SELECT FROM tree_media WHERE object_url=$1 AND cleanup_claim IS NOT NULL FOR UPDATE NOWAIT",[url])).rowCount).toBe(1);
+        if (url === failed) throw Error("storage busy");
+      }),
+    ).toEqual({ considered: 2, removed: 1, failed: 1 });
+    expect(
+      (
+        await db.query(
+          "SELECT object_url FROM tree_media WHERE object_url=ANY($1) AND cleanup_after>now() AND cleanup_attempts=1 AND cleanup_claim IS NOT NULL",
+          [[failed, clean]],
+        )
+      ).rows,
+    ).toEqual([{ object_url: failed }]);
+    await db.query(
+      "UPDATE tree_media SET cleanup_after=now() WHERE object_url=$1",
+      [failed],
+    );
+    expect((await pruneTreeMedia(a)).removed).toBe(1);
+  },
+);

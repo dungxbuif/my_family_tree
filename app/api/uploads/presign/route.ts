@@ -1,6 +1,7 @@
 import { pruneTreeMedia } from "@/utils/storage/prune";
 import { after, NextResponse } from "next/server";
 import { currentPeople } from "@/utils/family/browser";
+import { MediaUploadConflict } from "@/utils/family/media";
 import { FamilyDataError } from "@/utils/family/records";
 
 export async function POST(request: Request) {
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
+    if (error instanceof MediaUploadConflict)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409, headers: { "Cache-Control": "private, no-store" } },
+      );
     const denied = error instanceof FamilyDataError;
     return NextResponse.json(
       {

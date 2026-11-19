@@ -12,7 +12,7 @@ export default async function GalleryPage() {
   return (
     <main className="flex-1 flex flex-col p-4 sm:p-8 max-w-7xl mx-auto w-full min-w-0">
       <GalleryClient
-        key={tree.id}
+        key={tree.id + tree.role}
         treeId={tree.id}
         initialItems={items}
         canEdit={tree.role !== "viewer"}

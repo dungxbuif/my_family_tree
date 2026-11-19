@@ -27,8 +27,10 @@ export type GalleryDraft = {
 };
 const missing = () =>
   new FamilyDataError("Không tìm thấy mục này trong cây gia phả.");
+export class MediaUploadConflict extends FamilyDataError {}
+export class UnavailableImage extends FamilyDataError {}
 const invalidImage = () =>
-  new FamilyDataError("Ảnh không hợp lệ hoặc chưa được tải lên.");
+  new UnavailableImage("Ảnh không hợp lệ hoặc chưa được tải lên.");
 
 export const mediaReferenced = `(EXISTS(SELECT FROM gallery_items g WHERE g.tree_id=m.tree_id AND g.image_url=m.object_url)
   OR EXISTS(SELECT FROM persons p WHERE p.tree_id=m.tree_id AND p.avatar_url=m.object_url))`;
@@ -42,10 +44,25 @@ export async function requireMedia(
   url: string,
 ) {
   const media = await client.query(
-    "SELECT FROM tree_media WHERE tree_id=$1 AND folder=$2 AND object_url=$3 FOR SHARE",
+    "SELECT expected_bytes FROM tree_media WHERE tree_id=$1 AND folder=$2 AND object_url=$3 AND cleanup_claim IS NULL FOR SHARE",
     [tree, folder, url],
   );
   if (!media.rowCount) throw invalidImage();
+  return media.rows[0].expected_bytes as number | null;
+}
+
+export async function requireAttachment(
+  client: PoolClient,
+  tree: string,
+  folder: UploadFolder,
+  url: string,
+) {
+  const size = await requireMedia(client, tree, folder, url);
+  try {
+    await requireUploadedImage(url, size);
+  } catch {
+    throw invalidImage();
+  }
 }
 
 export function familyMedia(actor: string, tree: string, access: Access) {
@@ -93,8 +110,8 @@ export function familyMedia(actor: string, tree: string, access: Access) {
         async (client) =>
           (
             await client.query<GalleryItem>(
-              `SELECT g.id,g.tree_id,g.title,g.description,g.image_url,g.event_date::text,g.created_at::text,g.created_by
-      FROM gallery_items g JOIN tree_media m ON m.tree_id=g.tree_id AND m.object_url=g.image_url AND m.folder='gallery'
+              `SELECT g.id,g.tree_id,g.title,g.description,m.object_url AS image_url,g.event_date::text,g.created_at::text,g.created_by
+      FROM gallery_items g LEFT JOIN tree_media m ON m.tree_id=g.tree_id AND m.object_url=g.image_url AND m.folder='gallery' AND m.cleanup_claim IS NULL
       WHERE g.tree_id=$1 ORDER BY g.event_date DESC NULLS LAST,g.created_at DESC,g.id`,
               [tree],
             )
@@ -114,14 +131,9 @@ export function familyMedia(actor: string, tree: string, access: Access) {
           if (!record.rowCount) throw missing();
           original = record.rows[0].image_url;
         }
-        await requireMedia(client, tree, "gallery", draft.imageUrl);
-        if (original !== draft.imageUrl) {
-          try {
-            await requireUploadedImage(draft.imageUrl);
-          } catch {
-            throw invalidImage();
-          }
-        }
+        if (original === draft.imageUrl)
+          await requireMedia(client, tree, "gallery", draft.imageUrl);
+        else await requireAttachment(client, tree, "gallery", draft.imageUrl);
         const values = [
           tree,
           draft.title.trim(),
@@ -175,17 +187,20 @@ export function familyMedia(actor: string, tree: string, access: Access) {
           treeId: tree,
         });
         const result = await client.query(
-          `INSERT INTO tree_media(object_url,tree_id,folder,cleanup_after) VALUES($1,$2,$3,now()+interval '1 day')
-          ON CONFLICT(object_url) DO UPDATE SET cleanup_after=excluded.cleanup_after WHERE tree_media.tree_id=excluded.tree_id AND tree_media.folder=excluded.folder`,
-          [upload.publicUrl, tree, folder],
+          `INSERT INTO tree_media(object_url,tree_id,folder,expected_bytes,cleanup_after) VALUES($1,$2,$3,$4,now()+interval '1 day')
+          ON CONFLICT(object_url) DO UPDATE SET cleanup_after=excluded.cleanup_after WHERE tree_media.tree_id=excluded.tree_id AND tree_media.folder=excluded.folder AND tree_media.cleanup_claim IS NULL AND tree_media.expected_bytes=excluded.expected_bytes`,
+          [upload.publicUrl, tree, folder, size],
         );
-        if (!result.rowCount) throw invalidImage();
+        if (!result.rowCount)
+          throw new MediaUploadConflict(
+            "Ảnh đang được cập nhật. Vui lòng thử lại.",
+          );
         return upload;
       }),
     readMedia: (url: string, range?: string) =>
       access(false, async (client) => {
         const record = await client.query(
-          `SELECT FROM tree_media m WHERE m.tree_id=$1 AND m.object_url=$2 AND ${mediaReferenced}`,
+          `SELECT FROM tree_media m WHERE m.tree_id=$1 AND m.object_url=$2 AND m.cleanup_claim IS NULL AND ${mediaReferenced}`,
           [tree, url],
         );
         if (!record.rowCount) throw missing();

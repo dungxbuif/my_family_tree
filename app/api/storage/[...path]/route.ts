@@ -19,17 +19,17 @@ export async function GET(
   const { current } = await getBrowserTreeSelection(user.id);
   if (!current) return missing();
   const { path } = await params;
-  const requested = request.headers.get("range");
-  const range =
-    requested && /^bytes=(?:\d{1,9}-\d{0,9}|-\d{1,9})$/.test(requested)
-      ? requested
-      : undefined;
+  const range = request.headers.get("range") ?? undefined;
   try {
     const object = await familyPeople(user.id, current.id).readMedia(
       "/api/storage/" + path.join("/"),
       range,
     );
     const headers = new Headers(privateHeaders);
+    if (object.unsatisfied) {
+      headers.set("Content-Range", "bytes */" + object.size);
+      return new Response(null, { status: 416, headers });
+    }
     headers.set("Content-Type", object.contentType);
     headers.set("Content-Length", String(object.body.length));
     headers.set("Accept-Ranges", "bytes");

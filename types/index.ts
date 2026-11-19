@@ -108,7 +108,7 @@ export interface GalleryItem {
   id: string;
   title: string;
   description: string | null;
-  image_url: string;
+  image_url: string | null;
   event_date: string | null; // ISO string or date string
   created_at: string;
   created_by: string | null;

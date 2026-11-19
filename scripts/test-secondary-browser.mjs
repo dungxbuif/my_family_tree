@@ -4,6 +4,15 @@ import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { pruneTreeMedia } from "../utils/storage/prune";
+import {
+  freezeAcknowledgement,
+  editQuarantinedPhoto,
+  openEditor,
+  refreshDemotedEditor,
+  interruptAvatarSave,
+  retryPrunedAvatar,
+} from "../tests/browser/secondary-review.mjs";
 
 const app = process.env.FAMILY_TREE_TEST_APP_URL;
 const database = process.env.FAMILY_TREE_TEST_DATABASE_URL;
@@ -55,6 +64,21 @@ async function workflow(page, app, tree, other, width) {
     await page.goto(app + "/dashboard/" + path);
     await page.locator("main").first().waitFor();
   };
+  const checkFocus = async (dialog, opener) => {
+    await dialog.waitFor();
+    for (const key of ["Shift+Tab", "Tab", "Tab"]) {
+      if (!(await dialog.evaluate((el) => el.contains(document.activeElement))))
+        throw Error(
+          "Focus escaped " + (await dialog.getAttribute("aria-label")),
+        );
+      await page.keyboard.press(key);
+    }
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    if (!(await opener.evaluate((el) => el === document.activeElement)))
+      throw Error("Focus did not return to the opener");
+    await opener.click();
+  };
   const checkGeometry = async () => {
     const errors = await page
       .locator("main, [role=dialog]")
@@ -88,6 +112,7 @@ async function workflow(page, app, tree, other, width) {
   await goto("events");
   await page.getByRole("button", { name: "Thêm sự kiện" }).click();
   let dialog = page.getByRole("dialog", { name: "Sự kiện" });
+  await checkFocus(dialog, page.getByRole("button", { name: "Thêm sự kiện" }));
   await dialog.getByLabel("Tên sự kiện").fill("Họp mặt " + width);
   await checkGeometry();
   await dialog.locator("button[type=submit]").click();
@@ -108,13 +133,12 @@ async function workflow(page, app, tree, other, width) {
   await goto("gallery");
   await page.getByRole("button", { name: "Thêm hình ảnh" }).click();
   dialog = page.getByRole("dialog", { name: "Hình ảnh" });
-  await dialog
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "notes.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("ghi chú"),
-    });
+  await checkFocus(dialog, page.getByRole("button", { name: "Thêm hình ảnh" }));
+  await dialog.locator("input[type=file]").setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("ghi chú"),
+  });
   await dialog
     .getByRole("alert")
     .filter({ hasText: "Vui lòng chọn ảnh" })
@@ -142,6 +166,10 @@ async function workflow(page, app, tree, other, width) {
       ),
     );
   await photo.click();
+  await checkFocus(
+    page.getByRole("dialog", { name: "Ảnh " + width }),
+    photo.locator(".."),
+  );
   await page.getByRole("button", { name: "Sửa", exact: true }).click();
   await dialog.getByLabel("Tiêu đề ảnh").fill("Kỷ niệm " + width);
   await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
@@ -196,7 +224,7 @@ try {
     "/",
     "--httpOnly",
   );
-  for (const width of [320, 430]) {
+  for (const width of process.argv.includes("--review") ? [] : [320, 430]) {
     const result = cli(
       "run-code",
       `async page => (${workflow.toString()})(page,...${JSON.stringify([app, ...trees, width])})`,
@@ -204,6 +232,65 @@ try {
     if (result.trim() !== "true") throw new Error(result);
     console.log("Gallery upload, edit, delete and calendar passed at", width);
   }
+  const run = (fn, ...args) => {
+    const result = cli(
+      "run-code",
+      `async page => (${fn.toString()})(page,...${JSON.stringify(args)})`,
+    );
+    if (result.trim() !== "true") throw Error(result);
+  };
+  for (const section of ["events", "gallery"]) {
+    run(freezeAcknowledgement, app, section);
+    console.log("Preserved frozen acknowledgement for", section);
+  }
+  const {
+    rows: [quarantined],
+  } = await db.query(
+    "INSERT INTO gallery_items(tree_id,title,image_url) VALUES($1,'Ảnh cũ cần sửa','https://example.test/unverified') RETURNING id",
+    [trees[0]],
+  );
+  run(editQuarantinedPhoto, app);
+  const replacement = await db.query(
+    "SELECT FROM gallery_items g JOIN tree_media m ON m.object_url=g.image_url AND m.tree_id=g.tree_id WHERE g.id=$1 AND m.tree_id=$2",
+    [quarantined.id, trees[0]],
+  );
+  if (!replacement.rowCount) throw Error("Replacement missing ownership");
+  for (const section of ["events", "gallery"]) {
+    run(openEditor, app, section);
+    await db.query(
+      "UPDATE tree_memberships SET role='viewer' WHERE tree_id=$1 AND user_id=$2",
+      [trees[0], user],
+    );
+    run(refreshDemotedEditor, trees[0]);
+    await db.query(
+      "UPDATE tree_memberships SET role='editor' WHERE tree_id=$1 AND user_id=$2",
+      [trees[0], user],
+    );
+  }
+  const avatar = JSON.parse(
+    cli(
+      "run-code",
+      `async page => (${interruptAvatarSave.toString()})(page,${JSON.stringify(app)})`,
+    ),
+  );
+  if (!avatar.startsWith("/api/storage/"))
+    throw Error("Missing issued avatar URL");
+  await db.query(
+    "UPDATE tree_media SET cleanup_after=now() WHERE object_url=$1 AND tree_id=$2",
+    [avatar, trees[0]],
+  );
+  if ((await pruneTreeMedia(trees[0])).removed !== 1)
+    throw Error("Expected one reclaimed avatar");
+  run(retryPrunedAvatar);
+  const recovered = await db.query(
+    "SELECT FROM persons WHERE tree_id=$1 AND full_name='Ảnh sau khi dọn tệp' AND avatar_url=$2",
+    [trees[0], avatar],
+  );
+  if (recovered.rowCount !== 1)
+    throw Error("Expected one Person with the same restored object key");
+  console.log(
+    "Verified quarantined replacement, demotion of both open editors and same-file avatar recovery",
+  );
 } finally {
   try {
     cli("close");

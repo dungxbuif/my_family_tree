@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/utils/auth/session";
 import { getBrowserTreeSelection } from "@/utils/auth/browser-tree-selection";
 import { familyPeople } from "./people";
+import { UnavailableImage } from "./media";
 import { FamilyDataError, forbidden } from "./records";
 
 async function selected() {
@@ -31,7 +32,7 @@ export async function changeFamily<T extends object>(
   operation: () => Promise<T>,
 ): Promise<
   | ({ success: true; error?: undefined } & T)
-  | { error: string; success?: undefined }
+  | { error: string; code?: "MEDIA_UNAVAILABLE"; success?: undefined }
 > {
   try {
     const result = await operation();
@@ -41,6 +42,9 @@ export async function changeFamily<T extends object>(
     return { success: true, ...result };
   } catch (err) {
     return {
+      ...(err instanceof UnavailableImage
+        ? { code: "MEDIA_UNAVAILABLE" as const }
+        : {}),
       error:
         err instanceof FamilyDataError
           ? err.message

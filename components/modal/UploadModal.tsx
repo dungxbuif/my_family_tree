@@ -1,5 +1,7 @@
 "use client";
 
+import { useCollectionDialog } from "@/hooks/useCollectionDialog";
+
 import { currentHistoryIndex, useUnsavedNavigation,useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
 import { uploadGalleryItem } from "@/app/actions/gallery";
 import { uploadImage } from "@/utils/storage/client";
@@ -84,7 +86,7 @@ export default function UploadModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!initialData && !file) {
+    if (!initialData?.image_url && !file) {
       setError("Vui lòng chọn ảnh.");
       return;
     }
@@ -116,6 +118,8 @@ export default function UploadModal({
         throw new Error(result.error);
       }
 
+      if (document.documentElement.dataset.staleTreeDraft) return;
+
       // Success
       resetForm();
       onSuccess();
@@ -144,8 +148,9 @@ export default function UploadModal({
     onClose();
   };
 
+  const dialog = useCollectionDialog(isOpen,handleClose);
   const inputClasses =
-    "min-h-11 min-w-0 bg-surface text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
+    "min-h-11 min-w-0 bg-surface text-foreground placeholder-secondary block w-full rounded-xl border border-border shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-surface text-sm px-4 py-3 transition-all outline-none!";
 
   return (
     <AnimatePresence>
@@ -155,7 +160,7 @@ export default function UploadModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40"
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-primary-dark/40"
         >
           {/* Click-away backdrop */}
           <div
@@ -169,15 +174,16 @@ export default function UploadModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.96, opacity: 0, y: 15 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
+            ref={dialog} tabIndex={-1}
             role="dialog" aria-modal="true" aria-label="Hình ảnh"
-            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
+            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-border"
           >
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
               <button
                 onClick={handleClose}
                 disabled={isUploading || stale}
-                className="size-11 flex items-center justify-center bg-stone-100/80 text-stone-600 rounded-full hover:bg-stone-200 hover:text-stone-900 shadow-sm border border-stone-200/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="size-11 flex items-center justify-center bg-[var(--gp-surface-muted)]/80 text-secondary rounded-full hover:bg-[var(--gp-surface-muted)] hover:text-foreground shadow-sm border border-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Đóng"
               >
                 <X className="size-5" />
@@ -185,7 +191,7 @@ export default function UploadModal({
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-8 pt-16 pb-8">
-              <h2 className="text-xl font-serif font-bold text-stone-800 mb-6">
+              <h2 className="text-xl font-serif font-bold text-foreground mb-6">
                 {initialData
                   ? "Chỉnh sửa hình ảnh"
                   : "Thêm vào Phòng trưng bày"}
@@ -203,7 +209,7 @@ export default function UploadModal({
                 {/* Image Upload Area */}
                 <div
                   className={`border-2 border-dashed rounded-2xl p-8 text-center transition-colors cursor-pointer
-                    ${preview ? "border-stone-200 bg-stone-50" : "border-stone-300 hover:border-pink-400 hover:bg-pink-50/50"}`}
+                    ${preview ? "border-border bg-neutral" : "border-border hover:border-primary hover:bg-[var(--gp-accent-gold-soft)]/50"}`}
                   role={preview ? undefined : "button"}
                   tabIndex={preview ? undefined : 0}
                   aria-label={preview ? undefined : "Chọn ảnh để tải lên"}
@@ -231,21 +237,21 @@ export default function UploadModal({
                           setPreview(null);
                         }}
                         aria-label="Chọn ảnh khác"
-                        className="min-w-11 min-h-11 absolute top-2 right-2 p-1.5 bg-surface text-stone-700 hover:text-rose-600 rounded-full shadow-md"
+                        className="min-w-11 min-h-11 absolute top-2 right-2 p-1.5 bg-surface text-foreground hover:text-tertiary rounded-full shadow-md"
                       >
                         <X className="size-4" />
                       </button>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="p-4 bg-stone-100 rounded-full text-stone-400">
+                      <div className="p-4 bg-[var(--gp-surface-muted)] rounded-full text-secondary">
                         <UploadCloud className="size-8" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-stone-700">
+                        <p className="text-sm font-medium text-foreground">
                           Kéo thả ảnh vào đây, hoặc click để chọn
                         </p>
-                        <p className="text-xs text-stone-500 mt-1">
+                        <p className="text-xs text-secondary mt-1">
                           JPG, PNG, GIF, WebP · Tối đa 10 MiB
                         </p>
                       </div>
@@ -270,9 +276,9 @@ export default function UploadModal({
                 {/* Fields */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Tiêu đề ảnh / Sự kiện{" "}
-                      <span className="text-red-500">*</span>
+                      <span className="text-error">*</span>
                     </label>
                     <input
                       type="text"
@@ -285,7 +291,7 @@ export default function UploadModal({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Ngày diễn ra
                     </label>
                     <input
@@ -297,7 +303,7 @@ export default function UploadModal({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Nội dung kỷ niệm
                     </label>
                     <textarea
@@ -310,7 +316,7 @@ export default function UploadModal({
                   </div>
                 </div>
 
-                <div className="pt-4 flex flex-wrap justify-end gap-3 border-t border-stone-100">
+                <div className="pt-4 flex flex-wrap justify-end gap-3 border-t border-border">
                   <button
                     type="button"
                     onClick={handleClose}
@@ -322,7 +328,7 @@ export default function UploadModal({
                   <button
                     type="submit"
                     form="upload-form"
-                    disabled={stale || isUploading || (!initialData && !file) || !title}
+                    disabled={stale || isUploading || (!initialData?.image_url && !file) || !title}
                     className="btn-primary flex items-center gap-2"
                   >
                     {isUploading ? (

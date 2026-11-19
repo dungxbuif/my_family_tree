@@ -128,11 +128,20 @@ selecting a recovery point.
 
 ## Media ownership at cutover
 
-Keep the bucket private. Migration `20261119110000` records the owning Family Tree of each existing application storage URL from its Gallery or Person row. It preserves object paths and rejects the entire transaction if two trees claim one legacy URL. Resolve a collision by verifying the original owners, copying the object to a distinct private key for each authorized tree, and updating the corresponding references before rerunning the migration. External Gallery URLs require re-uploading through the application.
+Keep the bucket private. Migration `20261119110000` adopts single-tree references matching the old signer's UUIDv4 image names or 64-character lowercase digest avatar names, under `avatars/` or `gallery/` with an empty or literal `family-tree/` prefix. Multiple claims, external URLs and unrecognized paths retain their original metadata for operator review. The Gallery shows an unavailable-image placeholder. An Owner or Editor can replace the image through a verified upload or delete the metadata.
+
+Migration `20261119111000` removes unverified claims from installations that ran the earlier preview migration. Preview-era scoped keys have no durable issuer provenance. The upgrade quarantines those rows, preserving the underlying private bucket objects and Gallery records. New objects record their signed size and durable cleanup state. To identify Gallery records requiring repair, run:
+
+```sql
+SELECT g.tree_id,g.id,g.title FROM gallery_items g
+LEFT JOIN tree_media m ON m.tree_id=g.tree_id AND m.object_url=g.image_url AND m.folder='gallery'
+WHERE m.object_url IS NULL;
+```
+
 
 Invalidate existing CDN/proxy caches for `/api/storage/*` at cutover. Previously distributed immutable responses may remain in browser caches until their original expiry. New reads require the active account's current Tree Membership and selected tree and return `private, no-store`.
 
-New uploads receive five-minute, checksum-bound PUT URLs. An image becomes readable when its tree attaches it to a Person or Gallery item. Removing the final reference makes the proxy deny reads immediately. A 24-hour grace period from the latest signature protects in-flight uploads and retries. Upload traffic collects expired unreferenced objects in the current tree. To reclaim storage for idle or deleted trees, run the following maintenance command with the application's database and bucket credentials. It can be retried after a database or storage outage.
+New uploads receive five-minute, checksum-bound PUT URLs. An image becomes readable when its tree attaches it to a Person or Gallery item. Removing the final reference makes the proxy deny reads immediately. A 24-hour grace period from the latest signature protects in-flight uploads and retries. Upload traffic collects expired unreferenced objects in the current tree. To reclaim storage for idle or deleted trees, run the following maintenance command with the application's database and bucket credentials. Each deletion gets an independent database claim. Bucket I/O runs outside the transaction and has a 15-second deadline. A failed deletion records its retry count and yields to other objects for five minutes. A worker can reclaim an abandoned claim after ten minutes.
 
 ```sh
 bun /app/scripts/prune-tree-media.js

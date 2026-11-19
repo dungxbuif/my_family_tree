@@ -132,12 +132,7 @@ try {
     restoreDirtyTree,
   ]) {
     try {
-      const live =
-        check === recoverAvatarPut &&
-        process.env.FAMILY_TREE_TEST_LIVE_S3 === "1";
-      const code = live
-        ? `async page => (${check.toString()})(page,true)`
-        : check.toString();
+      const code = check.toString();
       review[check.name] = JSON.parse(cli("run-code", code));
     } catch (e) {
       review[check.name] = String(e.stdout ?? e.message).slice(-400);

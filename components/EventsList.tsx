@@ -134,27 +134,27 @@ function EventCard({
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleClick(); } }}
       onClick={handleClick}
       className={`w-full text-left flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] hover:shadow-md group ${isToday
-        ? "bg-amber-50 border-amber-300 shadow-sm"
+        ? "bg-[var(--gp-accent-gold-soft)] border-primary shadow-sm"
         : isPast
-          ? "bg-stone-50/60 border-stone-200/50"
+          ? "bg-neutral/60 border-border"
           : isBirthday
-            ? "bg-surface border-stone-200/60 hover:border-primary"
+            ? "bg-surface border-border hover:border-primary"
             : isCustom
-              ? "bg-surface border-stone-200/60 hover:border-primary"
-              : "bg-surface border-stone-200/60 hover:border-rose-200"
+              ? "bg-surface border-border hover:border-primary"
+              : "bg-surface border-border hover:border-primary"
         }`}
     >
       {/* Icon */}
       <div
         className={`shrink-0 size-10 sm:size-11 flex items-center justify-center rounded-xl ${isToday
-          ? "bg-amber-100 text-amber-600"
+          ? "bg-[var(--gp-accent-gold-soft)] text-foreground"
           : isPast
-            ? "bg-stone-100 text-stone-400"
+            ? "bg-[var(--gp-surface-muted)] text-secondary"
             : isBirthday
               ? "bg-primary-soft text-primary"
               : isCustom
-                ? "bg-amber-50 text-tertiary"
-                : "bg-rose-50 text-rose-500"
+                ? "bg-[var(--gp-accent-gold-soft)] text-foreground"
+                : "bg-[var(--gp-accent-gold-soft)] text-foreground"
           }`}
       >
         {isBirthday ? (
@@ -172,8 +172,8 @@ function EventCard({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <p
             className={`font-semibold text-[15px] sm:text-base [overflow-wrap:anywhere] transition-colors ${isPast
-              ? "text-stone-500"
-              : "text-stone-800 group-hover:text-amber-700"
+              ? "text-secondary"
+              : "text-foreground group-hover:text-primary"
               }`}
           >
             {event.personName}
@@ -189,18 +189,18 @@ function EventCard({
           {/* Days badge — inline with name */}
           <span
             className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-bold leading-tight whitespace-nowrap ${isToday
-              ? "bg-amber-400 text-white"
+              ? "bg-tertiary text-surface"
               : isPast
-                ? "bg-stone-200/80 text-stone-500"
+                ? "bg-[var(--gp-surface-muted)]/80 text-secondary"
                 : isSoon
-                  ? "bg-red-100 text-red-600"
-                  : "bg-stone-100 text-stone-500"
+                  ? "bg-error/10 text-error"
+                  : "bg-[var(--gp-surface-muted)] text-secondary"
               }`}
           >
             {isToday && (
               <span className="relative flex size-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-200 opacity-75" />
-                <span className="relative inline-flex rounded-full size-1.5 bg-white" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--gp-accent-gold-soft)] opacity-75" />
+                <span className="relative inline-flex rounded-full size-1.5 bg-surface" />
               </span>
             )}
             {!isToday && <Clock className="size-2.5" />}
@@ -210,20 +210,20 @@ function EventCard({
 
         {/* Details */}
         <div className="flex flex-col gap-0.5 mt-1">
-          <p className="text-[13px] sm:text-sm text-stone-500 flex items-center gap-1.5 leading-snug">
+          <p className="text-[13px] sm:text-sm text-secondary flex items-center gap-1.5 leading-snug">
             <CalendarDays className="size-3.5 shrink-0" />
-            <span className="font-medium text-stone-600">{dateLabel}</span>
-            {yearsInfo && <span className="text-stone-400">· {yearsInfo}</span>}
+            <span className="font-medium text-secondary">{dateLabel}</span>
+            {yearsInfo && <span className="text-secondary">· {yearsInfo}</span>}
           </p>
 
           {event.location && (
-            <p className="text-[13px] sm:text-sm text-stone-500 flex items-center gap-1.5 leading-snug">
+            <p className="text-[13px] sm:text-sm text-secondary flex items-center gap-1.5 leading-snug">
               <MapPin className="size-3.5 shrink-0" />
               <span className="min-w-0 break-words">{event.location}</span>
             </p>
           )}
           {event.content && (
-            <p className="text-[13px] sm:text-sm text-stone-400 flex items-start gap-1.5 leading-snug mt-0.5">
+            <p className="text-[13px] sm:text-sm text-secondary flex items-start gap-1.5 leading-snug mt-0.5">
               <AlignLeft className="size-3.5 shrink-0 mt-0.5" />
               <span className="min-w-0 break-words">{event.content}</span>
             </p>
@@ -336,38 +336,38 @@ export default function EventsList({
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-white border border-stone-200/60 shadow-sm hover:shadow-stone-100 hover:border-stone-400 transition-all duration-300 mb-8 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6"
+        className="relative overflow-hidden rounded-3xl bg-surface border border-border shadow-sm hover:shadow-sm hover:border-border transition-all duration-300 mb-8 p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6"
       >
         {/* Subtle background flair */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none opacity-50"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--gp-accent-gold-soft)]/50 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none opacity-50"></div>
 
         <div className="relative flex items-center gap-4 sm:gap-6">
-          <div className="size-16 rounded-2xl bg-stone-50 flex items-center justify-center shrink-0 border border-stone-100 shadow-sm text-stone-600">
+          <div className="size-16 rounded-2xl bg-neutral flex items-center justify-center shrink-0 border border-border shadow-sm text-secondary">
             <CalendarDays className="size-8" />
           </div>
           <div>
-            <p className="text-xl sm:text-2xl font-bold text-stone-800 tracking-tight">
+            <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
               {todayDate.solar}
             </p>
             {todayDate.lunar && (
-              <div className="mt-2.5 inline-flex flex-wrap items-center gap-2 px-3.5 py-1 rounded-full bg-stone-50 border border-stone-100">
-                <span className="text-xs font-medium text-stone-500 uppercase tracking-wider">
+              <div className="mt-2.5 inline-flex flex-wrap items-center gap-2 px-3.5 py-1 rounded-full bg-neutral border border-border">
+                <span className="text-xs font-medium text-secondary uppercase tracking-wider">
                   Âm lịch:
                 </span>
-                <span className="text-sm font-semibold text-stone-700">
+                <span className="text-sm font-semibold text-foreground">
                   {todayDate.lunar}
                 </span>
               </div>
             )}
             {(todayCount > 0 || soonCount > 0) && (
-              <p className="text-sm text-stone-500 mt-3 flex items-start sm:items-center gap-2.5 font-medium">
+              <p className="text-sm text-secondary mt-3 flex items-start sm:items-center gap-2.5 font-medium">
                 <span className="relative flex size-2.5 shrink-0 mt-1 sm:mt-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full size-2.5 bg-amber-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full size-2.5 bg-tertiary"></span>
                 </span>
                 <span className="flex flex-wrap items-center gap-1.5">
                   {todayCount > 0 && (
-                    <span className="font-semibold text-stone-700">
+                    <span className="font-semibold text-foreground">
                       {todayCount} sự kiện hôm nay
                     </span>
                   )}
@@ -387,7 +387,7 @@ export default function EventsList({
           onClick={handleOpenCreateModal}
           className="btn-primary relative z-10 w-full sm:w-auto"
         >
-          <Plus className="size-5 text-stone-300" />
+          <Plus className="size-5 text-surface" />
           <span>Thêm sự kiện</span>
         </button> : <span className="text-secondary">Chỉ xem</span>}
       </motion.div>
@@ -413,15 +413,15 @@ export default function EventsList({
               }}
               className={`min-h-11 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${filter === tab.key
                 ? filter === "past"
-                  ? "bg-stone-600 text-white shadow-sm"
-                  : "bg-primary text-white shadow-sm"
-                : "bg-surface text-stone-600 border border-stone-200/60 hover:border-amber-200 hover:text-amber-700"
+                  ? "bg-primary text-surface shadow-sm"
+                  : "bg-primary text-surface shadow-sm"
+                : "bg-surface text-secondary border border-border hover:border-primary hover:text-tertiary"
                 }`}
             >
               {tab.label}
             </button>
           ))}
-          <span className="ml-auto text-xs text-stone-400 self-center">
+          <span className="ml-auto text-xs text-secondary self-center">
             {filtered.length} sự kiện{filter === "past" ? " trong năm qua" : ""}
           </span>
         </div>
@@ -429,12 +429,12 @@ export default function EventsList({
         {/* Toggle options — hide when viewing past events */}
         {filter !== "past" && (
           <div className="flex px-1">
-            <label className="min-h-11 flex items-center gap-2.5 text-sm font-medium text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+            <label className="min-h-11 flex items-center gap-2.5 text-sm font-medium text-secondary cursor-pointer hover:text-foreground transition-colors select-none">
               <input
                 type="checkbox"
                 checked={showDeceasedBirthdays}
                 onChange={(e) => setShowDeceasedBirthdays(e.target.checked)}
-                className="rounded-md border-stone-300 text-amber-500 focus:ring-amber-500 size-4 transition-all"
+                className="rounded-md border-border text-tertiary focus:ring-primary size-4 transition-all"
               />
               Hiển thị sinh nhật của người đã mất
             </label>
@@ -444,7 +444,7 @@ export default function EventsList({
 
       {/* Event list */}
       {visible.length === 0 ? (
-        <div className="text-center py-16 text-stone-400">
+        <div className="text-center py-16 text-secondary">
           <CalendarDays className="size-10 mx-auto mb-3 opacity-40" />
           <p className="font-medium">Không có sự kiện nào</p>
           <p className="text-sm mt-1">
@@ -474,13 +474,13 @@ export default function EventsList({
         </button>
       )}
 
-      <CustomEventModal
+      {canEdit && isModalOpen && <CustomEventModal
         treeId={treeId}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleModalSuccess}
         eventToEdit={editingCustomEvent}
-      />
+      />}
     </div>
   );
 }

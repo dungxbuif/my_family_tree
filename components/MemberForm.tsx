@@ -311,19 +311,20 @@ export default function MemberForm({
     }
 
     try {
-      let uploadedAvatarUrl = avatarUrl;
-      if (avatarFile) {
+      const uploadedUrl = async () => {
+        if (!avatarFile) return avatarUrl;
         if (uploadedAvatar.current?.file !== avatarFile) {
           uploadedAvatar.current = { file: avatarFile, upload: uploadImage(avatarFile, "avatars", { treeId, submissionId: submissionId() }) };
         }
         const pending = uploadedAvatar.current;
         try {
-          uploadedAvatarUrl = await pending.upload;
+          return await pending.upload;
         } catch (err) {
           if (uploadedAvatar.current === pending) uploadedAvatar.current = null;
           throw err;
         }
-      }
+      };
+      const uploadedAvatarUrl = await uploadedUrl();
       const formData = new FormData();
       formData.set("treeId", treeId);
       if (!initialData?.id) formData.set("submissionId", submissionId());
@@ -357,9 +358,17 @@ export default function MemberForm({
         formData.append("current_residence", currentResidence);
       }
 
-      const result = await saveMember(formData);
+      let result = await saveMember(formData);
+      if (!result.success && result.code === "MEDIA_UNAVAILABLE" && avatarFile && !document.documentElement.dataset.staleTreeDraft) {
+        // A previously accepted PUT may have expired while the draft was open.
+        uploadedAvatar.current = null;
+        formData.set("avatar_url",await uploadedUrl());
+        if (document.documentElement.dataset.staleTreeDraft) return;
+        result = await saveMember(formData);
+      }
 
       if (!result.success) {
+        if (result.code === "MEDIA_UNAVAILABLE") uploadedAvatar.current = null;
         throw new Error(result.error);
       }
 

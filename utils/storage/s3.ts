@@ -142,13 +142,18 @@ function objectKey(url: string) {
   if (!url.startsWith("/api/storage/")) throw new Error("Ảnh không hợp lệ.");
   return url.slice("/api/storage/".length);
 }
-export async function requireUploadedImage(url: string) {
+export async function requireUploadedImage(
+  url: string,
+  expectedBytes: number | null,
+) {
   const { bucket, client } = config();
   const result = await client.send(
     new HeadObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
+    { abortSignal: AbortSignal.timeout(5000) },
   );
   if (
     !result.ContentLength ||
+    (expectedBytes !== null && result.ContentLength !== expectedBytes) ||
     result.ContentLength > maxBytes ||
     !result.ContentType ||
     !Object.hasOwn(types, result.ContentType) ||
@@ -158,6 +163,25 @@ export async function requireUploadedImage(url: string) {
 }
 export async function readObject(url: string, range?: string) {
   const { bucket, client } = config();
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (match && (match[1] || match[2])) {
+      const head = await client.send(
+        new HeadObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
+      );
+      const size = head.ContentLength;
+      if (size === undefined || size > maxBytes)
+        throw new Error("Ảnh không hợp lệ.");
+      const start = match[1]
+        ? Number(match[1])
+        : Math.max(0, size - Number(match[2]));
+      const end =
+        match[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+      if (start > end || start >= size)
+        return { unsatisfied: true as const, size };
+      range = `bytes=${start}-${end}`;
+    } else range = undefined;
+  }
   const result = await client.send(
     new GetObjectCommand({ Bucket: bucket, Key: objectKey(url), Range: range }),
   );
@@ -176,14 +200,16 @@ export async function readObject(url: string, range?: string) {
     throw new Error("Ảnh không hợp lệ.");
   }
   return {
+    unsatisfied: false as const,
     body: await result.Body.transformToByteArray(),
     contentType,
     contentRange: result.ContentRange,
   };
 }
-export async function deleteObject(url: string) {
+export async function deleteObject(url: string, signal = AbortSignal.timeout(15000)) {
   const { bucket, client } = config();
   await client.send(
     new DeleteObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
+    { abortSignal: signal },
   );
 }

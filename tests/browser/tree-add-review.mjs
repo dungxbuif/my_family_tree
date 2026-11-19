@@ -130,15 +130,14 @@ export async function avatarRetry(page) {
     puts = 0,
     writes = 0;
   await page.route("**/api/uploads/presign", async (route) => {
-    const url = new URL("/fixture-avatar-" + ++uploads + ".png", page.url())
-      .href;
-    const signed = await route.fetch();
-    const payload = await signed.json();
-    await route.fulfill({ json: { ...payload, uploadUrl: url } });
+    uploads++;
+    await route.continue();
   });
-  await page.route("**/fixture-avatar-*.png", async (route) => {
-    if (route.request().method() === "PUT") puts++;
-    await route.fulfill({ status: 200, body: "" });
+  await page.route(/X-Amz-Signature=/i,async route=>{
+    if (route.request().method() !== "PUT") return route.continue();
+    puts++;
+    const result = await route.fetch();
+    await route.fulfill({response:result,headers:{...result.headers(),"access-control-allow-origin":"*"}});
   });
   await page.locator("input[type=file]").setInputFiles({
     name: "fixture.png",

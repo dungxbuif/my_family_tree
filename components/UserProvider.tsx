@@ -1,31 +1,29 @@
 "use client";
 
-import { Profile, AppUser } from "@/types";
+import { Profile, AppUser, TreeRole } from "@/types";
 import { createContext, useContext, ReactNode } from "react";
 
 interface UserState {
+  treeRole?: TreeRole;
   user: AppUser | null;
   profile: Profile | null;
-  isAdmin: boolean;
-  isEditor: boolean;
 }
 
 const UserContext = createContext<UserState | undefined>(undefined);
 
 export function UserProvider({
+  treeRole,
   children,
   user,
   profile,
 }: {
+  treeRole?: TreeRole;
   children: ReactNode;
   user: AppUser | null;
   profile: Profile | null;
 }) {
-  const isAdmin = profile?.role === "admin";
-  const isEditor = profile?.role === "editor" || isAdmin;
-
   return (
-    <UserContext.Provider value={{ user, profile, isAdmin, isEditor }}>
+    <UserContext.Provider value={{ treeRole, user, profile }}>
       {children}
     </UserContext.Provider>
   );

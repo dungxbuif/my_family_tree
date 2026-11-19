@@ -73,7 +73,7 @@ export default async function DashboardLayout({
 
   const selection = await getBrowserTreeSelection(user.id);
   return (
-    <UserProvider user={user} profile={profile}>
+    <UserProvider user={user} profile={profile} treeRole={selection.current?.role}>
       <TreeSelectionSync initialRevision={selection.revision} treeId={selection.current?.id} role={selection.current?.role} />
       <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
         <HeritageHeader />

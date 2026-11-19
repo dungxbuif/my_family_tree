@@ -45,3 +45,9 @@ test("recorded death facts override a stale living or unknown flag through GEDCO
     expect(persons[index]).toMatchObject({ ...fact, is_deceased: true });
   }
 });
+
+test("GEDCOM restore rejects a duplicated individual or a family with a missing individual",()=>{
+  for(const invalid of ["0 @I1@ INDI\n1 NAME Second","0 @F1@ FAM\n1 CHIL @missing@"]) {
+    expect(()=>parseGedcom("0 HEAD\n0 @I1@ INDI\n1 NAME First\n"+invalid+"\n0 TRLR")).toThrow();
+  }
+});

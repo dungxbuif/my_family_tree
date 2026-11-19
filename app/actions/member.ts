@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import type { Person } from "@/types";
 import {
   changePeople,
-  currentFamilyPage,
   currentPeople,
 } from "@/utils/family/browser";
 import { unavailable } from "@/utils/family/records";
@@ -22,9 +21,6 @@ export async function batchUpdateLineage(
     await (await currentPeople(treeId)).lineage(updates);
     return {};
   });
-}
-export async function getPersonSelectorList() {
-  return (await currentFamilyPage()).people.selector();
 }
 export async function searchMembers(
   query: string,

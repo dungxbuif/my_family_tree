@@ -319,6 +319,7 @@ export function parseGedcom(gedcom: string): {
   // Parse Individuals
   for (const record of records.filter((r) => r.type === "INDI")) {
     const uuid = generateUUID();
+    if (idMap.has(record.id)) throw Error("Tệp GEDCOM có mã thành viên trùng lặp.");
     idMap.set(record.id, uuid);
 
     let fullName = "Unknown";
@@ -449,7 +450,7 @@ export function parseGedcom(gedcom: string): {
         const tag = match[1];
         const refId = match[2];
         const uuid = idMap.get(refId);
-        if (!uuid) continue;
+        if (!uuid) throw Error("Tệp GEDCOM tham chiếu thành viên không tồn tại.");
 
         if (tag === "HUSB") husb = uuid;
         else if (tag === "WIFE") wife = uuid;
@@ -457,7 +458,8 @@ export function parseGedcom(gedcom: string): {
       }
     }
 
-    if (husb && wife && husb !== wife) {
+    if ((husb && husb === wife) || children.some(id => id === husb || id === wife)) throw Error("Quan hệ GEDCOM không hợp lệ.");
+    if (husb && wife) {
       relationships.push({
         type: "marriage",
         person_a: husb,

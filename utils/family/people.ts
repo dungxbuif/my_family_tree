@@ -6,10 +6,12 @@ import {
   FamilyDataError,
   forbidden,
   publicColumns,
+  ownedAvatar,
   requirePerson,
   unavailable,
   uuid,
 } from "./records";
+import { exportBackup, importBackup } from "./backup";
 import { familyMedia } from "./media";
 import { insertEdge, readFamily, type Edge } from "./relationships";
 import { validateLifeDates } from "./life-dates";
@@ -66,6 +68,21 @@ export function familyPeople(
   }
 
   return {
+    exportBackup: (root?: string) =>
+      access(false, (client, role) => {
+        if (role !== "owner") throw forbidden();
+        return exportBackup(client, treeId, root);
+      }),
+    importBackup: (input: unknown) =>
+      access(true, (client, role) => {
+        if (role !== "owner") throw forbidden();
+        return importBackup(client, treeId, input);
+      }).catch((error: unknown) => {
+        if (error instanceof FamilyDataError) throw error;
+        throw new FamilyDataError("Không thể phục hồi bản sao lưu.", {
+          cause: error,
+        });
+      }),
     ...familyMedia(actor, treeId, access),
     children: (draft: ChildrenDraft) =>
       access(true, (client) =>
@@ -93,8 +110,10 @@ export function familyPeople(
                 !["male", "female", "other"].includes(child.gender)
               )
                 throw new FamilyDataError("Thông tin con không hợp lệ.");
-              const birthYear = child.birthYear ? Number(child.birthYear) : null;
-              validateLifeDates({birth_year: birthYear});
+              const birthYear = child.birthYear
+                ? Number(child.birthYear)
+                : null;
+              validateLifeDates({ birth_year: birthYear });
               const {
                 rows: [row],
               } = await client.query(
@@ -213,7 +232,7 @@ export function familyPeople(
         async (client) =>
           (
             await client.query<PersonOption>(
-              "SELECT id,full_name,birth_year,gender,avatar_url,generation FROM persons WHERE tree_id=$1 ORDER BY birth_year,id",
+              `SELECT id,full_name,birth_year,gender,${ownedAvatar},generation FROM persons WHERE tree_id=$1 ORDER BY birth_year,id`,
               [treeId],
             )
           ).rows,

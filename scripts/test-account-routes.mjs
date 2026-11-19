@@ -97,6 +97,7 @@ try {
       "tests/account-routes.test.ts",
       "tests/tree-isolation.test.ts",
       "tests/secondary-tree-isolation.test.ts",
+      "tests/data-tools-isolation.test.ts",
     ],
     {
       env,

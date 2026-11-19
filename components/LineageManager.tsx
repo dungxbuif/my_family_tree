@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 
 interface LineageManagerProps {
+  treeId: string;
   persons: Person[];
   relationships: Relationship[];
 }
@@ -107,6 +108,7 @@ function computeGenerations(
       continue;
     }
 
+    if (gen > persons.length) throw new Error("Các quan hệ tạo vòng lặp thế hệ. Vui lòng kiểm tra lại.");
     genMap.set(id, gen);
 
     // Propagate to children
@@ -266,6 +268,7 @@ function computeBirthOrders(
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function LineageManager({
+  treeId,
   persons,
   relationships,
 }: LineageManagerProps) {
@@ -342,7 +345,7 @@ export default function LineageManager({
           is_in_law: u.new_is_in_law,
         }));
 
-      const result = await batchUpdateLineage(changedOnly, persons[0].tree_id);
+      const result = await batchUpdateLineage(changedOnly, treeId);
       if (result.error) throw new Error(result.error);
 
       setApplied(true);
@@ -359,7 +362,7 @@ export default function LineageManager({
     : (updates ?? []).slice(0, 20);
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 [&_button]:min-h-11 [&_button]:min-w-11">
       {/* Action buttons */}
       <div className="flex flex-col sm:flex-row gap-3">
         <button

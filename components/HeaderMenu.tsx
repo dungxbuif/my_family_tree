@@ -17,7 +17,7 @@ import LogoutButton from "./LogoutButton";
 import { useUser } from "./UserProvider";
 
 export default function HeaderMenu() {
-  const { user, profile, isAdmin } = useUser();
+  const { user, profile, treeRole } = useUser();
   const isSuperAdmin = profile?.is_active && profile.is_super_admin;
   const userEmail = user?.email;
   const [isOpen, setIsOpen] = useState(false);
@@ -116,8 +116,7 @@ export default function HeaderMenu() {
                 </a>
               )}
 
-              {isAdmin && (
-                <>
+              {(treeRole === "owner" || treeRole === "editor") && (
                   <Link
                     href="/dashboard/lineage"
                     onClick={() => setIsOpen(false)}
@@ -127,6 +126,8 @@ export default function HeaderMenu() {
                     Thứ tự gia phả
                   </Link>
 
+              )}
+              {treeRole === "owner" && (
                   <Link
                     href="/dashboard/data"
                     onClick={() => setIsOpen(false)}
@@ -135,7 +136,6 @@ export default function HeaderMenu() {
                     <Database className="size-4" />
                     Sao lưu & Phục hồi
                   </Link>
-                </>
               )}
 
               <div className="h-px bg-stone-100 my-1 mx-4" />

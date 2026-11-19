@@ -13,8 +13,8 @@ for suite in utils/auth/tree-access.test.ts tests/tree-isolation.test.ts tests/s
     echo "Production promotion requires a test report from $suite" >&2
     exit 1
   fi
-  if ! awk '/<testcase / { tests++ } /<skipped/ { skipped++ } END { exit !(tests > skipped) }' "$report"; then
-    echo "Production promotion requires executed tests in $suite" >&2
+  if ! awk '/<testcase / { tests++ } /<skipped/ { skipped++ } END { exit !(tests > 0 && skipped == 0) }' "$report"; then
+    echo "Production promotion requires all tests to execute in $suite" >&2
     exit 1
   fi
 done

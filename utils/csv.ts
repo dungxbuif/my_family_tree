@@ -1,149 +1,72 @@
-import { Person, Relationship } from "@/types";
 import JSZip from "jszip";
 import Papa from "papaparse";
+import type { Backup } from "./family/backup-format";
 
-const UTF8_BOM = "\uFEFF";
-
-
-interface PersonDetailsPrivateRow {
-  person_id: string;
-  phone_number: string | null;
-  occupation: string | null;
-  current_residence: string | null;
-}
-
-interface CustomEventRow {
-  id: string;
-  name: string;
-  content: string | null;
-  event_date: string;
-  location: string | null;
-  created_by: string | null;
-}
-
-export async function exportToCsvZip(data: {
-  persons: Partial<Person>[];
-  relationships: Partial<Relationship>[];
-  person_details_private?: PersonDetailsPrivateRow[];
-  custom_events?: CustomEventRow[];
-}): Promise<Blob> {
-  const personsCsv = UTF8_BOM + Papa.unparse(data.persons);
-  const relationshipsCsv = UTF8_BOM + Papa.unparse(data.relationships);
-
+const tables = [
+  "persons",
+  "relationships",
+  "person_details_private",
+  "custom_events",
+  "gallery_items",
+] as const;
+const typedFields = new Set([
+  "birth_year",
+  "birth_month",
+  "birth_day",
+  "death_year",
+  "death_month",
+  "death_day",
+  "death_lunar_year",
+  "death_lunar_month",
+  "death_lunar_day",
+  "generation",
+  "birth_order",
+  "is_deceased",
+  "is_in_law",
+]);
+export async function exportToCsvZip(
+  data: Pick<Backup, (typeof tables)[number]>,
+) {
   const zip = new JSZip();
-  zip.file("persons.csv", personsCsv);
-  zip.file("relationships.csv", relationshipsCsv);
-
-  if (data.person_details_private && data.person_details_private.length > 0) {
-    zip.file(
-      "person_details_private.csv",
-      UTF8_BOM + Papa.unparse(data.person_details_private),
-    );
-  }
-
-  if (data.custom_events && data.custom_events.length > 0) {
-    zip.file("custom_events.csv", UTF8_BOM + Papa.unparse(data.custom_events));
-  }
-
-  const zipBlob = await zip.generateAsync({ type: "blob" });
-  return zipBlob;
+  zip.file("manifest.json", JSON.stringify({ version: 4 }));
+  for (const table of tables)
+    zip.file(table + ".csv", "\uFEFF" + Papa.unparse<object>(data[table]));
+  return zip.generateAsync({ type: "blob" });
 }
-
-export async function parseCsvZip(zipBlob: Blob): Promise<{
-  persons: Partial<Person>[];
-  relationships: Partial<Relationship>[];
-  person_details_private?: PersonDetailsPrivateRow[];
-  custom_events?: CustomEventRow[];
-}> {
-  const zip = new JSZip();
-  const loadedZip = await zip.loadAsync(zipBlob);
-
-  const personsFile = loadedZip.file("persons.csv");
-  const relationshipsFile = loadedZip.file("relationships.csv");
-
-  if (!personsFile || !relationshipsFile) {
-    throw new Error(
-      "File ZIP không hợp lệ: thiếu persons.csv hoặc relationships.csv.",
-    );
-  }
-
-  const personsCsvRaw = await personsFile.async("text");
-  const relationshipsCsvRaw = await relationshipsFile.async("text");
-
-  const personsCsvStr = personsCsvRaw.startsWith(UTF8_BOM)
-    ? personsCsvRaw.slice(1)
-    : personsCsvRaw;
-  const relationshipsCsvStr = relationshipsCsvRaw.startsWith(UTF8_BOM)
-    ? relationshipsCsvRaw.slice(1)
-    : relationshipsCsvRaw;
-
-  const personsParsed = Papa.parse<Partial<Person>>(personsCsvStr, {
-    header: true,
-    skipEmptyLines: true,
-    dynamicTyping: true, // Tự động convert số và boolean
-  });
-
-  const relationshipsParsed = Papa.parse<Partial<Relationship>>(
-    relationshipsCsvStr,
-    {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true,
-    },
-  );
-
-  if (personsParsed.errors.length > 0) {
-    console.error("Lỗi parse persons.csv:", personsParsed.errors);
-  }
-
-  if (relationshipsParsed.errors.length > 0) {
-    console.error("Lỗi parse relationships.csv:", relationshipsParsed.errors);
-  }
-
-  const result: {
-    persons: Partial<Person>[];
-    relationships: Partial<Relationship>[];
-    person_details_private?: PersonDetailsPrivateRow[];
-    custom_events?: CustomEventRow[];
-  } = {
-    persons: personsParsed.data,
-    relationships: relationshipsParsed.data,
-  };
-
-  // Parse person_details_private.csv (optional, backward compat)
-  const privateFile = loadedZip.file("person_details_private.csv");
-  if (privateFile) {
-    const raw = await privateFile.async("text");
-    const privateCsvStr = raw.startsWith(UTF8_BOM) ? raw.slice(1) : raw;
-    const privateParsed = Papa.parse<PersonDetailsPrivateRow>(privateCsvStr, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true,
-    });
-    if (privateParsed.errors.length > 0) {
-      console.error(
-        "Lỗi parse person_details_private.csv:",
-        privateParsed.errors,
-      );
+export async function parseCsvZip(file: Blob) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const manifest = zip.file("manifest.json");
+  const version = manifest
+    ? JSON.parse(await manifest.async("text")).version
+    : 3;
+  if (manifest && version !== 4)
+    throw Error("Phiên bản CSV không được hỗ trợ.");
+  const result: Record<string, unknown> = { version };
+  for (const table of tables) {
+    const entry = zip.file(table + ".csv");
+    if (!entry) {
+      if (manifest || table === "persons" || table === "relationships")
+        throw Error("Thiếu " + table + ".csv trong bản sao lưu.");
+      continue;
     }
-    result.person_details_private = privateParsed.data;
-  }
-
-  // Parse custom_events.csv (optional, backward compat)
-  const eventsFile = loadedZip.file("custom_events.csv");
-  if (eventsFile) {
-    const raw = await eventsFile.async("text");
-    const eventsCsvStr = raw.startsWith(UTF8_BOM) ? raw.slice(1) : raw;
-    const eventsParsed = Papa.parse<CustomEventRow>(eventsCsvStr, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true,
-    });
-    if (eventsParsed.errors.length > 0) {
-      console.error("Lỗi parse custom_events.csv:", eventsParsed.errors);
+    const raw = (await entry.async("text")).replace(/^\uFEFF/, "");
+    if (!raw.trim()) {
+      result[table] = [];
+      continue;
     }
-    result.custom_events = eventsParsed.data;
+    const rows = Papa.parse(raw, {
+      header: true,
+      delimiter: ",",
+      skipEmptyLines: true,
+      dynamicTyping: (field) =>
+        typeof field === "string" &&
+        table === "persons" &&
+        typedFields.has(field),
+      transform: (value) => (value === "" ? null : value),
+    });
+    if (rows.errors.length)
+      throw Error("Dữ liệu CSV không hợp lệ trong " + table + ".csv.");
+    result[table] = rows.data;
   }
-
   return result;
 }

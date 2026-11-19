@@ -15,7 +15,7 @@ Dự án này giúp gia đình bạn nắm trọn quyền kiểm soát dữ li�
 - **Quản lý thành viên**: Lưu trữ thông tin, avatar và sắp xếp thứ tự nhánh dòng họ.
 - **Lưu trữ nội bộ**: Tất cả dữ liệu và hình ảnh được lưu trữ trực tiếp trong cơ sở dữ liệu PostgreSQL và hệ thống tệp của bạn.
 - **Bảo mật**: Đăng nhập bằng tài khoản do Quản trị viên hệ thống cấp.
-- **Sao lưu & Phục hồi**: Xuất/nhập file JSON, CSV, GEDCOM dễ dàng.
+- **Sao lưu & Phục hồi**: Chủ sở hữu có thể xuất hoặc phục hồi cây đang chọn bằng JSON, CSV hoặc GEDCOM. [Định dạng và cách phục hồi](docs/runbooks/family-tree-backup.md)
 
 ## Giao diện responsive
 
@@ -73,6 +73,7 @@ Máy chạy kiểm thử cần Bun, npx và Google Chrome.
 bun scripts/test-tree-selector-browser.mjs
 bun scripts/test-tree-membership-browser.mjs
 bun scripts/test-tree-add-browser.mjs
+bun scripts/test-data-tools-browser.mjs
 ```
 
 Script tạo tài khoản và cây tạm thời, chạy Playwright CLI ở 320×568, 430×932

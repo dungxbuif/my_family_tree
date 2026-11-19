@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 export default async function KinshipPage() {
-  const { people } = await currentFamilyPage();
+  const { tree, people } = await currentFamilyPage();
   const { persons, relationships } = await people.graph();
 
   return (
@@ -19,7 +19,14 @@ export default async function KinshipPage() {
       </div>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1">
+        {persons.length < 2 && (
+          <p role="status">
+            Cần ít nhất hai thành viên trong cây gia phả để tra cứu.
+          </p>
+        )}
         <KinshipFinder
+          key={tree.id}
+          treeId={tree.id}
           persons={persons ?? []}
           relationships={relationships ?? []}
         />

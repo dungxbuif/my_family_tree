@@ -7,7 +7,13 @@ export const forbidden = () => new FamilyDataError("Từ chối truy cập.");
 export const unavailable = () =>
   new FamilyDataError("Không tìm thấy hồ sơ hoặc quan hệ trong cây gia phả.");
 export const uuid = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
-export const publicColumns = "tree_id," + tableColumns.persons.join(",");
+export const ownedAvatar =
+  "(SELECT m.object_url FROM tree_media m WHERE m.tree_id=persons.tree_id AND m.folder='avatars' AND m.object_url=persons.avatar_url AND m.cleanup_claim IS NULL) AS avatar_url";
+export const publicColumns =
+  "tree_id," +
+  tableColumns.persons
+    .map((k) => (k === "avatar_url" ? ownedAvatar : k))
+    .join(",");
 export async function requirePerson(
   client: PoolClient,
   tree: string,

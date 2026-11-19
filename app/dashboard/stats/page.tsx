@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 export default async function StatsPage() {
-  const { people } = await currentFamilyPage();
+  const { tree, people } = await currentFamilyPage();
   const { persons, relationships } = await people.graph();
 
   return (
@@ -14,11 +14,12 @@ export default async function StatsPage() {
       <div className="w-full relative z-20 py-6 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         <h1 className="title">Thống kê gia phả</h1>
         <p className="text-stone-500 mt-1 text-sm">
-          Tổng quan số liệu về các thành viên trong dòng họ
+          Toàn bộ cây gia phả · {tree.name}
         </p>
       </div>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1">
+        {persons.length === 0 && <p>Chưa có thành viên trong cây gia phả.</p>}
         <FamilyStats
           persons={persons ?? []}
           relationships={relationships ?? []}

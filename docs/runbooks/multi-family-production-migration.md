@@ -9,12 +9,12 @@ The first protected production tag must include the completed tree-context
 authorization and tree-scoped family writes, including imports, exports and
 private details. The protected-tag job `validate_tree_scope` runs
 `scripts/verify-tree-scope.sh` against an ephemeral migrated PostgreSQL
-database. It requires executed, passing suites at that same source commit.
+database, running application and private S3 test bucket. Every test in each of the four suites must run and pass at that source commit.
 
 - `utils/auth/tree-access.test.ts` checks current Tree Membership.
 - `tests/tree-isolation.test.ts` checks Person, private details and Relationship operations.
-- `tests/secondary-tree-isolation.test.ts` must cover Events, Gallery and Storage.
-- `tests/data-tools-isolation.test.ts` must cover data tools, including import and export.
+- `tests/secondary-tree-isolation.test.ts` checks Events, Gallery and Storage.
+- `tests/data-tools-isolation.test.ts` checks backup, restore, media ownership, rollback, statistics, lineage and kinship. [Tree backup format and restore procedure](family-tree-backup.md)
 
 The image build
 depends on this job, and ops promotion depends on the build. Keep the first

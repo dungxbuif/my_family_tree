@@ -108,6 +108,52 @@ test("Owner backup contains the selected genealogy, private facts and quarantine
     await expect(tools(0).exportBackup(id)).rejects.toThrow("Không tìm thấy");
 });
 
+test("legacy PostgreSQL event exports survive JSON and CSV ZIP restore with their calendar date", async () => {
+  const current = tools(0),
+    data = await current.exportBackup();
+  const { createServerDataClient } = await import("@/utils/db/table-client");
+  const prior = await createServerDataClient()
+    .from("custom_events")
+    .select("*")
+    .eq("id", data.custom_events[0].id);
+  const legacy = JSON.parse(
+    JSON.stringify({ ...data, version: 3, custom_events: prior.data }),
+  );
+  expect(legacy.custom_events[0].event_date).toMatch(/T.*Z$/);
+  await current.importBackup(legacy);
+  expect((await current.calendar())[0].event_date).toBe("2026-12-31");
+  const { default: JSZip } = await import("jszip");
+  const { default: Papa } = await import("papaparse");
+  const { parseCsvZip } = await import("@/utils/csv");
+  const zip = new JSZip();
+  for (const key of [
+    "persons",
+    "relationships",
+    "custom_events",
+    "person_details_private",
+  ])
+    zip.file(
+      key + ".csv",
+      "\uFEFF" +
+        Papa.unparse(key === "custom_events" ? prior.data : legacy[key]),
+    );
+  await current.importBackup(
+    await parseCsvZip(await zip.generateAsync({ type: "blob" })),
+  );
+  expect((await current.calendar())[0].event_date).toBe("2026-12-31");
+  await expect(
+    current.importBackup({
+      ...data,
+      custom_events: [
+        {
+          ...data.custom_events[0],
+          event_date: legacy.custom_events[0].event_date,
+        },
+      ],
+    }),
+  ).rejects.toThrow();
+});
+
 test("current Tree Membership independently authorizes full backups and replacements", async () => {
   for (const service of [tools(0, peer), tools(1)]) {
     await expect(service.exportBackup()).rejects.toThrow("Từ chối");
@@ -210,6 +256,23 @@ test("restore remaps foreign IDs with internal references, preserves local links
     ...other,
     timestamp: "",
   });
+  await db.query(
+    "UPDATE persons SET linked_user_id=$1 WHERE tree_id=$2 AND id=$3",
+    [owner, trees[0], parent.id],
+  );
+  await target.importBackup(incoming);
+  expect(
+    (
+      await db.query(
+        "SELECT linked_user_id FROM persons WHERE tree_id=$1 AND id=$2",
+        [trees[0], parent.id],
+      )
+    ).rows[0].linked_user_id,
+  ).toBe(owner);
+  await db.query(
+    "UPDATE persons SET linked_user_id=NULL WHERE tree_id=$1 AND id=$2",
+    [trees[0], parent.id],
+  );
   await target.importBackup(original);
   const local = await target.exportBackup();
   await db.query(
@@ -294,6 +357,12 @@ test("a local backup restores detached, live image bytes and quarantines media o
       restored.gallery_items.find((g) => g.title === "Foreign photo")
         ?.image_url,
     ).toBeNull();
+    await (await import("@/utils/storage/s3")).deleteObject(local);
+    await service.importBackup(restored);
+    const missing = (await service.exportBackup()).gallery_items.find(
+      (g) => g.title === "Restore photo",
+    );
+    expect(missing?.image_url).toBeNull();
     expect(JSON.stringify(restored)).not.toContain(other);
   } finally {
     const { deleteObject } = await import("@/utils/storage/s3");
@@ -303,6 +372,92 @@ test("a local backup restores detached, live image bytes and quarantines media o
     ]);
   }
 });
+
+test("slow storage verification is bounded and releases account and tree locks before rechecking Owner access", async () => {
+  const tree = (await createFamilyTree(owner, "Restore race", db)).tree!.id;
+  const family = familyPeople(owner, tree, db);
+  const original = await family.exportBackup();
+  const unlock = Promise.withResolvers<void>(),
+    fourRequests = Promise.withResolvers<void>();
+  let started = 0;
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch() {
+      if (++started === 4) fourRequests.resolve();
+      await unlock.promise;
+      return new Response(null, { status: 404 });
+    },
+  });
+  const endpoint = process.env.S3_ENDPOINT;
+  let pending: Promise<unknown> | undefined;
+  try {
+    process.env.S3_ENDPOINT = server.url.origin;
+    const gallery_items = Array.from({ length: 7 }, (_, i) => ({
+      id: randomUUID(),
+      title: "Test " + i,
+      image_url:
+        "/api/storage/family-tree/trees/" +
+        tree +
+        "/gallery/" +
+        randomUUID() +
+        ".png",
+      event_date: null,
+      description: null,
+    }));
+    await db.query(
+      "INSERT INTO tree_media(tree_id,folder,object_url,cleanup_after) SELECT $1,'gallery',url,now() FROM unnest($2::text[]) AS url",
+      [tree, gallery_items.map((g) => g.image_url)],
+    );
+    pending = family.importBackup({ ...original, gallery_items });
+    await Promise.race([
+      fourRequests.promise,
+      Bun.sleep(3500).then(() => {
+        throw Error("Four probes did not start");
+      }),
+    ]);
+    const lock = await db.connect();
+    try {
+      await lock.query("BEGIN");
+      await lock.query("SET LOCAL lock_timeout='500ms'");
+      const { accountAccessLock } = await import(
+        "@/utils/auth/account-access-lock"
+      );
+      await lock.query(accountAccessLock.exclusive);
+      await lock.query(
+        "SELECT id FROM family_trees WHERE id=$1 FOR UPDATE NOWAIT",
+        [tree],
+      );
+      await lock.query(
+        "INSERT INTO tree_memberships(tree_id,user_id,role) VALUES($1,$2,'owner')",
+        [tree, peer],
+      );
+      await lock.query(
+        "UPDATE tree_memberships SET role='viewer' WHERE tree_id=$1 AND user_id=$2",
+        [tree, owner],
+      );
+      await lock.query("COMMIT");
+    } finally {
+      await lock.query("ROLLBACK");
+      lock.release();
+    }
+    expect(started).toBe(4);
+    // Leave the HTTP server stalled. The shared five-second deadline ends the group.
+    await expect(pending).rejects.toThrow("Từ chối");
+    expect(started).toBe(4);
+    expect(
+      (await familyPeople(peer, tree, db).exportBackup()).gallery_items,
+    ).toEqual([]);
+  } finally {
+    unlock.resolve();
+    await pending?.catch(() => {});
+    if (endpoint === undefined) delete process.env.S3_ENDPOINT;
+    else process.env.S3_ENDPOINT = endpoint;
+    await server.stop(true);
+    await db.query("DELETE FROM tree_media WHERE tree_id=$1", [tree]);
+    await db.query("DELETE FROM family_trees WHERE id=$1", [tree]);
+  }
+}, 12000);
 
 test("invalid input and a database failure after replacement leave original rows intact", async () => {
   const service = tools(0),
@@ -350,6 +505,54 @@ test("invalid input and a database failure after replacement leave original rows
     timestamp: "",
   });
 });
+
+test("the bounded restore route accepts a large file and rejects oversize input before replacement", async () => {
+  const base = process.env.FAMILY_TREE_TEST_APP_URL!;
+  const original = await tools(0).exportBackup();
+  const post = (file: Blob, name: string, tree = trees[0]) => {
+    const form = new FormData();
+    form.set("backup", file, name);
+    form.set("confirmed", "replace");
+    return fetch(base + "/dashboard/data/restore?tree=" + tree, {
+      method: "POST",
+      headers: {
+        origin: base,
+        accept: "application/json",
+        cookie: `family_tree_session=${token}; family_tree_selected=${tree}`,
+      },
+      body: form,
+    });
+  };
+  const source = {
+    ...original,
+    persons: original.persons.map((p, i) => ({
+      ...p,
+      note: i === 0 ? "a".repeat(1150000) : p.note,
+    })),
+  };
+  expect(
+    (await post(new Blob([JSON.stringify(source)]), "large.json")).status,
+  ).toBe(200);
+  expect((await tools(0).exportBackup()).persons[0].note?.length).toBe(1150000);
+  const tooLarge = await post(
+    new Blob([new Uint8Array(8 * 1024 * 1024 + 1)]),
+    "oversize.json",
+  );
+  expect(tooLarge.status).toBe(413);
+  expect(await tooLarge.json()).toMatchObject({ code: "BACKUP_TOO_LARGE" });
+  expect(
+    (await post(new Blob(["0 @I1@ INDI\n1 FAMS @missing@"]), "truncated.ged"))
+      .status,
+  ).toBe(400);
+  expect((await tools(0).exportBackup()).relationships).toEqual(
+    original.relationships,
+  );
+  expect(
+    (await post(new Blob([JSON.stringify(source)]), "large.json", trees[1]))
+      .status,
+  ).toBe(403);
+  await tools(0).importBackup(original);
+}, 30000);
 
 test("selected production routes expose current role and scoped data", async () => {
   const base = process.env.FAMILY_TREE_TEST_APP_URL;

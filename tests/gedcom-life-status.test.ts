@@ -51,3 +51,10 @@ test("GEDCOM restore rejects a duplicated individual or a family with a missing 
     expect(()=>parseGedcom("0 HEAD\n0 @I1@ INDI\n1 NAME First\n"+invalid+"\n0 TRLR")).toThrow();
   }
 });
+
+test("a truncated GEDCOM cannot drop referenced families on restoration", () => {
+  for (const tag of ["FAMC", "FAMS"])
+    expect(() =>
+      parseGedcom("0 HEAD\n0 @I1@ INDI\n1 NAME An\n1 " + tag + " @F2@\n0 TRLR"),
+    ).toThrow();
+});

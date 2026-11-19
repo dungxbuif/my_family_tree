@@ -148,11 +148,12 @@ function objectKey(url: string) {
 export async function requireUploadedImage(
   url: string,
   expectedBytes: number | null,
+  signal = AbortSignal.timeout(5000),
 ) {
   const { bucket, client } = config();
   const result = await client.send(
     new HeadObjectCommand({ Bucket: bucket, Key: objectKey(url) }),
-    { abortSignal: AbortSignal.timeout(5000) },
+    { abortSignal: signal },
   );
   if (
     !result.ContentLength ||

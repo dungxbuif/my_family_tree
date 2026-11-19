@@ -8,7 +8,7 @@ import type {
   BackupPerson,
   BackupPrivate,
 } from "./backup-format";
-import { requireAttachment } from "./media";
+import { requireUploadedImage } from "@/utils/storage/s3";
 import type { UploadFolder } from "@/utils/storage/s3";
 import { backupFields, parseBackup } from "./backup-format";
 import { FamilyDataError, unavailable } from "./records";
@@ -112,57 +112,120 @@ function restoreId(
     hex.slice(20, 32),
   ].join("-");
 }
-async function restorableImages(
+type Candidate = {
+  object_url: string;
+  expected_bytes: number | null;
+  folder: UploadFolder;
+};
+type OwnerAccess = <T>(
+  write: boolean,
+  operation: (client: PoolClient) => Promise<T>,
+) => Promise<T>;
+type RestoreData = ReturnType<typeof parseBackup>;
+
+async function mediaCandidates(
   client: PoolClient,
   tree: string,
-  folder: UploadFolder,
-  incoming: (string | null)[],
-  attached: (string | null)[],
+  data: RestoreData,
 ) {
-  const candidates = [
-    ...new Set(incoming.filter((url): url is string => !!url)),
-  ];
-  const live = new Set(attached);
-  const { rows } = await client.query<{ object_url: string }>(
-    "SELECT object_url FROM tree_media WHERE tree_id=$1 AND folder=$2 AND object_url=ANY($3::text[]) AND cleanup_claim IS NULL ORDER BY object_url FOR SHARE",
-    [tree, folder, candidates],
+  const avatars = data.persons.flatMap((p) =>
+    p.avatar_url ? [p.avatar_url] : [],
   );
-  // Existing attachments remain under the tree lock. A detached object must
-  // still exist in the private bucket before a restore can attach it again.
-  for (const row of rows)
-    if (!live.has(row.object_url))
-      await requireAttachment(client, tree, folder, row.object_url);
-  return new Set(rows.map((row) => row.object_url));
+  const gallery = data.gallery_items.flatMap((g) =>
+    g.image_url ? [g.image_url] : [],
+  );
+  return (
+    await client.query<Candidate>(
+      "SELECT object_url,expected_bytes,folder FROM tree_media WHERE tree_id=$1 AND cleanup_claim IS NULL AND ((folder='avatars' AND object_url=ANY($2)) OR (folder='gallery' AND object_url=ANY($3)))",
+      [tree, avatars, gallery],
+    )
+  ).rows;
 }
+
+async function verifyImages(candidates: Candidate[]) {
+  const deadline = AbortSignal.timeout(5000);
+  const verified = new Set<string>();
+  const remaining = candidates.values();
+  async function work() {
+    for (const candidate of remaining) {
+      if (deadline.aborted) return;
+      try {
+        await requireUploadedImage(
+          candidate.object_url,
+          candidate.expected_bytes,
+          deadline,
+        );
+        verified.add(candidate.object_url);
+      } catch {
+        /* An unavailable object leaves the restored metadata without an attachment. */
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(4, candidates.length) }, work),
+  );
+  return verified;
+}
+
 export async function importBackup(
-  client: PoolClient,
+  access: OwnerAccess,
   tree: string,
   input: unknown,
 ) {
-  const data = parseBackup(input);
-  const current = await exportBackup(client, tree);
-  const linked = (
-    await client.query<{ id: string; linked_user_id: string }>(
-      "SELECT id,linked_user_id FROM persons WHERE tree_id=$1 AND linked_user_id IS NOT NULL",
+  const { data, candidates } = await access(false, async (client) => {
+    const data = parseBackup(input);
+    return { data, candidates: await mediaCandidates(client, tree, data) };
+  });
+  const verified = await verifyImages(candidates);
+  return access(true, (client) => replaceBackup(client, tree, data, verified));
+}
+
+async function replaceBackup(
+  client: PoolClient,
+  tree: string,
+  data: RestoreData,
+  verified: Set<string>,
+) {
+  // Reauthorize after network I/O and fence attachment against cleanup until commit.
+  const media = (
+    await client.query<Candidate>(
+      "SELECT object_url,folder FROM tree_media WHERE tree_id=$1 AND cleanup_claim IS NULL AND object_url=ANY($2) ORDER BY object_url FOR SHARE",
+      [tree, [...verified]],
+    )
+  ).rows;
+  const avatars = new Set(
+    media.filter((m) => m.folder === "avatars").map((m) => m.object_url),
+  );
+  const images = new Set(
+    media.filter((m) => m.folder === "gallery").map((m) => m.object_url),
+  );
+  const people = (
+    await client.query<{ id: string; linked_user_id: string | null }>(
+      "SELECT id,linked_user_id FROM persons WHERE tree_id=$1",
       [tree],
     )
   ).rows;
-  const links = new Map(linked.map((p) => [p.id, p.linked_user_id]));
+  const links = new Map(
+    people.flatMap((p) =>
+      p.linked_user_id ? [[p.id, p.linked_user_id] as const] : [],
+    ),
+  );
+  const localIds = async (
+    table: "relationships" | "custom_events" | "gallery_items",
+  ) =>
+    (
+      await client.query<{ id: string }>(
+        `SELECT id FROM ${table} WHERE tree_id=$1`,
+        [tree],
+      )
+    ).rows;
+  const current = {
+    persons: people,
+    relationships: await localIds("relationships"),
+    custom_events: await localIds("custom_events"),
+    gallery_items: await localIds("gallery_items"),
+  };
   const ids = new Map<string, string>();
-  const avatars = await restorableImages(
-    client,
-    tree,
-    "avatars",
-    data.persons.map((p) => p.avatar_url),
-    current.persons.map((p) => p.avatar_url),
-  );
-  const images = await restorableImages(
-    client,
-    tree,
-    "gallery",
-    data.gallery_items.map((g) => g.image_url),
-    current.gallery_items.map((g) => g.image_url),
-  );
   const remap = <T extends { id: string }>(
     table: "persons" | "relationships" | "custom_events" | "gallery_items",
     rows: T[],
@@ -181,12 +244,13 @@ export async function importBackup(
     ids.set(original, p.id);
     return {
       ...p,
-      linked_user_id: links.get(original) ?? null,
+      linked_user_id: links.get(p.id) ?? null,
       avatar_url:
         p.avatar_url && avatars.has(p.avatar_url) ? p.avatar_url : null,
     };
   });
-  if (linked.some((p) => !ids.has(p.id)))
+  const destinations = new Set(ids.values());
+  if ([...links.keys()].some((id) => !destinations.has(id)))
     throw new FamilyDataError(
       "Vui lòng hủy liên kết tài khoản trước khi thay thế hồ sơ.",
     );

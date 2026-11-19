@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { backupFileLimit, BackupTooLarge } from "./family/backup-limit";
 import Papa from "papaparse";
 import type { Backup } from "./family/backup-format";
 
@@ -28,17 +29,58 @@ export async function exportToCsvZip(
   data: Pick<Backup, (typeof tables)[number]>,
 ) {
   const zip = new JSZip();
-  zip.file("manifest.json", JSON.stringify({ version: 4 }));
-  for (const table of tables)
-    zip.file(table + ".csv", "\uFEFF" + Papa.unparse<object>(data[table]));
+  zip.file(
+    "manifest.json",
+    JSON.stringify({ version: 4, textEscaping: "apostrophe-v1" }),
+  );
+  for (const table of tables) {
+    const rows = data[table].map((row) =>
+      Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [
+          key,
+          typeof value === "string" && /^(?:'|[\t\r\n]|\s*[=+@＝＋＠－-])/.test(value)
+            ? "'" + value
+            : value,
+        ]),
+      ),
+    );
+    zip.file(table + ".csv", "\uFEFF" + Papa.unparse(rows));
+  }
   return zip.generateAsync({ type: "blob" });
 }
 export async function parseCsvZip(file: Blob) {
+  if (file.size > backupFileLimit) throw new BackupTooLarge();
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  let remaining = backupFileLimit;
+  // JSZip exposes a chunk stream on loaded entries. Bound the actual expanded
+  // bytes across all five tables and the manifest before creating CSV strings.
+  function read(entry: JSZip.JSZipObject) {
+    const stream = (
+      entry as JSZip.JSZipObject & {
+        internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array>;
+      }
+    ).internalStream("uint8array");
+    return new Promise<string>((resolve, reject) => {
+      const decoder = new TextDecoder(),
+        pieces: string[] = [];
+      stream
+        .on("data", (bytes) => {
+          remaining -= bytes.length;
+          if (remaining < 0) {
+            stream.pause();
+            reject(new BackupTooLarge());
+            return;
+          }
+          pieces.push(decoder.decode(bytes, { stream: true }));
+        })
+        .on("error", reject)
+        .on("end", () => resolve(pieces.join("") + decoder.decode()))
+        .resume();
+    });
+  }
   const manifest = zip.file("manifest.json");
-  const version = manifest
-    ? JSON.parse(await manifest.async("text")).version
-    : 3;
+  const metadata = manifest ? JSON.parse(await read(manifest)) : undefined;
+  const version = manifest ? metadata.version : 3;
   if (manifest && version !== 4)
     throw Error("Phiên bản CSV không được hỗ trợ.");
   const result: Record<string, unknown> = { version };
@@ -49,7 +91,7 @@ export async function parseCsvZip(file: Blob) {
         throw Error("Thiếu " + table + ".csv trong bản sao lưu.");
       continue;
     }
-    const raw = (await entry.async("text")).replace(/^\uFEFF/, "");
+    const raw = (await read(entry)).replace(/^\uFEFF/, "");
     if (!raw.trim()) {
       result[table] = [];
       continue;
@@ -62,7 +104,12 @@ export async function parseCsvZip(file: Blob) {
         typeof field === "string" &&
         table === "persons" &&
         typedFields.has(field),
-      transform: (value) => (value === "" ? null : value),
+      transform: (value) =>
+        value === ""
+          ? null
+          : metadata?.textEscaping === "apostrophe-v1" && value.startsWith("'")
+            ? value.slice(1)
+            : value,
     });
     if (rows.errors.length)
       throw Error("Dữ liệu CSV không hợp lệ trong " + table + ".csv.");

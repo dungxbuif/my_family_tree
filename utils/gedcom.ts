@@ -316,6 +316,18 @@ export function parseGedcom(gedcom: string): {
   }
   if (currentRecord) records.push(currentRecord);
 
+  const families = new Set(
+    records.filter((r) => r.type === "FAM").map((r) => r.id),
+  );
+  for (const record of records.filter((r) => r.type === "INDI")) {
+    for (const line of record.lines) {
+      if (!/^1\s+(?:FAMC|FAMS)(?:\s|$)/.test(line)) continue;
+      const pointer = /^1\s+(?:FAMC|FAMS)\s+@([^@]+)@$/.exec(line);
+      if (!pointer || !families.has(pointer[1]))
+        throw Error("Tệp GEDCOM tham chiếu gia đình không tồn tại.");
+    }
+  }
+
   // Parse Individuals
   for (const record of records.filter((r) => r.type === "INDI")) {
     const uuid = generateUUID();

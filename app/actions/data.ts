@@ -4,7 +4,6 @@ import { changeFamily, currentPeople } from "@/utils/family/browser";
 import type { EventDraft } from "@/utils/family/media";
 
 import { FamilyDataError } from "@/utils/family/records";
-import { revalidatePath } from "next/cache";
 
 export async function saveCustomEvent(draft: EventDraft, treeId: string) {
   return changeFamily("/dashboard/events", async () => ({
@@ -30,12 +29,4 @@ export async function exportData(treeId: string, root?: string) {
           : "Không thể xuất dữ liệu.",
     };
   }
-}
-
-export async function importData(treeId: string, input: unknown) {
-  return changeFamily("/dashboard/data", async () => {
-    const imported = await (await currentPeople(treeId)).importBackup(input);
-    revalidatePath("/dashboard", "layout");
-    return { imported };
-  });
 }

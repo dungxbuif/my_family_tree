@@ -24,6 +24,12 @@ export async function currentPeople(expected: unknown) {
   if (!current || expected !== current.tree.id) throw forbidden();
   return current.people;
 }
+export async function currentBackupOwner(expected: unknown) {
+  const current = await selected();
+  if (!current || expected !== current.tree.id || current.tree.role !== "owner")
+    throw forbidden();
+  return current.people;
+}
 export function changePeople<T extends object>(operation: () => Promise<T>) {
   return changeFamily("/dashboard/members", operation);
 }

@@ -67,17 +67,20 @@ export function familyPeople(
     }, database);
   }
 
+  function ownerAccess<T>(
+    write: boolean,
+    operation: (client: PoolClient) => Promise<T>,
+  ) {
+    return access(write, (client, role) => {
+      if (role !== "owner") throw forbidden();
+      return operation(client);
+    });
+  }
   return {
     exportBackup: (root?: string) =>
-      access(false, (client, role) => {
-        if (role !== "owner") throw forbidden();
-        return exportBackup(client, treeId, root);
-      }),
+      ownerAccess(false, (client) => exportBackup(client, treeId, root)),
     importBackup: (input: unknown) =>
-      access(true, (client, role) => {
-        if (role !== "owner") throw forbidden();
-        return importBackup(client, treeId, input);
-      }).catch((error: unknown) => {
+      importBackup(ownerAccess, treeId, input).catch((error: unknown) => {
         if (error instanceof FamilyDataError) throw error;
         throw new FamilyDataError("Không thể phục hồi bản sao lưu.", {
           cause: error,

@@ -44,3 +44,53 @@ test("corrupt CSV rows cannot be silently restored", async () => {
     parseCsvZip(await file.generateAsync({ type: "blob" })),
   ).rejects.toThrow();
 });
+
+test("spreadsheet formula prefixes and original apostrophes round-trip as text", async () => {
+  const samples = [
+    "=1+1",
+    " +12",
+    "-3",
+    "@example",
+    "＝1＋1",
+    "\t42",
+    "\r42",
+    "'=literal",
+    "'ordinary",
+    "plain",
+  ];
+  const gallery_items = samples.map((title) => ({
+    id: crypto.randomUUID(),
+    title,
+    description: title,
+    image_url: null,
+    event_date: null,
+  }));
+  const zip = await exportToCsvZip({
+    gallery_items,
+    persons: [],
+    relationships: [],
+    custom_events: [],
+    person_details_private: [],
+  });
+  const archive = await JSZip.loadAsync(await zip.arrayBuffer());
+  const text = await archive.file("gallery_items.csv")!.async("text");
+  const { default: Papa } = await import("papaparse");
+  const cells = Papa.parse<{ title: string }>(text, {
+    delimiter: ",",
+    header: true,
+  }).data.map((r) => r.title);
+  expect(cells).toEqual(samples.map((s) => (s === "plain" ? s : "'" + s)));
+  expect((await parseCsvZip(zip)).gallery_items).toEqual(gallery_items);
+});
+
+test("the CSV upload size limit also bounds expanded archive contents", async () => {
+  const zip = new JSZip();
+  zip.file("persons.csv", "note\n" + "a".repeat(8 * 1024 * 1024));
+  zip.file("relationships.csv", "");
+  const file = await zip.generateAsync({
+    type: "blob",
+    compression: "DEFLATE",
+  });
+  expect(file.size).toBeLessThan(1024 * 1024);
+  await expect(parseCsvZip(file)).rejects.toThrow("8 MiB");
+});

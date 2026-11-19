@@ -50,7 +50,10 @@ async function workflow(page, app, tree, width) {
     });
     if (bad.length) throw Error("Control geometry " + JSON.stringify(bad));
   };
-  await go("data");
+  await go("stats");
+  await page.getByRole("button", { name: "Mở menu tài khoản" }).click();
+  await page.getByRole("link", { name: "Sao lưu & Phục hồi" }).click();
+  await page.waitForURL("**/dashboard/data");
   await page.evaluate(
     (tree) => localStorage.removeItem("kinship:" + tree),
     tree,
@@ -70,6 +73,23 @@ async function workflow(page, app, tree, width) {
   await choose({ version: 999 });
   const dialog = page.getByRole("dialog", { name: "Xác nhận phục hồi" });
   await dialog.waitFor();
+  const colors = await dialog.evaluate((node) => {
+    const action = node.querySelector("button:not([type=button])");
+    const probe = document.createElement("span");
+    node.append(probe);
+    probe.style.backgroundColor = "var(--gp-status-error)";
+    const actionOk =
+      getComputedStyle(action).backgroundColor ===
+      getComputedStyle(probe).backgroundColor;
+    probe.style.backgroundColor =
+      "color-mix(in oklab,var(--gp-brand-primary-dark) 40%,transparent)";
+    const scrimOk =
+      getComputedStyle(node.parentElement).backgroundColor ===
+      getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return actionOk && scrimOk;
+  });
+  if (!colors) throw Error("Unexpected destructive action or scrim color");
   if (
     !(await page.evaluate(
       () =>
@@ -79,8 +99,30 @@ async function workflow(page, app, tree, width) {
     ))
   )
     throw Error("Missing unsaved navigation guard");
+  await page.evaluate(() => {
+    window.confirm = (message) => {
+      document.documentElement.dataset.restorePrompt = message;
+      return false;
+    };
+    history.back();
+  });
+  await page.waitForFunction(() =>
+    document.documentElement.dataset.restorePrompt?.includes("Hủy tệp"),
+  );
+  await page.waitForURL("**/dashboard/data");
+  await dialog.getByText("backup.json", { exact: true }).waitFor();
   await dialog.getByRole("button", { name: "Xác nhận thay thế" }).click();
   await dialog.getByRole("alert").waitFor();
+  await page.evaluate(() => {
+    window.confirm = () => true;
+    history.back();
+  });
+  await page.waitForURL("**/dashboard/stats");
+  await page.getByRole("button", { name: "Mở menu tài khoản" }).click();
+  await page.getByRole("link", { name: "Sao lưu & Phục hồi" }).click();
+  await page.waitForURL("**/dashboard/data");
+  await choose({ version: 999 });
+  await dialog.waitFor();
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "detached" });
   const a = "f0a46095-a516-4f49-91b6-000000000001",
@@ -88,7 +130,12 @@ async function workflow(page, app, tree, width) {
   await choose({
     version: 3,
     persons: [
-      { id: a, full_name: "Cha thử", gender: "male" },
+      {
+        id: a,
+        full_name: "Cha thử",
+        gender: "male",
+        note: "a".repeat(1200000),
+      },
       { id: b, full_name: "Con thử", gender: "female" },
     ],
     relationships: [{ person_a: a, person_b: b, type: "biological_child" }],
@@ -115,6 +162,41 @@ async function workflow(page, app, tree, width) {
   await page.getByRole("button", { name: /Con thử/ }).click();
   await page.getByText("Cha thử gọi Con thử là", { exact: true }).waitFor();
   await geometry();
+  const native = await page
+    .context()
+    .browser()
+    .newContext({ javaScriptEnabled: false, viewport: { width, height: 650 } });
+  try {
+    await native.addCookies(await page.context().cookies());
+    const form = await native.newPage();
+    await form.goto(app + "/dashboard/data");
+    await form
+      .locator("noscript input[type=file], form input[name=backup]")
+      .last()
+      .setInputFiles({
+        name: "native.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(
+          JSON.stringify({
+            version: 1,
+            persons: [
+              {
+                id: a,
+                full_name: "Native",
+                gender: "other",
+                note: "z".repeat(1200000),
+              },
+            ],
+            relationships: [],
+          }),
+        ),
+      });
+    await form.getByRole("checkbox").check();
+    await form.getByRole("button", { name: "Phục hồi tệp" }).click();
+    await form.getByText(/Đã phục hồi 1 thành viên/).waitFor();
+  } finally {
+    await native.close();
+  }
   return true;
 }
 try {
@@ -122,7 +204,7 @@ try {
     "WITH u AS(INSERT INTO users(id,email,password_hash) VALUES($1,$2,'test') RETURNING id) INSERT INTO profiles(id,is_active) SELECT id,true FROM u",
     [owner, owner + "@example.test"],
   );
-  tree = (await createFamilyTree(owner, "Sao lưu thử", db)).tree.id;
+  tree = (await createFamilyTree(owner, "B".repeat(120), db)).tree.id;
   await db.query(
     "INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '15 minutes')",
     [owner, createHash("sha256").update(token).digest("hex")],

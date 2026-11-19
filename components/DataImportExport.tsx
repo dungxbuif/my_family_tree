@@ -1,8 +1,12 @@
 "use client";
 
-import { exportData, importData } from "@/app/actions/data";
+import { exportData } from "@/app/actions/data";
 import type { PersonOption } from "@/types";
-import { useState, useRef } from "react";
+import {
+  backupFileLimit,
+  backupSizeMessage,
+} from "@/utils/family/backup-limit";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   currentHistoryIndex,
@@ -31,6 +35,57 @@ export default function DataImportExport({
   const router = useRouter();
   const stale = useStaleTreeDraft();
   useUnsavedNavigation(!!file, "Hủy tệp phục hồi đã chọn và rời trang?");
+  useEffect(() => {
+    if (!file) return;
+    let returning = false,
+      allowed = false;
+    const message = "Hủy tệp phục hồi đã chọn và rời trang?";
+    const navigation = (window as Window & { navigation?: EventTarget })
+      .navigation;
+    function navigate(input: Event) {
+      const event = input as Event & {
+        navigationType: string;
+        destination: { sameDocument: boolean; index: number };
+      };
+      if (
+        event.navigationType !== "traverse" ||
+        !event.destination.sameDocument ||
+        !event.cancelable ||
+        event.destination.index === entry ||
+        document.documentElement.dataset.staleTreeDraft
+      )
+        return;
+      if (busy || !window.confirm(message)) {
+        event.preventDefault();
+        return;
+      }
+      allowed = true;
+    }
+    navigation?.addEventListener("navigate", navigate);
+    function traverse(event: PopStateEvent) {
+      if (allowed || document.documentElement.dataset.staleTreeDraft) return;
+      const delta = entry - currentHistoryIndex();
+      if (!delta) {
+        if (returning) {
+          event.stopImmediatePropagation();
+          returning = false;
+        }
+        return;
+      }
+      if (busy || !window.confirm(message)) {
+        event.stopImmediatePropagation();
+        returning = true;
+        history.go(delta);
+      } else {
+        setFile(null);
+      }
+    }
+    window.addEventListener("popstate", traverse, true);
+    return () => {
+      navigation?.removeEventListener("navigate", navigate);
+      window.removeEventListener("popstate", traverse, true);
+    };
+  }, [file, busy, entry]);
   const dismiss = () => {
     if (!busy && !stale) {
       setFile(null);
@@ -75,19 +130,16 @@ export default function DataImportExport({
     setBusy("import");
     setError("");
     try {
-      const name = file.name.toLowerCase();
-      const data = name.endsWith(".zip")
-        ? await (await import("@/utils/csv")).parseCsvZip(file)
-        : name.endsWith(".ged")
-          ? {
-              version: 1,
-              ...(await import("@/utils/gedcom")).parseGedcom(
-                await file.text(),
-              ),
-            }
-          : JSON.parse(await file.text());
-      const result = await importData(treeId, data);
-      if (!result.success) throw Error(result.error);
+      const body = new FormData();
+      body.set("backup", file);
+      body.set("confirmed", "replace");
+      const response = await fetch(
+        "/dashboard/data/restore?tree=" + encodeURIComponent(treeId),
+        { method: "POST", headers: { accept: "application/json" }, body },
+      );
+      const result = await response.json();
+      if (!response.ok || !result.success)
+        throw Error(result.error || "Không thể phục hồi dữ liệu.");
       setStatus(
         `Đã phục hồi ${result.imported.persons} thành viên và ${result.imported.relationships} quan hệ.`,
       );
@@ -103,7 +155,7 @@ export default function DataImportExport({
     }
   }
   return (
-    <div className="grid min-w-0 gap-4 md:grid-cols-2">
+    <div className="backup-interactive grid min-w-0 gap-4 md:grid-cols-2">
       <section className="min-w-0 rounded-[20px] border border-border bg-surface p-4 shadow-soft [&_[role=listbox]]:min-w-0">
         <h2 className="mb-3 text-lg font-semibold">Sao lưu dữ liệu</h2>
         {persons.length === 0 && (
@@ -141,8 +193,8 @@ export default function DataImportExport({
       <section className="min-w-0 rounded-[20px] border border-border bg-surface p-4 shadow-soft [&_[role=listbox]]:min-w-0">
         <h2 className="mb-3 text-lg font-semibold">Phục hồi dữ liệu</h2>
         <p className="mb-4 text-secondary">
-          Chọn tệp JSON, CSV (Zip) hoặc GEDCOM. JSON và CSV phiên bản 4 chứa cả
-          thông tin riêng tư và thư viện ảnh.
+          Chọn tệp JSON, CSV (Zip) hoặc GEDCOM tối đa 8 MiB. JSON và CSV phiên
+          bản 4 chứa cả thông tin riêng tư và thư viện ảnh.
         </p>
         <input
           type="file"
@@ -153,6 +205,11 @@ export default function DataImportExport({
             const selected = e.currentTarget.files?.[0];
             e.currentTarget.value = "";
             if (!selected) return;
+            if (selected.size > backupFileLimit) {
+              setStatus("");
+              setError(backupSizeMessage);
+              return;
+            }
             setError("");
             setStatus("");
             if (!/\.(json|ged|zip)$/i.test(selected.name)) {
@@ -183,7 +240,7 @@ export default function DataImportExport({
         </p>
       )}
       {file && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-primary-dark/40 p-4">
           <div
             ref={dialog}
             role="dialog"
@@ -228,7 +285,7 @@ export default function DataImportExport({
                   Hủy bỏ
                 </button>
                 <button
-                  className="btn-primary"
+                  className="min-h-13 rounded-xl bg-error px-4 font-semibold text-white disabled:opacity-50"
                   disabled={!!busy || stale || !!status}
                 >
                   {busy === "import" ? "Đang phục hồi…" : "Xác nhận thay thế"}

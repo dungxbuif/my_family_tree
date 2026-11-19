@@ -113,6 +113,38 @@ function bool(value: unknown) {
   if (typeof value !== "boolean") throw bad();
   return value;
 }
+// The old PostgreSQL DATE reader serialized server-local midnight as a JS Date.
+function legacyEventDate(value: unknown) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+  )
+    return date(value);
+  const instant = new Date(value);
+  if (!Number.isFinite(instant.valueOf()) || instant.toISOString() !== value)
+    throw bad();
+  if (value.endsWith("T00:00:00.000Z")) return date(value.slice(0, 10));
+  if (
+    instant.getHours() === 0 &&
+    instant.getMinutes() === 0 &&
+    instant.getSeconds() === 0 &&
+    instant.getMilliseconds() === 0
+  ) {
+    return date(
+      [
+        String(instant.getFullYear()).padStart(4, "0"),
+        String(instant.getMonth() + 1).padStart(2, "0"),
+        String(instant.getDate()).padStart(2, "0"),
+      ].join("-"),
+    );
+  }
+  // An operator may move a Vietnamese installation to a server running in UTC.
+  if (value.endsWith("T17:00:00.000Z"))
+    return date(
+      new Date(instant.valueOf() + 7 * 3600000).toISOString().slice(0, 10),
+    );
+  throw bad();
+}
 function date(value: unknown) {
   const s = required(value);
   if (
@@ -254,7 +286,8 @@ export function parseBackup(input: unknown) {
     id: id(e.id),
     name: required(e.name),
     content: text(e.content),
-    event_date: date(e.event_date),
+    event_date:
+      version < 4 ? legacyEventDate(e.event_date) : date(e.event_date),
     location: text(e.location),
   }));
   const gallery_items = rows("gallery_items", true).map((g) => ({

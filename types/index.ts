@@ -5,6 +5,7 @@ export type RelationshipType =
   | "adopted_child";
 export type UserRole = "admin" | "editor" | "member";
 
+export const FAMILY_TREE_NAME_LIMIT = 120;
 export type TreeRole = "owner" | "editor" | "viewer";
 
 export interface FamilyTree {

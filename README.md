@@ -62,6 +62,22 @@ Lần đầu tiên chạy, bạn cần khởi tạo cấu trúc bảng:
 bash scripts/migrate-local-dev.sh
 ```
 
+### Kiểm thử trình chọn cây bằng Chrome
+
+Chạy ứng dụng với `DATABASE_URL` trỏ đến PostgreSQL kiểm thử đã áp dụng
+`docs/schema.sql`. Trong terminal thứ hai, đặt `FAMILY_TREE_TEST_DATABASE_URL`
+trỏ đến cùng cơ sở dữ liệu và `FAMILY_TREE_TEST_APP_URL` trỏ đến ứng dụng đó.
+Máy chạy kiểm thử cần Bun, npx và Google Chrome.
+
+```sh
+bun scripts/test-tree-selector-browser.mjs
+```
+
+Script tạo tài khoản và cây tạm thời, chạy Playwright CLI ở 320×568, 430×932
+và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm trong
+`output/playwright/tree-selector/`. Đặt `PLAYWRIGHT_CLI` nếu cần dùng đường dẫn
+đến wrapper Playwright CLI đã cài.
+
 ## Đăng nhập và quản lý tài khoản
 
 Trang `/login` dành cho người đã có tài khoản. Quản trị viên hệ thống đang hoạt

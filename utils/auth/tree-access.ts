@@ -1,12 +1,13 @@
+import { FAMILY_TREE_NAME_LIMIT, type TreeRole } from "@/types";
 import type { Pool } from "pg";
 import { pool } from "@/utils/db/client";
 
-export type AccessibleTree = { id: string; name: string; role: "owner" | "editor" | "viewer" };
+export type AccessibleTree = { id: string; name: string; role: TreeRole };
 type TreeDatabase = Pick<Pool, "query">;
 
 // actorId comes from the authenticated server session, never from a form or cookie hint.
 export async function createFamilyTree(actorId: string, name: unknown, database: TreeDatabase = pool) {
-  if (typeof name !== "string" || !name.trim() || name.trim().length > 120 || name.includes("\0")) {
+  if (typeof name !== "string" || !name.trim() || name.trim().length > FAMILY_TREE_NAME_LIMIT || name.includes("\0")) {
     return { code: "INVALID_NAME" as const };
   }
   const { rows } = await database.query<AccessibleTree>(

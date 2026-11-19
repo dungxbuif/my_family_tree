@@ -248,3 +248,20 @@ routeTest("the native tree forms create, switch and reject a stale selection", a
     await database.query("DELETE FROM family_trees WHERE id IN (SELECT tree_id FROM tree_memberships WHERE user_id=$1)", [ordinary.id]);
   }
 }, 15_000);
+
+routeTest("hydrated tree updates require a browser request and a current session", async () => {
+  const ordinary = await seedAccount(false);
+  const url = new URL("/dashboard/account/trees/selection", appUrl);
+  const fields = new FormData();
+  fields.set("operation", "create");
+  fields.set("name", "Browser request fixture");
+  const missingHeader = await fetch(url, { method: "POST", headers: { cookie: ordinary.cookie }, body: fields });
+  expect(missingHeader.status).toBe(403);
+  await database.query("DELETE FROM sessions WHERE user_id=$1", [ordinary.id]);
+  const expired = await fetch(url, {
+    method: "POST", headers: { cookie: ordinary.cookie, "X-Requested-With": "FamilyTreeSelector" }, body: fields,
+  });
+  expect(expired.status).toBe(401);
+  expect(await expired.json()).toMatchObject({ trees: [], notice: { error: "Vui lòng đăng nhập lại." } });
+  expect((await database.query("SELECT FROM tree_memberships WHERE user_id=$1", [ordinary.id])).rowCount).toBe(0);
+}, 15_000);

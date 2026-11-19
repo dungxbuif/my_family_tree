@@ -66,7 +66,10 @@ diff -u "$snapshot/before.json" "$snapshot/retry.json"
 ```
 
 Preflight rejects duplicate trim/lower System User emails, invalid account
-or family references, and populated databases lacking a legacy admin.
+or family references, and populated databases lacking an **active legacy admin**.
+If all admins are inactive, the data owner must identify who should own the
+legacy tree and authorize the account change through the legacy administration
+procedure. The migration preserves each account's activation state.
 Resolve the reported condition in the source with the data owner and repeat
 the preflight, backup and rehearsal. The SQL runs those checks again under a
 write lock. Source email spelling and existing row timestamps are preserved.
@@ -100,10 +103,12 @@ type and ordered endpoints of each edge at every stage.
 
 Promote the approved immutable image through the existing protected release
 tag. The receipt deploy job uses the promoted digest, the running task network
-and only its database setting to run the migration. A failed check rolls the
-SQL transaction back and prevents service update. The recorded migration
-version makes retries safe after an interrupted receipt, including after
-subsequent intentional membership changes.
+and only its database setting to run the migration. The schema entry point
+commits bootstrap and each included migration file separately. The legacy
+backfill, its locked preflight, verification and ledger entries commit in
+one of those transactions. A failure stops the entry point and blocks
+activation of the promoted workload. Earlier commits survive. On retry,
+the same digest reads the ledger and skips completed versions.
 
 The first successful migration assigns all pre-existing family records to
 `00000000-0000-0000-0000-000000000001`. Legacy admins become Super Admins
@@ -124,7 +129,8 @@ tree ID, owner/editor/viewer role, Super Admin status and account activation.
 Preflight derives expected access from legacy profiles. Verification reads
 the migrated flags and memberships. Each comparison requires an exact match.
 Keep these files in the protected backup directory.
-The verification SQL also checks legacy tree count and tree assignment. Run this one-time check during cutover while original
+The verification SQL also checks legacy tree count, tree assignment and an
+active Owner for the populated legacy tree. Run this one-time check during cutover while original
 memberships and counts are expected to match. Later releases use the migration
 ledger. The release also verifies the running digest, readiness, DB and object
 storage through the existing ops checks.
@@ -139,14 +145,32 @@ list the accessible trees through REST and MCP. Read a known record in the
 selected tree, revoke the temporary key, and confirm a subsequent call
 returns 401. Keep headers and private results out of the release log.
 
-## Roll back
+## Recover an interrupted release
 
-If the migration transaction failed, keep writes paused and inspect the
-credential-free failure and the database migration ledger before retrying.
-If the transaction committed and the release must revert, keep user writes and
-background writers paused while maintaining the readiness and operator routes. Swarm restores a service specification only.
-Recover the legacy database into the separate empty recovery database and
-verify its counts before routing the old service to it.
+Keep background writers paused and all general user traffic behind maintenance
+mode throughout recovery. Keep the restricted operator and runner readiness
+routes available. Swarm can restore a service specification while the database
+still contains committed schema changes. A green `/readyz` response confirms
+the probe succeeded. Access and schema compatibility require separate checks.
+
+Inspect the sanitized release error, the failed file and the actual database.
+Check `SELECT to_regclass('public.schema_migrations');` and, when present,
+`SELECT version, applied_at FROM public.schema_migrations ORDER BY version;`.
+Compare the recorded versions and actual tables, columns and constraints against
+the migration files in the promoted digest. Record the running service digest
+and which application versions can use that schema with correct access rules.
+If the ledger is absent, check whether bootstrap committed.
+
+- **Continue forward** when the failure and committed state are understood.
+  Rehearse the repair on a copy of that state. Correct the cause through the
+  protected procedure and retry the same immutable digest. Check the final
+  ledger, compare the original and migrated snapshots, then run the service and
+  user access checks above before reopening traffic.
+- **Return to the legacy release** when compatibility is uncertain or forward
+  repair cannot complete in the window. Restore the verified pre-cutover dump
+  into the separate empty recovery database and compare its legacy snapshot
+  before pointing the old application at it. Preserve the partially migrated
+  database for investigation.
 
 ```sh
 PGSERVICE="$RECOVERY_SERVICE" pg_restore --exit-on-error --single-transaction --no-owner --no-privileges -d "service=$RECOVERY_SERVICE" "$snapshot/legacy.dump"
@@ -158,7 +182,7 @@ Restore the production database ownership and grants appropriate to the
 runtime identity, point the previous service specification at the verified
 recovery database through the protected ops configuration, and verify its
 legacy sign-in, family reads, readiness and object access before restoring
-traffic. Preserve the migrated database for investigation. If new writes were
+traffic. If new writes were
 accepted after cutover, capture that database and reconcile those writes before
 selecting a recovery point.
 

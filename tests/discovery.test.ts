@@ -101,6 +101,20 @@ test("published Person date bounds agree with the shared life-date validator for
   }
 });
 
+test("published OpenAPI accepts uppercase UUIDs in relationship bodies and resource parameters", async () => {
+  const { components } = await (await fetch(new URL("/api/openapi.json", base))).json();
+  const a = "ABCDEFAB-CDEF-FABC-FABC-ABCDEFABCDEF";
+  const b = "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA";
+  expect(z.fromJSONSchema(components.schemas.edgeCreate).safeParse({
+    type: "adopted_child", person_a: a, person_b: b,
+  }).success).toBe(true);
+  for (const parameter of ["familyTreeId", "id"]) {
+    const parameterSchema = z.fromJSONSchema(components.parameters[parameter].schema);
+    expect(parameterSchema.safeParse(a).success).toBe(true);
+    expect(parameterSchema.safeParse(a.replace("A", "G")).success).toBe(false);
+  }
+});
+
 test("anonymous llms.txt links discovery and lists each registered tool once", async () => {
   const res = await fetch(new URL("/llms.txt", base), { redirect: "manual" });
   expect(res.status).toBe(200);

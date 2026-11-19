@@ -21,9 +21,13 @@ Bản xuất JSON phiên bản 4 có `version: 4`, thời điểm UTC `timestamp
 
 Phiên bản 4 thay thế cả năm tập dữ liệu. JSON phiên bản 1–3, tệp CSV cũ và GEDCOM cần có ít nhất một thành viên. Với ngày sự kiện, phiên bản 4 yêu cầu YYYY-MM-DD. Tệp cũ cũng có thể chứa thời điểm ISO do PostgreSQL và Node.js ghi từ nửa đêm địa phương. Trình nhập hiểu nửa đêm UTC, nửa đêm theo múi giờ máy chủ hiện tại và múi giờ Việt Nam. Nếu đã đổi múi giờ máy chủ và gặp ngày mơ hồ, chuyển trường này sang YYYY-MM-DD theo múi giờ gốc trước khi nhập. Với tệp cũ, thông tin riêng tư và sự kiện vắng mặt được coi là danh sách rỗng. Thư viện ảnh hiện tại được giữ nếu tệp cũ thiếu mảng ảnh. GEDCOM trao đổi phả hệ theo các trường được hỗ trợ, gồm người, ngày và quan hệ gia đình. Mỗi tham chiếu FAMS hoặc FAMC của thành viên phải có vai trò tương ứng trong bản ghi gia đình. Tệp GEDCOM bị cắt mất vai trò bị từ chối trước khi thay thế dữ liệu. Chọn JSON để phục hồi đầy đủ dữ liệu trong bảng trên.
 
+Trong GEDCOM, mỗi liên kết `FAMC` của người con ghi `PEDI BIRTH` (con ruột) hoặc `PEDI ADOPTED` (con nuôi). Hai vợ chồng dùng chung bản ghi gia đình cho người con khi cả hai đều có cùng loại quan hệ với người đó. Mỗi quan hệ cha/mẹ khác được ghi vào một gia đình riêng. Nhờ vậy người có nhiều vợ/chồng chỉ được nối với những người con đã ghi trong cây. [Đặc tả GEDCOM 7](https://gedcom.io/specifications/FamilySearchGEDCOMv7.html#enumset-PEDI)
+
+Khi thay thế dữ liệu, tệp có quan hệ cha mẹ và con phải ghi rõ loại quan hệ trên từng liên kết. Với tệp từ phần mềm khác, thẻ `MARR` xác nhận hôn nhân giữa hai người lớn trong gia đình. Bản GEDCOM cũ của ứng dụng có thể đã ghép con với nhầm vợ/chồng hoặc bỏ mất thông tin con nuôi. Nếu gặp tệp thiếu loại quan hệ, dùng bản JSON/CSV tương ứng hoặc đối chiếu từng liên kết với gia phả gốc trước khi bổ sung `PEDI`. Các giá trị khác như `FOSTER` và sự kiện nhận nuôi `ADOP` chưa được hỗ trợ khi phục hồi.
+
 ## Quyền, mã hồ sơ và lưu trữ
 
-Phục hồi giữ UUID đã tồn tại trong cây đích. Với UUID khác, ứng dụng tính UUID mới từ cây đích, loại bản ghi và mã nguồn, rồi đổi các tham chiếu nội bộ theo cùng ánh xạ. Các mã tự sinh khi đọc GEDCOM chỉ có hiệu lực cho lần đọc đó.
+Phục hồi giữ UUID đã tồn tại trong cây đích. Với UUID khác, ứng dụng tính UUID mới từ cây đích, loại bản ghi và mã nguồn, rồi đổi các tham chiếu nội bộ theo cùng ánh xạ. Bản GEDCOM mới lưu UUID của người trong thẻ `UID`. Với người thiếu UID dạng UUID, mã tự sinh chỉ có hiệu lực cho lần đọc đó.
 
 Liên kết tài khoản được bảo toàn theo mã đích đã ánh xạ. Có thể nhập lại cùng bản JSON hoặc CSV sau khi liên kết người vừa phục hồi. Nếu bản sao bỏ sót một người đang có liên kết, chủ sở hữu cần hủy liên kết rõ ràng trước khi phục hồi. Email trong tệp là dữ liệu liên hệ. Việc cấp quyền hoặc thiết lập liên kết tài khoản thực hiện tại trang quản lý quyền. Thông tin đăng nhập, mã người dùng hệ thống, người tạo bản ghi, mốc thời gian quản trị và quyền thành viên nằm ngoài định dạng.
 

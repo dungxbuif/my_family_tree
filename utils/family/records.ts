@@ -20,7 +20,7 @@ export const unavailable = () =>
   new FamilyDataError("Không tìm thấy hồ sơ hoặc quan hệ trong cây gia phả.", {
     kind: "unavailable",
   });
-export const uuid = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
+export const uuid = /^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$/;
 export const ownedAvatar =
   "(SELECT m.object_url FROM tree_media m WHERE m.tree_id=persons.tree_id AND m.folder='avatars' AND m.object_url=persons.avatar_url AND m.cleanup_claim IS NULL) AS avatar_url";
 export const personTextFields = [

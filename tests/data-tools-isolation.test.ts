@@ -506,6 +506,39 @@ test("invalid input and a database failure after replacement leave original rows
   });
 });
 
+test("GEDCOM replacement preserves recorded parentage and rejects ambiguous legacy exports before writing", async () => {
+  const tree = (await createFamilyTree(owner, "GEDCOM restore", db)).tree!.id;
+  trees.push(tree);
+  const service = familyPeople(owner, tree, db);
+  const ids = Array.from({length: 4}, () => randomUUID());
+  const [a, b, c, d] = ids;
+  await db.query("INSERT INTO persons(id,tree_id,full_name,gender) SELECT id,$1,id::text,'other' FROM unnest($2::uuid[]) id", [tree, ids]);
+  const edges = [
+    ["marriage", a, b], ["marriage", a, c], ["adopted_child", a, d], ["biological_child", c, d],
+  ];
+  for (const edge of edges)
+    await db.query("INSERT INTO relationships(tree_id,type,person_a,person_b) VALUES($1,$2,$3,$4)", [tree, ...edge]);
+  const base = process.env.FAMILY_TREE_TEST_APP_URL!;
+  async function replace(file: Blob) {
+    const form = new FormData();
+    form.set("backup", file, "family.ged");
+    form.set("confirmed", "replace");
+    return fetch(base + "/dashboard/data/restore?tree=" + tree, {
+      method: "POST", headers: { origin: base, accept: "application/json",
+        cookie: `family_tree_session=${token}; family_tree_selected=${tree}` }, body: form,
+    });
+  }
+  const { createBackupFile } = await import("@/utils/family/backup-file");
+  expect((await replace(await createBackupFile(await service.exportBackup(), "ged"))).status).toBe(200);
+  const after = await service.exportBackup();
+  expect(after.relationships.map(r => [r.type, r.person_a, r.person_b]).sort()).toEqual(edges.sort());
+  const old = "0 HEAD\n1 SOUR Giapha_OS\n2 VERS 0.1.0\n0 @P@ INDI\n1 NAME Parent\n0 @C@ INDI\n1 NAME Child\n0 @F@ FAM\n1 HUSB @P@\n1 CHIL @C@\n0 TRLR";
+  const response = await replace(new Blob([old]));
+  expect(response.status).toBe(400);
+  expect((await response.json()).error).toContain("GEDCOM");
+  expect((await service.exportBackup()).relationships).toEqual(after.relationships);
+});
+
 test("the bounded restore route accepts a large file and rejects oversize input before replacement", async () => {
   const base = process.env.FAMILY_TREE_TEST_APP_URL!;
   const original = await tools(0).exportBackup();

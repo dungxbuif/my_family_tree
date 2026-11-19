@@ -147,8 +147,11 @@ Trước khi xóa tài khoản còn liên kết với hồ sơ thành viên, c�
 Nếu tài khoản là Chủ sở hữu duy nhất của một cây gia phả, cần bổ sung Chủ sở hữu
 khác trước khi xóa.
 
-Khi nâng cấp, cơ sở dữ liệu giữ quyền Quản trị viên hệ thống cho những tài khoản
-Admin đã có. Với cơ sở dữ liệu mới hoặc khi không còn Quản trị viên hệ thống
+Khi nâng cấp cơ sở dữ liệu cũ đã có dữ liệu, cần ít nhất một Admin đang hoạt
+động để nhận quyền Chủ sở hữu cây hiện tại. Nếu mọi Admin đã bị khóa, hãy
+thống nhất với chủ dữ liệu về người được cấp lại quyền trước khi chạy migration.
+Cơ sở dữ liệu giữ quyền Quản trị viên hệ thống cho những tài khoản Admin đã có.
+Với cơ sở dữ liệu mới hoặc khi hệ thống sau migration không còn Quản trị viên hệ thống
 đang hoạt động, người vận hành khởi tạo tài khoản từ máy quản trị sau khi chạy
 migration. [Quy trình khởi tạo Quản trị viên hệ thống](docs/runbooks/bootstrap-super-admin.md)
 

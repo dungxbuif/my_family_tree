@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { z } from "zod";
 import {
   Client,
   StreamableHTTPClientTransport,
@@ -197,6 +198,18 @@ test("official client initializes, discovers only family tools with bounded inpu
     expect(JSON.stringify(invalid)).not.toContain("PRIVATE_");
   }
 }, 30000);
+
+test("official MCP tool discovery accepts uppercase UUIDs for tree, item and relationship endpoints", async () => {
+  const { tools } = await (await connect(token)).listTools();
+  const a = "ABCDEFAB-CDEF-FABC-FABC-ABCDEFABCDEF";
+  const b = "FEDCBAFE-DCBA-4FED-8FED-FEDCBAFEDCBA";
+  const schema = (name: string) => z.fromJSONSchema(tools.find(t => t.name === name)!.inputSchema);
+  expect(schema("create_relationship").safeParse({
+    familyTreeId: a, body: { type: "biological_child", person_a: a, person_b: b },
+  }).success).toBe(true);
+  expect(schema("get_person").safeParse({ familyTreeId: a, id: b }).success).toBe(true);
+  expect(schema("get_person").safeParse({ familyTreeId: a, id: b.replace("F", "G") }).success).toBe(false);
+});
 
 test("REST and MCP share secondary CRUD, cross-tree isolation, role and private scopes", async () => {
   const client = await connect(token);

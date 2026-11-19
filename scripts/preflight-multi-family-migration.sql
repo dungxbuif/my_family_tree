@@ -16,8 +16,9 @@ BEGIN
     RAISE EXCEPTION 'Invalid legacy reference in accounts or family records';
   END IF;
   IF (EXISTS (SELECT FROM public.users) OR EXISTS (SELECT FROM public.persons) OR EXISTS (SELECT FROM public.custom_events) OR EXISTS (SELECT FROM public.gallery_items))
-    AND NOT EXISTS (SELECT FROM public.profiles WHERE role='admin') THEN
-    RAISE EXCEPTION 'Populated legacy database requires an admin to own the legacy tree';
+    AND NOT EXISTS (SELECT FROM public.profiles WHERE role='admin' AND is_active) THEN
+    RAISE EXCEPTION 'Populated database requires an active legacy admin to own the legacy tree'
+      USING HINT = 'Review account access with the data owner before retrying the migration.';
   END IF;
 END $$;
 

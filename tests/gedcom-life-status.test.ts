@@ -59,6 +59,40 @@ test("a truncated GEDCOM cannot drop referenced families on restoration", () => 
     ).toThrow();
 });
 
+test("GEDCOM preserves exact parent UUIDs and pedigree across multiple marriages", () => {
+  const [a, b, c, d] = ["a", "b", "c", "d"].map(letter => letter.repeat(8) + "-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+  const persons = [a, b, c, d].map((id, index) => ({ id, full_name: "Person " + index, gender: "other" }));
+  const relationships = [
+    { person_a: a, person_b: b, type: "marriage" },
+    { person_a: a, person_b: c, type: "marriage" },
+    { person_a: a, person_b: d, type: "adopted_child" },
+    { person_a: c, person_b: d, type: "biological_child" },
+  ];
+  const text = exportToGedcom({ persons, relationships });
+  const restored = parseGedcom(text);
+  expect(restored.relationships).toHaveLength(4);
+  for (const edge of relationships) expect(restored.relationships).toContainEqual(edge);
+  expect(text).toContain("2 PEDI ADOPTED");
+  expect(text).toContain("2 PEDI BIRTH");
+  for (const modified of [
+    text.replace("2 PEDI ADOPTED", "2 PEDI FOSTER"),
+    text.replace("2 PEDI ADOPTED", ""),
+    text.replace("2 PEDI ADOPTED", "2 PEDI ADOPTED\n2 PEDI BIRTH"),
+  ]) expect(() => parseGedcom(modified)).toThrow();
+});
+
+test("two recorded parents in an external family do not imply a marriage", () => {
+  const family = [
+    "0 HEAD", "0 @A@ INDI", "0 @B@ INDI", "0 @D@ INDI", "1 FAMC @F@",
+    "2 PEDI BIRTH", "0 @F@ FAM", "1 WIFE @A@", "1 HUSB @B@", "1 CHIL @D@", "0 TRLR",
+  ].join("\n");
+  expect(parseGedcom(family).relationships.map(r => r.type)).toEqual(["biological_child", "biological_child"]);
+  const married = family.replace("1 WIFE", "1 MARR Y\n1 WIFE");
+  expect(parseGedcom(married).relationships.map(r => r.type)).toContain("marriage");
+  const legacy = "0 HEAD\n1 SOUR Giapha_OS\n0 @A@ INDI\n0 @B@ INDI\n0 @F@ FAM\n1 HUSB @A@\n1 WIFE @B@\n0 TRLR";
+  expect(parseGedcom(legacy).relationships.map(r => r.type)).toEqual(["marriage"]);
+});
+
 test("GEDCOM individual pointers must match the family and role on round trip", () => {
   const data = exportToGedcom({
     persons: [

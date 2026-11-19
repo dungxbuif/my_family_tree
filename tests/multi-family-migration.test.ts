@@ -125,11 +125,40 @@ test("sample data replaces only the requested tree", () => {
 });
 
 test("an inactive legacy admin keeps the owner membership and inactive account state", () => {
+  sql(`UPDATE profiles SET role='admin' WHERE id='${editor}'`);
   sql(`UPDATE profiles SET is_active=false WHERE id='${owner}'`);
   migrate();
   expect(sql(`SELECT role || '|' || p.is_active FROM tree_memberships m
     JOIN (SELECT id,is_active FROM profiles) p ON p.id=m.user_id
     WHERE m.user_id='${owner}'`)).toBe("owner|false");
+});
+
+test("inactive-only legacy admins block preflight and backfill without changing accounts", () => {
+  sql(`UPDATE profiles SET is_active=false WHERE role='admin'`);
+  for (const attempt of [() => sql("\\i /app/scripts/preflight-multi-family-migration.sql"), migrate]) {
+    expect(attempt).toThrow(/active legacy admin/i);
+    expect(sql("SELECT to_regclass('public.family_trees') IS NULL")).toBe("t");
+    expect(sql(`SELECT is_active FROM profiles WHERE id='${owner}'`)).toBe("f");
+  }
+});
+
+test("cutover verification rejects a populated legacy tree without an active Owner", () => {
+  migrate();
+  sql(`UPDATE profiles SET is_active=false WHERE id='${owner}'`);
+  expect(() => sql("\\i /app/scripts/verify-multi-family-migration.sql")).toThrow(/active owner/i);
+});
+
+test("a later migration failure leaves committed versions available for a forward retry", () => {
+  const entrypoint = "\\i /app/docs/schema.sql";
+  const before = sql("\\i /app/scripts/preflight-multi-family-migration.sql");
+  sql("CREATE TABLE public.api_keys (fixture boolean)");
+  expect(() => sql(entrypoint)).toThrow(/api_keys.*already exists/);
+  expect(sql("SELECT max(version) FROM public.schema_migrations")).toBe("20261119112000");
+  expect(sql("SELECT to_regclass('public.api_audit_logs') IS NULL")).toBe("t");
+  sql("DROP TABLE public.api_keys");
+  sql(entrypoint);
+  expect(sql("SELECT max(version) FROM public.schema_migrations")).toBe("20261119120000");
+  expect(sql("\\i /app/scripts/verify-multi-family-migration.sql")).toBe(before);
 });
 
 test("changing a tree UUID cannot commit an ownerless tree", () => {

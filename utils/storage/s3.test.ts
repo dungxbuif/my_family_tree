@@ -49,6 +49,18 @@ test("keeps uploaded objects private behind the app storage proxy", async () => 
       /^\/api\/storage\/family-tree\/gallery\/[0-9a-f-]+\.png$/,
     );
     expect(result.uploadUrl).toContain("X-Amz-Algorithm");
+
+    const upload = { actorId: crypto.randomUUID(), treeId: crypto.randomUUID(),
+      submissionId: crypto.randomUUID(), sha256: "5a".repeat(32) };
+    const avatar = () => presignUpload("avatars", "a.png", "image/png", 128, upload);
+    const first = await avatar();
+    expect((await avatar()).publicUrl).toBe(first.publicUrl);
+    expect(new URL(first.uploadUrl).searchParams.get("X-Amz-SignedHeaders")).toContain("content-type");
+    expect(new URL(first.uploadUrl).searchParams.get("x-amz-checksum-sha256")).toBe(Buffer.from(upload.sha256,"hex").toString("base64"));
+    for (const changed of [{ treeId:crypto.randomUUID() }, { actorId:crypto.randomUUID() }, { submissionId:crypto.randomUUID() }, { sha256:"b0".repeat(32) }]) {
+      expect((await presignUpload("avatars","a.png","image/png",128,{...upload,...changed})).key).not.toBe(first.key);
+    }
+    await expect(presignUpload("avatars","a.png","image/png",128,{...upload,sha256:"bad"})).rejects.toThrow();
   } finally {
     if (previous.endpoint === undefined) delete process.env.S3_ENDPOINT;
     else process.env.S3_ENDPOINT = previous.endpoint;

@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
+import {
+  useStaleTreeDraft,
+  useUnsavedNavigation,
+} from "@/hooks/useUnsavedNavigation";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import type { Person } from "@/types";
@@ -20,6 +23,7 @@ export default function TreeAddMember({
   const dialog = useRef<HTMLDialogElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const submission = useRef("");
+  const stale = useStaleTreeDraft();
   const [dirty, setDirty] = useState(false);
   const [opened, setOpened] = useState(false);
   const [nameError, setNameError] = useState("");
@@ -51,6 +55,7 @@ export default function TreeAddMember({
   function cancel() {
     if (
       pending.current ||
+      stale ||
       (dirty && !window.confirm("Hủy các thay đổi chưa lưu?"))
     )
       return;
@@ -71,6 +76,7 @@ export default function TreeAddMember({
         return;
       if (
         pending.current ||
+        stale ||
         (dirty && !window.confirm("Hủy các thay đổi chưa lưu?"))
       ) {
         event.stopImmediatePropagation();
@@ -85,10 +91,10 @@ export default function TreeAddMember({
     }
     window.addEventListener("popstate", back, true);
     return () => window.removeEventListener("popstate", back, true);
-  }, [opened, dirty]);
+  }, [opened, dirty, stale]);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || stale) return;
     if (!nameInput.current?.value.trim()) {
       setNameError("Vui lòng nhập họ tên.");
       nameInput.current?.focus();
@@ -107,6 +113,8 @@ export default function TreeAddMember({
         setError(result.error);
         return;
       }
+      // A peer may switch trees while the save is in flight. Its receipt can be recovered after restoring the draft.
+      if (document.documentElement.dataset.staleTreeDraft) return;
       setDirty(false);
       dialog.current?.close();
       requestCreatedFocus(result.id);
@@ -161,6 +169,8 @@ export default function TreeAddMember({
       >
         <form
           ref={form}
+          data-dirty-tree-draft={dirty || undefined}
+          data-recovery-role="editor"
           noValidate
           onSubmit={submit}
           onChange={() => {
@@ -175,6 +185,7 @@ export default function TreeAddMember({
             </h2>
           </header>
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+            <div data-tree-recovery className="empty:hidden" />
             <label className="block font-medium">
               Họ và tên
               <input
@@ -234,14 +245,14 @@ export default function TreeAddMember({
             <button
               type="button"
               onClick={cancel}
-              disabled={saving}
+              disabled={saving || stale}
               className="btn h-[52px] py-0"
             >
               Hủy
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || stale}
               className="btn-primary h-[52px] py-0"
             >
               {saving ? "Đang lưu…" : "Lưu"}

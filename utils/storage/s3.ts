@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -34,14 +35,33 @@ function config() {
 }
 
 export function validateUpload(folder: string, _name: string, type: string, size: number): asserts folder is UploadFolder {
-  if ((folder !== "avatars" && folder !== "gallery") || !types[type]) throw new Error("Loại tệp không được hỗ trợ.");
-  if (!Number.isFinite(size) || size < 1 || size > maxBytes) throw new Error("Ảnh phải nhỏ hơn hoặc bằng 10 MiB.");
+  if ((folder !== "avatars" && folder !== "gallery") || typeof type !== "string" || !Object.hasOwn(types, type)) throw new Error("Loại tệp không được hỗ trợ.");
+  if (!Number.isSafeInteger(size) || size < 1 || size > maxBytes) throw new Error("Ảnh phải nhỏ hơn hoặc bằng 10 MiB.");
 }
 
 export function buildObjectKey(folder: UploadFolder, _name: string, type: string, id: string) { return `${folder}/${id}${types[type]}`; }
-export async function presignUpload(folder: UploadFolder, name: string, type: string, size: number) {
-  validateUpload(folder, name, type, size); const { bucket, prefix, client } = config(); const key = [prefix.replace(/^\/+|\/+$/g, ""), buildObjectKey(folder, name, type, crypto.randomUUID())].filter(Boolean).join("/");
-  return { key, publicUrl: `/api/storage/${key}`, uploadUrl: await getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: type, ContentLength: size }), { expiresIn: 300 }) };
+type AvatarUpload = { actorId: string; treeId: string; submissionId: string; sha256: string };
+export async function presignUpload(folder: UploadFolder, name: string, type: string, size: number, avatar?: AvatarUpload) {
+  validateUpload(folder, name, type, size);
+  let identity: string;
+  let checksum: string | undefined;
+  if (avatar) {
+    const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    if (folder !== "avatars" || !uuid.test(avatar.submissionId) || !/^[0-9a-f]{64}$/.test(avatar.sha256))
+      throw new Error("Định danh ảnh không hợp lệ.");
+    const scope = [avatar.actorId, avatar.treeId, avatar.submissionId, avatar.sha256, type];
+    identity = createHash("sha256").update(JSON.stringify(scope)).digest("hex");
+    checksum = Buffer.from(avatar.sha256, "hex").toString("base64");
+  } else {
+    identity = crypto.randomUUID();
+  }
+  const { bucket, prefix, client } = config();
+  const key = [prefix.replace(/^\/+|\/+$/g, ""), buildObjectKey(folder, name, type, identity)].filter(Boolean).join("/");
+  const put = new PutObjectCommand({
+    Bucket: bucket, Key: key, ContentType: type, ContentLength: size, ChecksumSHA256: checksum,
+  });
+  const uploadUrl = await getSignedUrl(client, put, { expiresIn: 300, signableHeaders: new Set(["content-type"]) });
+  return { key, publicUrl: `/api/storage/${key}`, uploadUrl };
 }
 export async function readObject(key: string) { const { bucket, client } = config(); const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key })); return { body: Buffer.from(await result.Body!.transformToByteArray()), contentType: result.ContentType || "application/octet-stream" }; }
 export async function deleteObject(publicUrl: string | null | undefined) { if (!publicUrl?.startsWith("/api/storage/")) return; const key = publicUrl.slice("/api/storage/".length); if (!/^(family-tree\/)?((avatars)|(gallery))\/[0-9a-f-]+\.(jpg|png|webp|gif)$/.test(key)) return; const { bucket, client } = config(); await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })); }

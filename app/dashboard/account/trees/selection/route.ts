@@ -18,7 +18,7 @@ export async function GET() {
   if (!user) return new Response(null, { status: 401 });
   const selection = await getBrowserTreeSelection(user.id);
   if (selection.code) return new Response(null, { status: 403 });
-  return Response.json({ trees: selection.trees, currentId: selection.current?.id }, {
+  return Response.json({ trees: selection.trees, currentId: selection.current?.id, revision: selection.revision }, {
     headers: { "Cache-Control": "private, no-store" },
   });
 }

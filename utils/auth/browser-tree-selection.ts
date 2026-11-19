@@ -2,13 +2,14 @@ import { FAMILY_TREE_NAME_LIMIT } from "@/types";
 import { cookies } from "next/headers";
 import { createFamilyTree, getTreeSelection, selectFamilyTree } from "@/utils/auth/tree-access";
 
-export type TreeNotice = { error: string; draft?: string } | { message: string; treeId: string };
+export type TreeNotice = { error: string; draft?: string } | { message: string; treeId: string; revision: string };
 
 const TREE_COOKIE = "family_tree_selected";
 
 export async function getBrowserTreeSelection(userId: string) {
-  const hint = (await cookies()).get(TREE_COOKIE)?.value;
-  return getTreeSelection(userId, hint);
+  const store = await cookies();
+  const selection = await getTreeSelection(userId, store.get(TREE_COOKIE)?.value);
+  return { ...selection, revision: store.get("family_tree_revision")?.value ?? "" };
 }
 
 export async function changeBrowserTree(userId: string, fields: FormData): Promise<TreeNotice> {
@@ -33,8 +34,9 @@ export async function changeBrowserTree(userId: string, fields: FormData): Promi
       maxAge: 60 * 60 * 24 * 30,
     };
     store.set(TREE_COOKIE, result.tree.id, { ...options, httpOnly: true });
-    store.set("family_tree_revision", crypto.randomUUID(), options);
-    return { message: creating ? "Đã tạo và chọn cây gia phả." : "Đã chuyển cây gia phả.", treeId: result.tree.id };
+    const revision = crypto.randomUUID();
+    store.set("family_tree_revision", revision, options);
+    return { message: creating ? "Đã tạo và chọn cây gia phả." : "Đã chuyển cây gia phả.", treeId: result.tree.id, revision };
   } catch {
     return { error: "Không thể cập nhật cây gia phả. Vui lòng thử lại.", draft };
   }

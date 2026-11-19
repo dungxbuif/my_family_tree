@@ -266,3 +266,11 @@ select {
 .label-md {
   @apply font-sans text-[12px] font-medium leading-[1];
 }
+
+/* A stale tree may retain the active draft while the user chooses how to recover. */
+html[data-stale-tree-draft] .dashboard-shell:has(dialog.tree-add-dialog[open]) {
+  visibility: hidden;
+}
+html[data-stale-tree-draft] dialog.tree-add-dialog[open] {
+  visibility: visible;
+}

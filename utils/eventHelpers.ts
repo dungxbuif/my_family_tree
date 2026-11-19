@@ -147,7 +147,7 @@ export function computeEvents(
         
         // Prefer exact lunar date from DB
         if (p.death_lunar_month && p.death_lunar_day) {
-          lMonth = p.death_lunar_month;
+          lMonth = Math.abs(p.death_lunar_month);
           lDay = p.death_lunar_day;
         } else {
           // Fallback: Convert the solar death date to a lunar date

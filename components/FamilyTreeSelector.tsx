@@ -1,17 +1,15 @@
 "use client";
 
-import { useActionState, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useActionState, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { FAMILY_TREE_NAME_LIMIT } from "@/types";
 import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
 import { notifyTreeSelection } from "./TreeSelectionSync";
 import { Check, Trees } from "lucide-react";
 import type { TreeNotice } from "@/utils/auth/browser-tree-selection";
 import { changeFamilyTree } from "@/app/actions/family-tree";
-import type { AccessibleTree } from "@/utils/auth/tree-access";
 import { accessPath, treeRoles as roles } from "@/utils/tree-access-labels";
 
-type Selection = { trees: AccessibleTree[]; currentId?: string };
-const selectionUrl = "/dashboard/account/trees/selection";
+import { selectionUrl, readSelection, type SelectionSnapshot } from "@/utils/auth/selection-snapshot";
 
 function subscribeToConnection(notify: () => void) {
   window.addEventListener("online", notify);
@@ -29,25 +27,33 @@ function Notice({ result }: { result: TreeNotice | null }) {
     : <p role="status" className="body-sm text-success">{result.message}</p>;
 }
 
-export default function FamilyTreeSelector({ trees, currentId }: { trees: AccessibleTree[]; currentId?: string }) {
+export default function FamilyTreeSelector({ trees, currentId, revision }: SelectionSnapshot) {
   const [initialNotice, nativeAction] = useActionState(changeFamilyTree, null);
   const [notice, setNotice] = useState<TreeNotice | null>(initialNotice);
   const [draft, setDraft] = useState(initialNotice && "error" in initialNotice ? initialNotice.draft ?? "" : "");
   const [touchedTree, setTouchedTree] = useState<string | null>(null);
   const [operation, setOperation] = useState<"create" | "select" | "read" | null>(null);
-  const [selection, setSelection] = useState<Selection | null>({ trees, currentId });
+  const lastKnown = useRef<Pick<SelectionSnapshot, "currentId" | "revision">>({ currentId, revision });
+  const [selection, setSelection] = useState<SelectionSnapshot | null>({trees, currentId, revision});
   const reading = operation === "read";
   const busy = operation !== null;
   const creating = operation === "create";
   const online = useSyncExternalStore(subscribeToConnection, () => navigator.onLine, () => true);
   useUnsavedNavigation(Boolean(draft) || creating, "Tên cây gia phả chưa được lưu. Bạn có muốn rời trang?");
 
+  function observeSelection(snapshot: Pick<SelectionSnapshot,"currentId" | "revision">) {
+    if (snapshot.currentId !== lastKnown.current.currentId || snapshot.revision !== lastKnown.current.revision) {
+      lastKnown.current = snapshot;
+      notifyTreeSelection(snapshot);
+    }
+  }
+
   async function refreshSelection() {
     setOperation("read");
     try {
-      const response = await fetch(selectionUrl, { cache: "no-store" });
-      if (!response.ok || response.redirected) throw new Error("Selection unavailable");
-      setSelection(await response.json() as Selection);
+      const snapshot = await readSelection();
+      observeSelection(snapshot);
+      setSelection(snapshot);
     } catch {
       setSelection(null);
     } finally {
@@ -67,13 +73,13 @@ export default function FamilyTreeSelector({ trees, currentId }: { trees: Access
         method: "POST", headers: { "X-Requested-With": "FamilyTreeSelector" }, body: fields,
       });
       if (response.status === 401 || (response.redirected && new URL(response.url).pathname === "/login")) {
-        setSelection({ trees: [], currentId: undefined });
+        setSelection({ trees: [], currentId: undefined, revision: "" });
         setNotice({ error: "Vui lòng đăng nhập lại." });
         return;
       }
       if (!response.ok) throw new Error("Tree selection request failed");
       const result = await response.json() as { notice: TreeNotice };
-      if ("treeId" in result.notice) notifyTreeSelection();
+      if ("treeId" in result.notice) observeSelection({currentId: result.notice.treeId,revision:result.notice.revision});
       if (creatingTree && "treeId" in result.notice) setDraft("");
       setNotice(result.notice);
       await refreshSelection();

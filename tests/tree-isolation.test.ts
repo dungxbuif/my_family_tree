@@ -546,3 +546,78 @@ test("relative generation in a relationship leaves manually recorded Person gene
   expect((await service.detail(bulk))?.person.generation).toBeNull();
   expect((await service.detail(parent))?.person.generation).toBe(7);
 });
+
+test("a complete solar death in a leap lunar month survives reopening a legacy unsigned record", async () => {
+  const owner = await account(),
+    treeId = await tree(owner),
+    service = familyPeople(owner, treeId, db);
+  const facts = {
+    birth_year: "2023",
+    birth_month: "3",
+    birth_day: "24",
+    death_year: "2023",
+    death_month: "3",
+    death_day: "25",
+    death_lunar_year: "2023",
+    death_lunar_month: "2",
+    death_lunar_day: "4",
+    is_deceased: "true",
+  };
+  const id = await service.save(
+    form({ full_name: "Tháng nhuận", ...facts, submissionId: randomUUID() }),
+  );
+  expect((await service.detail(id))?.person.death_lunar_month).toBe(-2);
+  await db.query(
+    "UPDATE persons SET death_lunar_month=2 WHERE tree_id=$1 AND id=$2",
+    [treeId, id],
+  );
+  await service.save(form({ id, ...facts, note: "Ghi chú mới" }));
+  expect((await service.detail(id))?.person).toMatchObject({
+    death_day: 25,
+    death_lunar_month: -2,
+    note: "Ghi chú mới",
+  });
+  await service.save(form({ id, ...facts, death_lunar_month: "-2" }));
+});
+
+test.skipIf(!process.env.FAMILY_TREE_TEST_APP_URL)(
+  "avatar retries need an active editing role in the current Family Tree",
+  async () => {
+    const { createHash } = await import("node:crypto");
+    const owner = await account(),
+      viewer = await account(),
+      local = await tree(owner),
+      other = await tree(viewer);
+    await db.query(
+      "INSERT INTO tree_memberships(tree_id,user_id,role) VALUES($1,$2,'viewer')",
+      [local, viewer],
+    );
+    const token = randomUUID();
+    await db.query(
+      "INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '3 minutes')",
+      [viewer, createHash("sha256").update(token).digest("hex")],
+    );
+    const presign = (selected: string, expected: string) =>
+      fetch(
+        new URL("/api/uploads/presign", process.env.FAMILY_TREE_TEST_APP_URL),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            cookie: `family_tree_session=${token}; family_tree_selected=${selected}`,
+          },
+          body: JSON.stringify({
+            folder: "avatars",
+            fileName: "x.png",
+            contentType: "image/png",
+            size: 42,
+            submissionId: randomUUID(),
+            sha256: "a".repeat(64),
+            treeId: expected,
+          }),
+        },
+      );
+    expect((await presign(local, local)).status).toBe(403);
+    expect((await presign(other, local)).status).toBe(403);
+  },
+);

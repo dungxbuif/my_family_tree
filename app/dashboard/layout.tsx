@@ -6,7 +6,7 @@ import LogoutButton from "@/components/LogoutButton";
 import { UserProvider } from "@/components/UserProvider";
 import { getProfile, getUser } from "@/utils/data/queries";
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { getBrowserTreeSelection } from "@/utils/auth/browser-tree-selection";
 import { redirect } from "next/navigation";
 import React from "react";
 
@@ -71,9 +71,10 @@ export default async function DashboardLayout({
     );
   }
 
+  const selection = await getBrowserTreeSelection(user.id);
   return (
     <UserProvider user={user} profile={profile}>
-      <TreeSelectionSync initialRevision={(await cookies()).get("family_tree_revision")?.value ?? ""} />
+      <TreeSelectionSync initialRevision={selection.revision} treeId={selection.current?.id} role={selection.current?.role} />
       <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
         <HeritageHeader />
         {children}

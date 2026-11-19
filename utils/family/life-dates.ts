@@ -1,3 +1,4 @@
+import { recordedLunarMonth } from "../dateHelpers";
 import { Lunar } from "lunar-javascript";
 import { FamilyDataError } from "./records";
 
@@ -9,7 +10,11 @@ const invalid = () =>
 function validate([year, month, day]: DateParts, lunar = false) {
   if (year !== null && (!Number.isInteger(year) || year < 1 || year > 9999))
     throw invalid();
-  if (month !== null && (month < 1 || month > 12)) throw invalid();
+  if (
+    month !== null &&
+    (month === 0 || month < (lunar ? -12 : 1) || month > 12)
+  )
+    throw invalid();
   if (day === null) return;
   const leap =
     year === null || (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
@@ -38,6 +43,7 @@ export function validateLifeDates(record: Record<string, unknown>) {
     lunar = date("death_lunar");
   validate(birth);
   validate(death);
+  lunar[1] = recordedLunarMonth(...death, ...lunar);
   validate(lunar, true);
   checkOrder(birth, death);
   const [y, m, d] = lunar;
@@ -48,6 +54,8 @@ export function validateLifeDates(record: Record<string, unknown>) {
     } catch {
       throw invalid();
     }
-    checkOrder(birth, [solar.getYear(), solar.getMonth(), solar.getDay()]);
+    if (death.includes(null))
+      checkOrder(birth, [solar.getYear(), solar.getMonth(), solar.getDay()]);
   }
+  return lunar[1];
 }

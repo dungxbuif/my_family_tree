@@ -10,6 +10,12 @@ import {
   treeSwitch,
   historySwitch,
 } from "../tests/browser/tree-add-review.mjs";
+import {
+  recoverSelectionBody,
+  restoreDirtyTree,
+  recoverAvatarPut,
+  reopenLeapDate,
+} from "../tests/browser/tree-recovery.mjs";
 import checkAdd, { checkDemotion } from "../tests/browser/tree-add.mjs";
 
 const connectionString = process.env.FAMILY_TREE_TEST_DATABASE_URL;
@@ -90,23 +96,52 @@ try {
   );
   const review = {};
   for (const check of [
+    recoverAvatarPut,
     formStates,
     focusModes,
     avatarRetry,
     treeSwitch,
     historySwitch,
+    recoverSelectionBody,
+    restoreDirtyTree,
   ]) {
     try {
-      review[check.name] = JSON.parse(cli("run-code", check.toString()));
+      const live =
+        check === recoverAvatarPut &&
+        process.env.FAMILY_TREE_TEST_LIVE_S3 === "1";
+      const code = live
+        ? `async page => (${check.toString()})(page,true)`
+        : check.toString();
+      review[check.name] = JSON.parse(cli("run-code", code));
     } catch (e) {
       review[check.name] = String(e.stdout ?? e.message).slice(-400);
     }
   }
+  const leap = await database.query(
+    `
+    INSERT INTO persons(tree_id,full_name,gender,birth_year,birth_month,birth_day,death_year,death_month,death_day,
+    death_lunar_year,death_lunar_month,death_lunar_day,is_deceased)
+    VALUES($1,'Hồ sơ tháng nhuận','other',2023,3,24,2023,3,25,2023,2,4,true) RETURNING id`,
+    [tree.tree_id],
+  );
+  cli(
+    "goto",
+    new URL("/dashboard/members/" + leap.rows[0].id + "/edit", url).href,
+  );
+  review.reopenLeapDate = JSON.parse(
+    cli("run-code", reopenLeapDate.toString()),
+  );
   writeFileSync(
     resolve(output, "review.json"),
     JSON.stringify(review, null, 2),
   );
   if (
+    review.reopenLeapDate !== true ||
+    review.recoverSelectionBody !== true ||
+    review.restoreDirtyTree !== true ||
+    review.recoverAvatarPut.keys !== 1 ||
+    review.recoverAvatarPut.puts !== 3 ||
+    review.recoverAvatarPut.writes !== 2 ||
     !Array.isArray(review.formStates.failures) ||
     review.formStates.failures.length ||
     review.focusModes.length ||
@@ -127,6 +162,20 @@ try {
   if (avatar.rowCount !== 1)
     throw new Error(
       "Expected one Person and receipt for the recovered avatar creation.",
+    );
+  const recovered = await database.query(
+    `
+    SELECT p.full_name,count(DISTINCT p.id)::int AS persons,count(r.submission_id)::int AS receipts
+    FROM persons p LEFT JOIN person_creation_receipts r ON r.tree_id=p.tree_id AND p.id=ANY(r.person_ids)
+    WHERE p.tree_id=$1 AND p.full_name=ANY($2::text[]) GROUP BY p.full_name`,
+    [tree.tree_id, ["Đã tiếp tục trong cây gốc", "Ảnh sau tải lại"]],
+  );
+  if (
+    recovered.rowCount !== 2 ||
+    recovered.rows.some((row) => row.persons !== 1 || row.receipts !== 1)
+  )
+    throw new Error(
+      "Two recovered drafts must produce one Person and receipt each in the original tree.",
     );
   const results = JSON.parse(cli("run-code", checkAdd.toString()));
   const {

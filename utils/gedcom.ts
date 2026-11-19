@@ -165,6 +165,8 @@ export function exportToGedcom(data: {
       }
     }
 
+    if (person.is_deceased === false) gedcom += "1 _LIVING Y\n";
+
     // Death
     if (person.is_deceased) {
       gedcom += "1 DEAT Y\n";
@@ -330,8 +332,11 @@ export function parseGedcom(gedcom: string): {
         } else if (tag === "SEX") {
           if (val === "M") gender = "male";
           else if (val === "F") gender = "female";
+        } else if (tag === "_LIVING" && val === "Y" && is_deceased !== true) {
+          is_deceased = false;
         } else if (tag === "DEAT") {
-          is_deceased = val.trim().length === 0 || val === "Y";
+          if (!val || val === "Y") is_deceased = true;
+          else if (val === "N" && is_deceased !== true) is_deceased = false;
         } else if (tag === "NOTE") {
           note = val;
         }

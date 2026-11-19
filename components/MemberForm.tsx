@@ -1,8 +1,9 @@
 "use client";
 
 import { Gender, Person } from "@/types";
+import { useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
 import { saveMember } from "@/app/actions/member";
-import { recordedLifeStatus } from "@/utils/dateHelpers";
+import { recordedLifeStatus, recordedLunarMonth } from "@/utils/dateHelpers";
 import { uploadImage } from "@/utils/storage/client";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
@@ -40,7 +41,25 @@ export default function MemberForm({
   onCancel,
 }: MemberFormProps) {
   const router = useRouter();
+  const stale = useStaleTreeDraft();
   const submission = useRef("");
+  function submissionId() {
+    if (initialData?.id) return initialData.id;
+    if (!submission.current) {
+      const saved = history.state?.personCreation;
+      submission.current = saved?.treeId === treeId && saved.path === location.href ? saved.id : crypto.randomUUID();
+      history.replaceState({ ...history.state, personCreation: { treeId, id: submission.current, path: location.href } }, "");
+    }
+    return submission.current;
+  }
+  function finishSubmission() {
+    if (history.state?.personCreation?.id === submission.current) {
+      const state = {...history.state};
+      delete state.personCreation;
+      history.replaceState(state, "");
+    }
+    submission.current = "";
+  }
   const [email, setEmail] = useState(initialData?.email ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +92,8 @@ export default function MemberForm({
     initialData?.death_lunar_year || "",
   );
   const [deathLunarMonth, setDeathLunarMonth] = useState<number | "">(
-    initialData?.death_lunar_month || "",
+    initialData ? recordedLunarMonth(initialData.death_year, initialData.death_month, initialData.death_day,
+      initialData.death_lunar_year, initialData.death_lunar_month, initialData.death_lunar_day) ?? "" : "",
   );
   const [deathLunarDay, setDeathLunarDay] = useState<number | "">(
     initialData?.death_lunar_day || "",
@@ -140,7 +160,7 @@ export default function MemberForm({
         const solar = Solar.fromYmd(y, m, d);
         const lunar = solar.getLunar();
         setDeathLunarDay(lunar.getDay());
-        setDeathLunarMonth(Math.abs(lunar.getMonth()));
+        setDeathLunarMonth(lunar.getMonth());
         setDeathLunarYear(lunar.getYear());
       } catch {
         // Ignore invalid dates
@@ -183,6 +203,7 @@ export default function MemberForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (stale) return;
     setLoading(true);
     setError(null);
 
@@ -251,7 +272,7 @@ export default function MemberForm({
         const solarDate = Solar.fromYmd(deathYear, deathMonth, deathDay);
         const lunarDate = solarDate.getLunar();
         finalDeathLunarDay = lunarDate.getDay();
-        finalDeathLunarMonth = Math.abs(lunarDate.getMonth());
+        finalDeathLunarMonth = lunarDate.getMonth();
         finalDeathLunarYear = lunarDate.getYear();
       } catch {
         // Safe fallback if conversion fails
@@ -290,7 +311,7 @@ export default function MemberForm({
       let uploadedAvatarUrl = avatarUrl;
       if (avatarFile) {
         if (uploadedAvatar.current?.file !== avatarFile) {
-          uploadedAvatar.current = { file: avatarFile, upload: uploadImage(avatarFile, "avatars") };
+          uploadedAvatar.current = { file: avatarFile, upload: uploadImage(avatarFile, "avatars", { treeId, submissionId: submissionId() }) };
         }
         const pending = uploadedAvatar.current;
         try {
@@ -302,7 +323,7 @@ export default function MemberForm({
       }
       const formData = new FormData();
       formData.set("treeId", treeId);
-      if (!initialData?.id) formData.set("submissionId", submission.current ||= crypto.randomUUID());
+      if (!initialData?.id) formData.set("submissionId", submissionId());
       if (initialData?.id) {
         formData.append("id", initialData.id);
       }
@@ -339,10 +360,12 @@ export default function MemberForm({
         throw new Error(result.error);
       }
 
+      if (document.documentElement.dataset.staleTreeDraft) return;
       const currentPersonId = result.id;
       if (!currentPersonId)
         throw new Error("Không lấy được ID thành viên sau khi lưu.");
 
+      finishSubmission();
       if (onSuccess) {
         onSuccess(currentPersonId);
       } else {
@@ -370,7 +393,8 @@ export default function MemberForm({
     "bg-white text-stone-900 placeholder-stone-500 block min-h-[52px] w-full rounded-2xl border border-stone-300 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[color:var(--color-primary-soft)] focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+    <form data-recovery-role={isOwner ? "owner" : "editor"} onSubmit={handleSubmit} onChangeCapture={event => {event.currentTarget.dataset.dirtyTreeDraft = "true";}} className="space-y-6 sm:space-y-8">
+      <div data-tree-recovery className="empty:hidden" />
       <motion.div
         variants={formSectionVariants}
         initial="hidden"
@@ -658,9 +682,9 @@ export default function MemberForm({
                           placeholder="Tháng"
                           min="1"
                           max="12"
-                          value={deathLunarMonth}
+                          value={deathLunarMonth === "" ? "" : Math.abs(deathLunarMonth)}
                           onChange={(e) =>
-                            handleLunarDeathChange("month", e.target.value)
+                            handleLunarDeathChange("month", deathLunarMonth !== "" && deathLunarMonth < 0 && e.target.value ? "-" + e.target.value : e.target.value)
                           }
                           className={inputClasses}
                         />
@@ -674,6 +698,13 @@ export default function MemberForm({
                           className={inputClasses}
                         />
                       </div>
+                      <label className="flex min-h-11 items-center gap-2">
+                        <input type="checkbox" checked={deathLunarMonth !== "" && deathLunarMonth < 0}
+                          disabled={!deathLunarMonth} onChange={event => {
+                            if (deathLunarMonth) handleLunarDeathChange("month", String(Math.abs(deathLunarMonth) * (event.target.checked ? -1 : 1)));
+                          }} />
+                        Tháng nhuận
+                      </label>
                     </div>
 
                     {/* Solar Date */}
@@ -833,12 +864,13 @@ export default function MemberForm({
       >
         <button
           type="button"
-          onClick={() => (onCancel ? onCancel() : router.back())}
+          disabled={stale}
+          onClick={() => { finishSubmission(); if (onCancel) onCancel(); else router.back(); }}
           className="btn min-h-[52px] rounded-2xl"
         >
           Hủy bỏ
         </button>
-        <button type="submit" disabled={loading} className="btn-primary min-h-[52px] rounded-2xl">
+        <button type="submit" disabled={loading || stale} className="btn-primary min-h-[52px] rounded-2xl">
           {loading && <Loader2 className="size-4 animate-spin" />}
           {loading
             ? "Đang lưu..."

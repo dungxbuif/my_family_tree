@@ -10,10 +10,25 @@ export function formatDisplayDate(
 
   const parts = [];
   if (day) parts.push(day.toString().padStart(2, "0"));
-  if (month) parts.push(month.toString().padStart(2, "0"));
+  if (month) parts.push(Math.abs(month).toString().padStart(2, "0") + (month < 0 ? " nhuận" : ""));
   if (year) parts.push(year.toString());
 
   return parts.join("/");
+}
+
+// Legacy forms stored both regular and leap months as positive. A matching
+// complete solar date can recover the sign without guessing from a partial date.
+export function recordedLunarMonth(
+  year: number | null, month: number | null, day: number | null,
+  lunarYear: number | null, lunarMonth: number | null, lunarDay: number | null,
+) {
+  if (!year || !month || !day || !lunarYear || !lunarMonth || lunarMonth < 0 || !lunarDay) return lunarMonth;
+  try {
+    const lunar = Solar.fromYmd(year, month, day).getLunar();
+    if (lunar.getYear() === lunarYear && lunar.getMonth() === -lunarMonth && lunar.getDay() === lunarDay)
+      return lunar.getMonth();
+  } catch { /* Keep the recorded lunar facts when conversion is unavailable. */ }
+  return lunarMonth;
 }
 
 export function getLunarDateString(

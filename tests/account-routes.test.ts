@@ -280,12 +280,13 @@ routeTest("a tree write acknowledges the selected cookie and subsequent GET retr
     const { notice } = await write.json();
     const selected = write.headers.getSetCookie().find(value => value.startsWith("family_tree_selected="))?.split(";")[0];
     expect(selected).toBe("family_tree_selected=" + notice.treeId);
+    const revision = write.headers.getSetCookie().find(value => value.startsWith("family_tree_revision="))!.split(";")[0];
     for (let attempt = 0; attempt < 2; attempt++) {
-      const read = await fetch(url, { headers: { cookie: ordinary.cookie + "; " + selected } });
+      const read = await fetch(url, { headers: { cookie: [ordinary.cookie, selected, revision].join("; ") } });
       expect(read.status).toBe(200);
       expect(read.headers.get("cache-control")).toContain("no-store");
       expect(await read.json()).toEqual({
-        trees: [{ id: notice.treeId, name: "Chỉ tạo một lần", role: "owner" }], currentId: notice.treeId,
+        trees: [{ id: notice.treeId, name: "Chỉ tạo một lần", role: "owner" }], currentId: notice.treeId, revision: revision.split("=")[1],
       });
     }
     expect((await database.query("SELECT FROM tree_memberships WHERE user_id=$1", [ordinary.id])).rowCount).toBe(1);

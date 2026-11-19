@@ -135,15 +135,16 @@ export async function savePerson(
     throw new FamilyDataError("Vui lòng chọn quan hệ hợp lệ.");
   const save = async () => {
     let id = existing;
-    const keys = Object.keys(values),
-      params = Object.values(values);
     const original = id ? await requirePerson(client, tree, id) : null;
     if (
       !id ||
-      keys.some((key) => /^(birth|death)(_lunar)?_(day|month|year)$/.test(key))
+      Object.keys(values).some((key) => /^(birth|death)(_lunar)?_(day|month|year)$/.test(key))
     ) {
-      validateLifeDates({ ...original, ...values });
+      const record = { ...original, ...values };
+      const month = validateLifeDates(record);
+      if (month !== null && month !== record.death_lunar_month) values.death_lunar_month = month;
     }
+    const keys = Object.keys(values), params = Object.values(values);
     if (!id) {
       const { rows } = await client.query(
         `INSERT INTO persons(tree_id,${keys.join(",")})

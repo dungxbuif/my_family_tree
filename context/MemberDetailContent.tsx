@@ -6,6 +6,7 @@ import { Person } from "@/types";
 import {
   calculateAge,
   recordedLifeStatus,
+  recordedLunarMonth,
   formatDisplayDate,
   getLunarDateString,
   getSolarDateString,
@@ -308,7 +309,7 @@ export default function MemberDetailContent({
                             person.death_lunar_year
                             ? formatDisplayDate(
                               person.death_lunar_year,
-                              person.death_lunar_month,
+                              recordedLunarMonth(person.death_year, person.death_month, person.death_day, person.death_lunar_year, person.death_lunar_month, person.death_lunar_day),
                               person.death_lunar_day,
                             )
                             : getLunarDateString(

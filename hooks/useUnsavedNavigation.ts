@@ -1,11 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+
+function subscribeDraft(notify: () => void) {
+  window.addEventListener("familytreedraftstate", notify);
+  return () => window.removeEventListener("familytreedraftstate", notify);
+}
+export function useStaleTreeDraft() {
+  return useSyncExternalStore(subscribeDraft, () => Boolean(document.documentElement.dataset.staleTreeDraft), () => false);
+}
 
 export function useUnsavedNavigation(shouldGuard: boolean, message: string, active?: () => boolean) {
   useEffect(() => {
     if (!shouldGuard) return;
 
     function warnBeforeUnload(event: BeforeUnloadEvent) {
-      if (active && !active()) return;
+      if ((active && !active()) || document.documentElement.dataset.discardTreeDraft) return;
       event.preventDefault();
       event.returnValue = " ";
     }
@@ -25,9 +33,12 @@ export function useUnsavedNavigation(shouldGuard: boolean, message: string, acti
       }
     }
 
+    function hasDraft(event: Event) { if (!active || active()) event.preventDefault(); }
+    window.addEventListener("familytreecheckdraft", hasDraft);
     window.addEventListener("beforeunload", warnBeforeUnload);
     document.addEventListener("click", confirmNavigation, true);
     return () => {
+      window.removeEventListener("familytreecheckdraft", hasDraft);
       window.removeEventListener("beforeunload", warnBeforeUnload);
       document.removeEventListener("click", confirmNavigation, true);
     };

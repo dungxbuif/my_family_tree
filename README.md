@@ -15,6 +15,7 @@ Dự án này giúp gia đình bạn nắm trọn quyền kiểm soát dữ li�
 - **Quản lý thành viên**: Lưu trữ thông tin, avatar và sắp xếp thứ tự nhánh dòng họ.
 - **Lưu trữ nội bộ**: Tất cả dữ liệu và hình ảnh được lưu trữ trực tiếp trong cơ sở dữ liệu PostgreSQL và hệ thống tệp của bạn.
 - **Bảo mật**: Đăng nhập bằng tài khoản do Quản trị viên hệ thống cấp.
+- **Khóa API** cho phép tác nhân đọc và quản lý hồ sơ theo quyền hiện tại của người dùng trong từng cây. [Hướng dẫn sử dụng REST và quản lý khóa](docs/API.md)
 - **Sao lưu & Phục hồi**: Chủ sở hữu có thể xuất hoặc phục hồi cây đang chọn bằng JSON, CSV hoặc GEDCOM. [Định dạng và cách phục hồi](docs/runbooks/family-tree-backup.md)
 
 ## Giao diện responsive

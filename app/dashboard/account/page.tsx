@@ -20,6 +20,7 @@ export default async function AccountPage() {
         <a href="/dashboard/account/trees" className="btn min-h-11">
           Cây gia phả của tôi
         </a>
+        <a href="/dashboard/api-keys" className="btn min-h-11">Khóa API</a>
         {profile.is_super_admin && (
           // Open a document so browser Back also triggers the form's unload guard.
           <a href="/dashboard/users" className="btn min-h-11">

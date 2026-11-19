@@ -32,6 +32,7 @@ test("release validation requires passing authorization and scoped writes", () =
     for (const suite of [
       "tests/secondary-tree-isolation.test.ts",
       "tests/data-tools-isolation.test.ts",
+      "tests/agent-rest.test.ts",
     ]) {
       expect(run().stderr).toContain(suite);
       writeFileSync(join(root, suite), passing);

@@ -17,3 +17,4 @@ COMMIT;
 \ir migrations/20261119110000_tree_media.sql
 \ir migrations/20261119111000_media_cleanup_claims.sql
 \ir migrations/20261119112000_media_generations.sql
+\ir migrations/20261119120000_add_api_keys.sql

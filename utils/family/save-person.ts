@@ -20,14 +20,14 @@ const relations: Relation[] = [
   "adopted_child",
   "adoptive_parent",
 ];
-const textFields = [
+export const textFields = [
   "full_name",
   "gender",
   "note",
   "avatar_url",
   "other_names",
 ] as const;
-const numberFields = [
+export const numberFields = [
   "birth_year",
   "birth_month",
   "birth_day",
@@ -40,7 +40,7 @@ const numberFields = [
   "generation",
   "birth_order",
 ] as const;
-const privateFields = [
+export const privateFields = [
   "phone_number",
   "occupation",
   "current_residence",
@@ -165,7 +165,7 @@ export async function savePerson(
         formText(fields, "email"),
       );
       if (!("ok" in result))
-        throw new FamilyDataError("Không thể cập nhật email.");
+        throw new FamilyDataError("Không thể cập nhật email.", { kind: "conflict" });
     }
     if (existing && keys.length)
       await client.query(

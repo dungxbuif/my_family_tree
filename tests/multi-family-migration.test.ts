@@ -239,3 +239,10 @@ test("legacy adoption accepts only single-owner generated keys and leaves ambigu
   expect(sql(`SELECT logical_url FROM tree_media WHERE expected_bytes=42`)).toBe(issued);
   expect(sql(`SELECT count(*) FROM gallery_items WHERE image_url='${copied}'`)).toBe("1");
 });
+
+test("release migration installs Agent Credentials and audit records and can run again", () => {
+  sql("\\i /app/docs/schema.sql");
+  expect(sql("SELECT to_regclass('public.api_keys') IS NOT NULL AND to_regclass('public.api_audit_logs') IS NOT NULL")).toBe("t");
+  sql("\\i /app/docs/schema.sql");
+  expect(sql("SELECT count(*) FROM schema_migrations WHERE version='20261119120000'")).toBe("1");
+});

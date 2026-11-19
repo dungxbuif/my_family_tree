@@ -7,7 +7,7 @@ test("the credential form defaults to read-only and keeps its optional expiratio
   const window = new Window();
   try {
     window.document.body.innerHTML = renderToStaticMarkup(
-      <AgentCredentials initial={[]} />,
+      <AgentCredentials initial={{ credentials: [], nextCursor: null }} />,
     );
     const form = window.document.querySelector("form")!;
     expect(

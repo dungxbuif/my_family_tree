@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
-import { withTransaction } from "@/utils/db/client";
 import { FamilyDataError, publicColumns, uuid } from "@/utils/family/records";
 import {
   requireTreeRole,
@@ -14,7 +13,12 @@ import {
   textFields,
 } from "@/utils/family/save-person";
 import { AgentError, type Scope } from "./contract";
-import { audit, authenticate, type Agent, type Transport } from "./credentials";
+import {
+  audit,
+  withAgentCredential,
+  type Agent,
+  type Transport,
+} from "./credentials";
 
 const requiredScope = {
   list_family_trees: "read",
@@ -172,8 +176,7 @@ export async function runFamilyCommand(
   transport: Transport,
   command: FamilyCommand,
 ) {
-  const result = await withTransaction(async (client) => {
-    const key = await authenticate(client, token);
+  const result = await withAgentCredential(token, async (client, key) => {
     const mutation = requiredScope[command.action] !== "read";
     if (!mutation) return { response: await execute(client, key, command) };
     const tree =

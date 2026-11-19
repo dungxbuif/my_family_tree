@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { agentTlsIngress } from "./fixtures/agent-tls-ingress.mjs";
 import { createFamilyTree } from "@/utils/auth/tree-access";
 
 const base = process.env.FAMILY_TREE_TEST_APP_URL;
@@ -19,7 +20,9 @@ const sessions = new Map([
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const trees: string[] = [];
 const allScopes = ["read", "private", "write", "delete"];
+let ingress: ReturnType<typeof agentTlsIngress>;
 beforeAll(async () => {
+  ingress = agentTlsIngress(base!);
   for (const [id, session] of sessions) {
     await db.query(
       "WITH u AS (INSERT INTO users(id,email,password_hash) VALUES($1,$2,'test') RETURNING id) INSERT INTO profiles(id,is_active,is_super_admin) SELECT id,true,true FROM u",
@@ -43,6 +46,7 @@ afterAll(async () => {
       [owner, peer],
     ]);
   }
+  await ingress.close();
   await db.end();
 });
 const manage = (user: string, method = "GET", body?: unknown) =>
@@ -62,12 +66,11 @@ async function issue(scopes: string[], user = owner) {
   return { secret: secret as string, id: credential.id as string };
 }
 function rest(key: string, path: string, method = "GET", body?: unknown) {
-  return fetch(base + "/api/v1/" + path, {
+  return ingress.fetch("/api/v1/" + path, {
     method,
     headers: {
       authorization: "Bearer " + key,
       "content-type": "application/json",
-      "x-forwarded-proto": "https",
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -128,9 +131,7 @@ test("expired, suspended, deleted and query-only credentials receive generic aut
   } finally {
     await db.query("UPDATE profiles SET is_active=true WHERE id=$1", [owner]);
   }
-  const response = await fetch(base + "/api/v1/family-trees?key=invalid", {
-    headers: { "x-forwarded-proto": "https" },
-  });
+  const response = await ingress.fetch("/api/v1/family-trees?key=invalid");
   expect(response.status).toBe(401);
   expect(await response.json()).toMatchObject({
     code: "UNAUTHORIZED",
@@ -377,6 +378,8 @@ test("production Bearer parsing accepts HTTPS from a configured TLS ingress and 
       },
     });
   try {
+    env.NODE_ENV = "development";
+    expect(() => bearer(request("http://localhost/"))).toThrow();
     env.NODE_ENV = "production";
     delete env.AGENT_TRUST_TLS_PROXY;
     expect(() => bearer(request("http://localhost/"))).toThrow();
@@ -393,5 +396,227 @@ test("production Bearer parsing accepts HTTPS from a configured TLS ingress and 
     else env.NODE_ENV = nodeEnv;
     if (trust === undefined) delete env.AGENT_TRUST_TLS_PROXY;
     else env.AGENT_TRUST_TLS_PROXY = trust;
+  }
+});
+
+test("TLS ingress accepts a key while direct plaintext requests are rejected", async () => {
+  const { secret } = await issue(["read"]);
+  expect(
+    (
+      await fetch(base + "/api/v1/family-trees", {
+        headers: { Authorization: "Bearer " + secret },
+      })
+    ).status,
+  ).toBe(401);
+  expect((await rest(secret, "family-trees")).status).toBe(200);
+});
+
+test("authenticated failures update last-use and a telemetry error leaves the command result intact", async () => {
+  const key = await issue(["read"]);
+  const last = async () =>
+    (await db.query("SELECT last_used_at FROM api_keys WHERE id=$1", [key.id]))
+      .rows[0].last_used_at;
+  for (const [path, status] of [
+    ["persons/" + randomUUID() + "?familyTreeId=" + trees[0], 404],
+    ["persons?familyTreeId=" + trees[1], 403],
+    ["family-trees?limit=0", 400],
+    ["family-trees", 200],
+  ] as const) {
+    await db.query("UPDATE api_keys SET last_used_at=NULL WHERE id=$1", [
+      key.id,
+    ]);
+    expect((await rest(key.secret, path)).status).toBe(status);
+    expect(await last()).toBeTruthy();
+  }
+  await db.query("UPDATE api_keys SET last_used_at=NULL WHERE id=$1", [key.id]);
+  expect(
+    (
+      await rest(
+        key.secret.slice(0, -1) + (key.secret.endsWith("A") ? "B" : "A"),
+        "family-trees",
+      )
+    ).status,
+  ).toBe(401);
+  expect(await last()).toBeNull();
+  const fn = "test_key_usage_" + randomUUID().replaceAll("-", "");
+  await db.query(
+    `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'telemetry unavailable'; END $$`,
+  );
+  try {
+    await db.query(
+      `CREATE TRIGGER ${fn} BEFORE UPDATE OF last_used_at ON api_keys FOR EACH ROW WHEN (NEW.id='${key.id}') EXECUTE FUNCTION ${fn}()`,
+    );
+    expect((await rest(key.secret, "family-trees")).status).toBe(200);
+    expect((await rest(key.secret, "family-trees?limit=0")).status).toBe(400);
+  } finally {
+    await db.query(`DROP FUNCTION ${fn}() CASCADE`);
+  }
+});
+test("same-key reads complete across a bounded pool while another read is admitted, then revoke waits for the admitted read", async () => {
+  const key = await issue(["read"]);
+  const lock = await db.connect();
+  async function waitingOn(holder: number) {
+    for (let i = 0; i < 120; i++) {
+      const { rows } = await db.query<{ pid: number }>(
+        "SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND $1=ANY(pg_blocking_pids(pid))",
+        [holder],
+      );
+      if (rows.length) return rows[0].pid;
+      await Bun.sleep(20);
+    }
+    throw Error("Expected request to wait on its row lock");
+  }
+  await lock.query("BEGIN");
+  await lock.query("SELECT FROM family_trees WHERE id=$1 FOR UPDATE", [
+    trees[0],
+  ]);
+  const slow = rest(key.secret, "persons?familyTreeId=" + trees[0]);
+  let fast: Promise<number[]> | undefined,
+    revoke: Promise<Response> | undefined;
+  try {
+    const holder = (await lock.query("SELECT pg_backend_pid() AS pid")).rows[0]
+      .pid;
+    const reader = await waitingOn(holder);
+    fast = Promise.all(
+      Array.from(
+        { length: 12 },
+        async () => (await rest(key.secret, "family-trees")).status,
+      ),
+    );
+    expect(await Promise.race([fast, Bun.sleep(2500).then(() => [])])).toEqual(
+      Array(12).fill(200),
+    );
+    revoke = manage(owner, "DELETE", { id: key.id });
+    await waitingOn(reader);
+    await lock.query("COMMIT");
+    expect((await slow).status).toBe(200);
+    expect((await revoke).status).toBe(200);
+    expect((await rest(key.secret, "family-trees")).status).toBe(401);
+  } finally {
+    await lock.query("ROLLBACK");
+    lock.release();
+    await Promise.allSettled([slow, fast, revoke]);
+  }
+}, 15000);
+
+test("credential history uses an owner-scoped cursor and retains revoked rows at timestamp ties", async () => {
+  const { rows } = await db.query(
+    `INSERT INTO api_keys(user_id,name,public_prefix,token_hash,scopes,revoked_at)
+    SELECT $1,'Listed '||i,substr(md5(gen_random_uuid()::text),1,24),encode(digest(gen_random_uuid()::text,'sha256'),'hex'),ARRAY['read'],now() FROM generate_series(1,45)i RETURNING id`,
+    [peer],
+  );
+  async function page(user: string, cursor = "") {
+    return fetch(
+      base + "/dashboard/api-keys/manage" + (cursor ? "?cursor=" + cursor : ""),
+      { headers: { cookie: "family_tree_session=" + sessions.get(user) } },
+    );
+  }
+  try {
+    const seen: string[] = [];
+    let cursor = "";
+    for (let n = 0; n < 3; n++) {
+      const data = await (await page(peer, cursor)).json();
+      expect(data.credentials.length).toBe(n < 2 ? 20 : 5);
+      seen.push(...data.credentials.map((k: { id: string }) => k.id));
+      cursor = data.nextCursor;
+      if (n < 2) expect(cursor).toBeTruthy();
+      else expect(cursor).toBeNull();
+    }
+    expect(new Set(seen)).toEqual(new Set(rows.map((r) => r.id)));
+    expect((await (await page(owner, rows[0].id)).json()).credentials).toEqual(
+      [],
+    );
+    expect((await page(peer, "broken")).status).toBe(400);
+  } finally {
+    await db.query("DELETE FROM api_keys WHERE id=ANY($1::uuid[])", [
+      rows.map((r) => r.id),
+    ]);
+  }
+});
+test("Person email syntax and length yield 400 while duplicate email and Person Links yield 409", async () => {
+  const { secret } = await issue(allScopes),
+    path = "persons?familyTreeId=" + trees[0];
+  for (const email of [
+    "invalid",
+    "two@@example.test",
+    "bad@-hostname.test",
+    "colon:name@example.test",
+    "z".repeat(65) + "@example.test",
+    "a".repeat(513) + "@example.test",
+  ]) {
+    const bad = await rest(secret, path, "POST", {
+      full_name: "Invalid email",
+      email,
+    });
+    expect(bad.status).toBe(400);
+    expect((await bad.json()).code).toBe("INVALID_INPUT");
+  }
+  const email = randomUUID() + "@example.test";
+  expect(
+    (await rest(secret, path, "POST", { full_name: "With email", email }))
+      .status,
+  ).toBe(201);
+  expect(
+    (await rest(secret, path, "POST", { full_name: "Duplicate", email }))
+      .status,
+  ).toBe(409);
+  // Free a linked account's email without unlinking its Person.
+  const linked = (
+    await db.query(
+      "SELECT id FROM persons WHERE tree_id=$1 AND linked_user_id=$2",
+      [trees[0], owner],
+    )
+  ).rows[0];
+  const linkedId =
+    linked?.id ??
+    (
+      await (
+        await rest(secret, path, "POST", {
+          full_name: "Linked",
+          email: owner + "@example.test",
+        })
+      ).json()
+    ).data.id;
+  expect(
+    (
+      await rest(
+        secret,
+        "persons/" + linkedId + "?familyTreeId=" + trees[0],
+        "PATCH",
+        { email: null },
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await rest(secret, path, "POST", {
+        full_name: "Conflicting link",
+        email: owner + "@example.test",
+      })
+    ).status,
+  ).toBe(409);
+});
+
+test("best-effort telemetry yields the shared pool to waiting family work", async () => {
+  const key = await issue(["read"]);
+  const { pool } = await import("@/utils/db/client");
+  const { withAgentCredential } = await import("@/utils/agent/credentials");
+  const occupied = await Promise.all(
+    Array.from({ length: 9 }, () => pool.connect()),
+  );
+  let queued: Promise<import("pg").PoolClient> | undefined;
+  let command: Promise<string> | undefined;
+  try {
+    command = withAgentCredential(key.secret, async () => {
+      queued = pool.connect();
+      return "completed";
+    });
+    expect(
+      await Promise.race([command, Bun.sleep(500).then(() => "timed-out")]),
+    ).toBe("completed");
+  } finally {
+    for (const connection of occupied) connection.release();
+    (await queued)?.release();
+    await command;
   }
 });

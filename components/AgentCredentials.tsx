@@ -12,6 +12,7 @@ import { useUnsavedNavigation } from "@/hooks/useUnsavedNavigation";
 import {
   scopes,
   type CredentialSummary,
+  type CredentialPage,
   type Scope,
 } from "@/utils/agent/contract";
 
@@ -31,14 +32,16 @@ const inputClass =
 export default function AgentCredentials({
   initial,
 }: {
-  initial: CredentialSummary[];
+  initial: CredentialPage;
 }) {
   const ready = useSyncExternalStore(
     subscribe,
     () => true,
     () => false,
   );
-  const [keys, setKeys] = useState(initial);
+  const [page, setPage] = useState(initial);
+  const keys = page.credentials;
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [secret, setSecret] = useState("");
   const [dirty, setDirty] = useState(false);
   const [pending, setPending] = useState(false);
@@ -73,6 +76,19 @@ export default function AgentCredentials({
     if (!response.ok)
       throw Error(data.message || "Không thể hoàn tất yêu cầu.");
     return data as { credential: CredentialSummary; secret?: string };
+  }
+  async function loadPage(history: (string | null)[]) {
+    const cursor = history[history.length - 1];
+    const url =
+      "/dashboard/api-keys/manage" +
+      (cursor ? "?cursor=" + encodeURIComponent(cursor) : "");
+    const response = await fetch(url, { cache: "no-store", redirect: "error" });
+    const data = await response.json();
+    if (!response.ok)
+      throw Error(data.message || "Không thể tải danh sách khóa.");
+    setPage(data as CredentialPage);
+    setCursors(history);
+    setConfirm("");
   }
   async function run(action: () => Promise<void>) {
     if (requestPending.current) return;
@@ -111,10 +127,10 @@ export default function AgentCredentials({
         scopes: selected,
         expiresAt: expires ? new Date(expires).toISOString() : null,
       });
-      setKeys((old) => [data.credential, ...old]);
       setSecret(data.secret!);
       setDirty(false);
       form.reset();
+      await loadPage([null]);
     });
   }
   async function copy() {
@@ -269,9 +285,12 @@ export default function AgentCredentials({
                         const { credential } = await mutate("DELETE", {
                           id: key.id,
                         });
-                        setKeys((old) =>
-                          old.map((k) => (k.id === key.id ? credential : k)),
-                        );
+                        setPage((old) => ({
+                          ...old,
+                          credentials: old.credentials.map((k) =>
+                            k.id === key.id ? credential : k,
+                          ),
+                        }));
                         setConfirm("");
                         setMessage("Đã thu hồi khóa.");
                       })
@@ -292,6 +311,30 @@ export default function AgentCredentials({
             )}
           </article>
         ))}
+        {(cursors.length > 1 || page.nextCursor) && (
+          <nav
+            aria-label="Trang danh sách khóa"
+            className="flex flex-wrap items-center gap-3"
+          >
+            <button
+              className="btn min-h-11"
+              disabled={pending || cursors.length < 2}
+              onClick={() => void run(() => loadPage(cursors.slice(0, -1)))}
+            >
+              Trang trước
+            </button>
+            <span aria-live="polite">Trang {cursors.length}</span>
+            <button
+              className="btn min-h-11"
+              disabled={pending || !page.nextCursor}
+              onClick={() =>
+                void run(() => loadPage([...cursors, page.nextCursor!]))
+              }
+            >
+              Trang sau
+            </button>
+          </nav>
+        )}
       </section>
     </>
   );

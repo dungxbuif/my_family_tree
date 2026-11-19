@@ -8,6 +8,7 @@ export type AccessOperation = keyof typeof accessOperations;
 export const deniedAccess = "Chỉ chủ sở hữu của cây gia phả đang chọn mới có thể quản lý quyền truy cập.";
 
 export const accessErrors = {
+  INVALID_EMAIL: "Địa chỉ email không hợp lệ.",
   FORBIDDEN: deniedAccess,
   UNAVAILABLE: "Không thể thực hiện thay đổi với thông tin đã nhập.",
   CONFIRM: "Vui lòng xác nhận thay đổi trước khi tiếp tục.",

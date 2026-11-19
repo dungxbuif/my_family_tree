@@ -29,6 +29,8 @@ const app = Bun.spawn(
     env: {
       ...process.env,
       DATABASE_URL: process.env.FAMILY_TREE_TEST_DATABASE_URL,
+      // Loopback-only backend of the disposable HTTPS integration ingress.
+      AGENT_TRUST_TLS_PROXY: "1",
       NEXT_TELEMETRY_DISABLED: "1",
       NEXT_FONT_GOOGLE_MOCKED_RESPONSES: fileURLToPath(
         new URL("../tests/fixtures/next-font-responses.cjs", import.meta.url),

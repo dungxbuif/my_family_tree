@@ -66,7 +66,21 @@ async function workflow(page, app, width) {
     )
       throw Error("Navigation discarded unsaved work");
   }
+  await page.getByText("Khóa lịch sử 1", { exact: true }).waitFor();
   await checkLayout();
+  if ((await page.getByRole("article").count()) !== 20)
+    throw Error("Credential history did not limit its first page to 20");
+  const next = page.getByRole("button", { name: "Trang sau" }),
+    prev = page.getByRole("button", { name: "Trang trước" });
+  await next.click();
+  await page.getByText("Khóa lịch sử 25", { exact: true }).waitFor();
+  await checkLayout();
+  if ((await page.getByRole("article").count()) > 20)
+    throw Error("Credential page exceeded its limit");
+  await prev.click();
+  await page.getByText("Khóa lịch sử 1", { exact: true }).waitFor();
+  await next.click();
+  await page.getByText("Khóa lịch sử 25", { exact: true }).waitFor();
   const name = "Khóa " + width + "x".repeat(90);
   await page.getByLabel("Tên khóa").fill(name);
   const guards = () =>
@@ -122,6 +136,12 @@ try {
   await db.query(
     "INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '15 minutes')",
     [owner, createHash("sha256").update(token).digest("hex")],
+  );
+  await db.query(
+    `INSERT INTO api_keys(user_id,name,public_prefix,token_hash,scopes,revoked_at,created_at)
+    SELECT $1,'Khóa lịch sử '||i,substr(md5(gen_random_uuid()::text),1,24),encode(digest(gen_random_uuid()::text,'sha256'),'hex'),ARRAY['read'],now(),now()-i*interval '1 day'
+    FROM generate_series(1,25)i`,
+    [owner],
   );
   cli("open", app + "/login", "--browser=chrome");
   cli(

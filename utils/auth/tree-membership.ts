@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { domainToASCII } from "node:url";
 import { pool, withTransaction } from "@/utils/db/client";
 import type { TreeRole } from "@/types";
 import { accountAccessLock } from "./account-access-lock";
@@ -11,7 +12,7 @@ export type AccessCommand =
   | { operation: "link"; personId: string; email: string }
   | { operation: "person-email"; personId: string; email: string }
   | { operation: "unlink"; personId: string; userId: string };
-type AccessCode = "FORBIDDEN" | "UNAVAILABLE" | "LAST_OWNER" | "LINKED" | "UNCERTAIN";
+type AccessCode = "INVALID_EMAIL" | "FORBIDDEN" | "UNAVAILABLE" | "LAST_OWNER" | "LINKED" | "UNCERTAIN";
 export type AccessResult = { ok: true } | { code: AccessCode };
 const forbidden = { code: "FORBIDDEN" } as const;
 const unavailable = { code: "UNAVAILABLE" } as const;
@@ -44,6 +45,20 @@ async function normalizeEmail(client: PoolClient, email: string) {
   return separator > 0 && separator < value.length - 1 ? value : null;
 }
 
+// Person email can use a quoted local name or a single-label internal domain.
+function validPersonEmail(email: string) {
+  const at = email.lastIndexOf("@");
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const atom = /^[\p{L}\p{N}\p{M}!#$%&'*+/=?^_`{|}~.-]+$/u;
+  const quoted = /^"(?:[^"\\\r\n]|\\.)+"$/u;
+  const validLocal = quoted.test(local) || (atom.test(local) && !local.startsWith(".") && !local.endsWith(".") && !local.includes(".."));
+  if (at < 1 || !validLocal || Buffer.byteLength(local) > 64 || Buffer.byteLength(email) > 254) return false;
+  // Reject URL punctuation before IDNA conversion, which also parses URL hosts.
+  if (!/^[\p{L}\p{M}\p{N}.-]+$/u.test(domain)) return false;
+  return domainToASCII(domain).split(".").every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label));
+}
+
 async function activeUser(client: PoolClient, email: string) {
   const { rows } = await client.query<{ id: string }>(`SELECT u.id FROM users u JOIN profiles p ON p.id=u.id
     WHERE public.normalize_email(u.email)=$1 AND p.is_active FOR SHARE OF u,p`, [email]);
@@ -72,18 +87,23 @@ export async function updatePersonEmailInTransaction(
 async function updatePersonEmail(client: PoolClient, treeId: string, personId: string, rawEmail: string) {
   if (!uuid.test(personId) || typeof rawEmail !== "string") return unavailable;
   const email = await normalizeEmail(client, rawEmail);
-  if (!email && rawEmail.trim()) return unavailable;
+  if (rawEmail.length > 512 || (rawEmail.trim() && (!email || !validPersonEmail(email)))) {
+    return { code: "INVALID_EMAIL" } as const;
+  }
   const { rows: [person] } = await client.query<{ email: string | null; linked_user_id: string | null }>(
     "SELECT email,linked_user_id FROM persons WHERE tree_id=$1 AND id=$2 FOR UPDATE", [treeId, personId]);
   if (!person) return unavailable;
   if (email === person.email) return success;
   const conflict = await client.query("SELECT FROM persons WHERE tree_id=$1 AND email=$2", [treeId, email]);
   if (conflict.rowCount) return unavailable;
-  await client.query("UPDATE persons SET email=$3 WHERE tree_id=$1 AND id=$2", [treeId, personId, email]);
   if (email && !person.linked_user_id) {
     const target = await activeUser(client, email);
-    if (target) await linkAccount(client, treeId, personId, target);
+    if (target) {
+      const link = await linkAccount(client, treeId, personId, target);
+      if (!("ok" in link)) return link;
+    }
   }
+  await client.query("UPDATE persons SET email=$3 WHERE tree_id=$1 AND id=$2", [treeId, personId, email]);
   return success;
 }
 

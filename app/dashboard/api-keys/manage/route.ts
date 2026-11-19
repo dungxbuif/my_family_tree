@@ -9,7 +9,9 @@ async function manage(request: Request) {
     if (!user?.is_active) throw new AgentError("UNAUTHORIZED");
     const keys = ownCredentials(user.id);
     if (request.method === "GET")
-      return json({ credentials: await keys.list() });
+      return json(
+        await keys.list(new URL(request.url).searchParams.get("cursor")),
+      );
     const origin = request.headers.get("origin");
     if (
       !origin ||

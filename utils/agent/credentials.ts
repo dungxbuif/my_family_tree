@@ -1,11 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
-import { withTransaction } from "@/utils/db/client";
+import { pool, withTransaction } from "@/utils/db/client";
 import { accountAccessLock } from "@/utils/auth/account-access-lock";
 import { uuid } from "@/utils/family/records";
 import {
   AgentError,
   scopes,
+  credentialPageSize,
+  type CredentialPage,
   type Scope,
   type CredentialSummary,
 } from "./contract";
@@ -30,21 +32,58 @@ export function audit(
     [key.id, key.user_id, transport, action, tree, id, outcome],
   );
 }
-export async function authenticate(client: PoolClient, token: string) {
+async function authenticate(client: PoolClient, token: string) {
   if (!/^gptree_[0-9a-f]{24}_[A-Za-z0-9_-]{43}$/.test(token))
     throw new AgentError("UNAUTHORIZED");
   await client.query(accountAccessLock.shared);
   const {
     rows: [key],
-  } = await client.query<Agent>(
-    `UPDATE api_keys k SET last_used_at=clock_timestamp() FROM profiles p
-     WHERE k.token_hash=$1 AND k.user_id=p.id AND p.is_active AND k.revoked_at IS NULL
-     AND (k.expires_at IS NULL OR k.expires_at>clock_timestamp()) RETURNING k.id,k.user_id,k.scopes`,
+  } = await client.query<Agent & { admitted_at: Date }>(
+    `SELECT k.id,k.user_id,k.scopes,clock_timestamp() AS admitted_at
+       FROM api_keys k JOIN profiles p ON p.id=k.user_id
+      WHERE k.token_hash=$1 AND p.is_active AND k.revoked_at IS NULL
+        AND (k.expires_at IS NULL OR k.expires_at>clock_timestamp())
+      FOR KEY SHARE OF k`,
     [digest(token)],
   );
   if (!key) throw new AgentError("UNAUTHORIZED");
   return key;
 }
+// Authentication holds KEY SHARE through the command. Last-use updates touch
+// only non-key columns and skip a concurrent revoke or another usage writer.
+async function recordAgentUse(id: string, admitted: Date) {
+  // Never queue a response behind other operations just to write telemetry.
+  if (pool.idleCount === 0 || pool.waitingCount > 0) return;
+  try {
+    await pool.query(
+      `WITH candidate AS (
+      SELECT id FROM api_keys WHERE id=$1 AND
+        (last_used_at IS NULL OR last_used_at <= $2::timestamptz - interval '1 minute')
+      FOR NO KEY UPDATE SKIP LOCKED
+    ) UPDATE api_keys k SET last_used_at=$2 FROM candidate WHERE k.id=candidate.id`,
+      [id, admitted],
+    );
+  } catch {
+    // Telemetry is best effort and independent of family data and its audit.
+  }
+}
+// Keep the admission lock through the protected operation. Usage is recorded
+// only after its transaction releases the connection, including on failure.
+export async function withAgentCredential<T>(
+  token: string,
+  operation: (client: PoolClient, key: Agent) => Promise<T>,
+) {
+  let admitted: Awaited<ReturnType<typeof authenticate>> | undefined;
+  try {
+    return await withTransaction(async (client) => {
+      admitted = await authenticate(client, token);
+      return operation(client, admitted);
+    });
+  } finally {
+    if (admitted) await recordAgentUse(admitted.id, admitted.admitted_at);
+  }
+}
+
 export function ownCredentials(user: string) {
   function active<T>(fn: (client: PoolClient) => Promise<T>) {
     return withTransaction(async (client) => {
@@ -62,16 +101,26 @@ export function ownCredentials(user: string) {
     });
   }
   return {
-    list: () =>
-      active(
-        async (client) =>
-          (
-            await client.query<CredentialSummary>(
-              `SELECT ${summaryColumns} FROM api_keys WHERE user_id=$1 ORDER BY created_at DESC,id`,
-              [user],
-            )
-          ).rows,
-      ),
+    list: (cursor?: string | null): Promise<CredentialPage> =>
+      active(async (client) => {
+        if (cursor != null && !uuid.test(cursor))
+          throw new AgentError("INVALID_INPUT");
+        const { rows } = await client.query<CredentialSummary>(
+          `SELECT ${summaryColumns}
+        FROM api_keys WHERE user_id=$1 AND ($2::uuid IS NULL OR (created_at,id) <
+          (SELECT created_at,id FROM api_keys WHERE user_id=$1 AND id=$2))
+        ORDER BY created_at DESC,id DESC LIMIT $3`,
+          [user, cursor, credentialPageSize + 1],
+        );
+        const credentials = rows.slice(0, credentialPageSize);
+        return {
+          credentials,
+          nextCursor:
+            rows.length > credentialPageSize
+              ? credentials[credentialPageSize - 1].id
+              : null,
+        };
+      }),
     create: (input: Record<string, unknown>) =>
       active(async (client) => {
         const name = typeof input.name === "string" ? input.name.trim() : "";
@@ -127,22 +176,22 @@ export function ownCredentials(user: string) {
       active(async (client) => {
         if (typeof id !== "string" || !uuid.test(id))
           throw new AgentError("INVALID_INPUT");
+        // FOR UPDATE conflicts with the KEY SHARE held by each admitted
+        // command. A retry sees the committed revocation and its original time.
+        const {
+          rows: [prior],
+        } = await client.query<CredentialSummary>(
+          `SELECT ${summaryColumns} FROM api_keys WHERE user_id=$1 AND id=$2 FOR UPDATE`,
+          [user, id],
+        );
+        if (!prior) throw new AgentError("NOT_FOUND");
+        if (prior.revoked_at) return { credential: prior };
         const {
           rows: [credential],
         } = await client.query<CredentialSummary>(
-          `UPDATE api_keys SET revoked_at=now() WHERE user_id=$1 AND id=$2 AND revoked_at IS NULL RETURNING ${summaryColumns}`,
+          `UPDATE api_keys SET revoked_at=clock_timestamp() WHERE user_id=$1 AND id=$2 RETURNING ${summaryColumns}`,
           [user, id],
         );
-        if (!credential) {
-          const {
-            rows: [prior],
-          } = await client.query<CredentialSummary>(
-            `SELECT ${summaryColumns} FROM api_keys WHERE user_id=$1 AND id=$2`,
-            [user, id],
-          );
-          if (!prior) throw new AgentError("NOT_FOUND");
-          return { credential: prior };
-        }
         await audit(
           client,
           { id, user_id: user },

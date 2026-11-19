@@ -10,6 +10,11 @@ export type CredentialSummary = {
   last_used_at: string | null;
   created_at: string;
 };
+export const credentialPageSize = 20;
+export type CredentialPage = {
+  credentials: CredentialSummary[];
+  nextCursor: string | null;
+};
 const errors = {
   INVALID_INPUT: [400, "Dữ liệu không hợp lệ."],
   UNAUTHORIZED: [401, "Thông tin xác thực không hợp lệ hoặc đã hết hiệu lực."],

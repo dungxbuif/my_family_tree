@@ -164,6 +164,8 @@ export async function savePerson(
         id,
         formText(fields, "email"),
       );
+      if ("code" in result && result.code === "INVALID_EMAIL")
+        throw new FamilyDataError("Địa chỉ email không hợp lệ.");
       if (!("ok" in result))
         throw new FamilyDataError("Không thể cập nhật email.", { kind: "conflict" });
     }

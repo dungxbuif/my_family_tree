@@ -59,7 +59,6 @@ export function bearer(request: Request) {
   // Next's request URL can itself derive from forwarded headers. Deploy the app
   // behind an ingress that overwrites this header before enabling proxy trust.
   if (
-    process.env.NODE_ENV === "production" &&
     !(forwarded === null
       ? new URL(request.url).protocol === "https:"
       : process.env.AGENT_TRUST_TLS_PROXY === "1" && forwarded === "https")

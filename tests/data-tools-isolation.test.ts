@@ -539,6 +539,47 @@ test("GEDCOM replacement preserves recorded parentage and rejects ambiguous lega
   expect((await service.exportBackup()).relationships).toEqual(after.relationships);
 });
 
+test("selected production routes expose current role and scoped data", async () => {
+  const base = process.env.FAMILY_TREE_TEST_APP_URL;
+  if (!base) throw Error("The release suite requires a running application.");
+  for (const [index, paths] of [
+    [0, ["data", "stats", "lineage", "kinship"]],
+    [1, ["data", "stats", "lineage", "kinship"]],
+  ] as const) {
+    for (const path of paths) {
+      const res = await fetch(base + "/dashboard/" + path, {
+        headers: {
+          connection: "close",
+          cookie: `family_tree_session=${token}; family_tree_selected=${trees[index]}`,
+        },
+        redirect: "manual",
+        signal: AbortSignal.timeout(20_000),
+      });
+      const html = await res.text();
+      if (index === 1 && ["data", "lineage"].includes(path)) {
+        expect(html).not.toContain("Chọn file phục hồi");
+        expect(html).toContain(
+          path === "data"
+            ? "Chỉ chủ sở hữu cây gia phả"
+            : "Chỉ chủ sở hữu và người chỉnh sửa",
+        );
+      } else {
+        expect(res.status).toBe(200);
+        expect(html).toContain(
+          path === "data"
+            ? "Chọn file phục hồi"
+            : path === "stats"
+              ? "Thống kê gia phả"
+              : path === "lineage"
+                ? "Thứ tự gia phả"
+                : "Tra cứu danh xưng",
+        );
+        expect(html).not.toContain("Child " + (1 - index));
+      }
+    }
+  }
+}, 90_000);
+
 test("the bounded restore route accepts a large file and rejects oversize input before replacement", async () => {
   const base = process.env.FAMILY_TREE_TEST_APP_URL!;
   const original = await tools(0).exportBackup();
@@ -681,46 +722,3 @@ test("the bounded restore route accepts a large file and rejects oversize input 
   await tools(0).importBackup(original);
 }, 60_000);
 
-test("selected production routes expose current role and scoped data", async () => {
-  const base = process.env.FAMILY_TREE_TEST_APP_URL;
-  if (!base) throw Error("The release suite requires a running application.");
-  for (const [index, paths] of [
-    [0, ["data", "stats", "lineage", "kinship"]],
-    [1, ["data", "stats", "lineage", "kinship"]],
-  ] as const) {
-    for (const path of paths) {
-      const res = await fetch(base + "/dashboard/" + path, {
-        headers: {
-          // Do not reuse upload sockets from the preceding restore coverage.
-          // Bun's fetch pool can otherwise leave a production Next response
-          // waiting indefinitely on constrained CI runners.
-          connection: "close",
-          cookie: `family_tree_session=${token}; family_tree_selected=${trees[index]}`,
-        },
-        redirect: "manual",
-        signal: AbortSignal.timeout(20_000),
-      });
-      const html = await res.text();
-      if (index === 1 && ["data", "lineage"].includes(path)) {
-        expect(html).not.toContain("Chọn file phục hồi");
-        expect(html).toContain(
-          path === "data"
-            ? "Chỉ chủ sở hữu cây gia phả"
-            : "Chỉ chủ sở hữu và người chỉnh sửa",
-        );
-      } else {
-        expect(res.status).toBe(200);
-        expect(html).toContain(
-          path === "data"
-            ? "Chọn file phục hồi"
-            : path === "stats"
-              ? "Thống kê gia phả"
-              : path === "lineage"
-                ? "Thứ tự gia phả"
-                : "Tra cứu danh xưng",
-        );
-        expect(html).not.toContain("Child " + (1 - index));
-      }
-    }
-  }
-}, 90_000);

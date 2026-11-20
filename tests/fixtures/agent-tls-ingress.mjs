@@ -70,6 +70,7 @@ export function agentTlsIngress(backend) {
           headers: Object.fromEntries(new Headers(init.headers)),
           ca,
           rejectUnauthorized: true,
+          servername: "localhost",
         }, (response) => {
           const chunks = [];
           response.on("data", (chunk) => chunks.push(chunk));

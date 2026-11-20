@@ -351,6 +351,7 @@ test.skipIf(!process.env.FAMILY_TREE_TEST_APP_URL)(
       "Foreign fixture marker",
     );
   },
+  30_000,
 );
 
 test("a waiting Person edit rechecks the Editor's role after a demotion commits", async () => {

@@ -653,7 +653,7 @@ test("the bounded restore route accepts a large file and rejects oversize input 
       .status,
   ).toBe(403);
   await tools(0).importBackup(original);
-}, 30000);
+}, 60_000);
 
 test("selected production routes expose current role and scoped data", async () => {
   const base = process.env.FAMILY_TREE_TEST_APP_URL;

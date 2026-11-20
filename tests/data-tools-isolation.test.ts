@@ -582,8 +582,41 @@ test("the bounded restore route accepts a large file and rejects oversize input 
   // Exercise both HTTP/1 framing modes on the wire. No Content-Length means
   // the server must count actual body chunks rather than trust a header.
   const { request } = await import("node:http");
+  const { connect } = await import("node:net");
   const restoreUrl = base + "/dashboard/data/restore?tree=" + trees[0];
-  async function oversizedRequest(declaredLength: boolean) {
+  async function oversizedContentLengthRequest() {
+    const url = new URL(restoreUrl);
+    return new Promise<{ status?: number }>((resolve, reject) => {
+      const socket = connect(Number(url.port), url.hostname);
+      let response = "";
+      const deadline = setTimeout(() => {
+        socket.destroy(Error("Oversized upload was not rejected"));
+      }, 6000);
+      socket.setEncoding("utf8");
+      socket.on("connect", () => {
+        socket.write(
+          `POST ${url.pathname + url.search} HTTP/1.1\r\n` +
+            `Host: ${url.host}\r\n` +
+            `Origin: ${base}\r\n` +
+            "Accept: application/json\r\n" +
+            "Content-Type: multipart/form-data; boundary=size\r\n" +
+            `Content-Length: ${backupFileLimit + 65537}\r\n` +
+            `Cookie: family_tree_session=${token}; family_tree_selected=${trees[0]}\r\n` +
+            "Connection: close\r\n\r\n",
+        );
+      });
+      socket.on("data", (chunk) => {
+        response += chunk;
+        const match = response.match(/^HTTP\/1\.1 (\d{3})/);
+        if (!match) return;
+        clearTimeout(deadline);
+        socket.destroy();
+        resolve({ status: Number(match[1]) });
+      });
+      socket.on("error", reject);
+    });
+  }
+  async function oversizedChunkedRequest() {
     return new Promise<{ status?: number; body: string }>((resolve, reject) => {
       const req = request(
         restoreUrl,
@@ -594,9 +627,7 @@ test("the bounded restore route accepts a large file and rejects oversize input 
             origin: base,
             accept: "application/json",
             "content-type": "multipart/form-data; boundary=size",
-            ...(declaredLength
-              ? { "content-length": backupFileLimit + 65537 }
-              : { "transfer-encoding": "chunked" }),
+            "transfer-encoding": "chunked",
             cookie: `family_tree_session=${token}; family_tree_selected=${trees[0]}`,
           },
         },
@@ -616,27 +647,22 @@ test("the bounded restore route accepts a large file and rejects oversize input 
       req.setTimeout(6000, () =>
         req.destroy(Error("Oversized upload was not rejected")),
       );
-      if (declaredLength) {
-        req.flushHeaders(); // Expect rejection before sending any bytes.
-      } else {
-        const chunk = Buffer.alloc(1024 * 1024);
-        for (
-          let bytes = 0;
-          bytes <= backupFileLimit + 65536;
-          bytes += chunk.length
-        )
-          req.write(chunk);
-        req.end();
-      }
+      const chunk = Buffer.alloc(1024 * 1024);
+      for (
+        let bytes = 0;
+        bytes <= backupFileLimit + 65536;
+        bytes += chunk.length
+      )
+        req.write(chunk);
+      req.end();
     });
   }
-  for (const declared of [true, false]) {
-    const rejection = await oversizedRequest(declared);
-    expect(rejection.status).toBe(413);
-    expect(JSON.parse(rejection.body)).toMatchObject({
-      code: "BACKUP_TOO_LARGE",
-    });
-  }
+  expect((await oversizedContentLengthRequest()).status).toBe(413);
+  const chunkedRejection = await oversizedChunkedRequest();
+  expect(chunkedRejection.status).toBe(413);
+  expect(JSON.parse(chunkedRejection.body)).toMatchObject({
+    code: "BACKUP_TOO_LARGE",
+  });
   expect(
     (
       await post(

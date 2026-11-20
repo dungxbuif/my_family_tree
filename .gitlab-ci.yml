@@ -44,7 +44,8 @@ validate_tree_scope:
     - bun install --frozen-lockfile
     - ./scripts/migrate-release.mjs
     - bun test tests/release-tree-scope.test.ts tests/public-login.test.tsx tests/account-administration.test.ts tests/account-form.test.tsx
-    - bun scripts/test-account-routes.mjs --gate
+    - bun run build
+    - FAMILY_TREE_TEST_PRODUCTION_SERVER=1 bun scripts/test-account-routes.mjs --gate
 
 release_branch_guard:
   stage: release_guard

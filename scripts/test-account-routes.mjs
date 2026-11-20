@@ -13,13 +13,15 @@ if (!process.env.FAMILY_TREE_TEST_DATABASE_URL) {
 
 const port = "33115";
 const appUrl = `http://127.0.0.1:${port}`;
+const productionServer =
+  process.env.FAMILY_TREE_TEST_PRODUCTION_SERVER === "1";
 // Webpack avoids Turbopack's hashed pg externals on the CI Bun runtime.
 const app = Bun.spawn(
   [
     "node",
     "node_modules/next/dist/bin/next",
-    "dev",
-    "--webpack",
+    productionServer ? "start" : "dev",
+    ...(productionServer ? [] : ["--webpack"]),
     "--hostname",
     "127.0.0.1",
     "--port",
@@ -106,7 +108,9 @@ try {
     DATABASE_URL: process.env.FAMILY_TREE_TEST_DATABASE_URL,
     FAMILY_TREE_TEST_APP_URL: appUrl,
     FAMILY_TREE_TEST_ACTION_MANIFEST:
-      ".next/dev/server/server-reference-manifest.json",
+      productionServer
+        ? ".next/server/server-reference-manifest.json"
+        : ".next/dev/server/server-reference-manifest.json",
   };
   const tests = Bun.spawn(
     [

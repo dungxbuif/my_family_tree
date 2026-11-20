@@ -61,6 +61,30 @@ async function waitForApp() {
   throw new Error("The account test app did not become ready.");
 }
 
+async function ensureTestBucket(client) {
+  let lastError;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try {
+      await client.send(new HeadBucketCommand({ Bucket: process.env.S3_BUCKET }));
+      return;
+    } catch (error) {
+      lastError = error;
+      if (error.$metadata?.httpStatusCode === 404) {
+        try {
+          await client.send(
+            new CreateBucketCommand({ Bucket: process.env.S3_BUCKET }),
+          );
+          return;
+        } catch (createError) {
+          lastError = createError;
+        }
+      }
+    }
+    await Bun.sleep(500);
+  }
+  throw lastError ?? new Error("The isolated S3 service did not become ready.");
+}
+
 try {
   await waitForApp();
   if (process.env.FAMILY_TREE_TEST_LIVE_S3 === "1") {
@@ -75,16 +99,7 @@ try {
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
       },
     });
-    try {
-      await client.send(
-        new HeadBucketCommand({ Bucket: process.env.S3_BUCKET }),
-      );
-    } catch (error) {
-      if (error.$metadata?.httpStatusCode !== 404) throw error;
-      await client.send(
-        new CreateBucketCommand({ Bucket: process.env.S3_BUCKET }),
-      );
-    }
+    await ensureTestBucket(client);
   }
   const env = {
     ...process.env,

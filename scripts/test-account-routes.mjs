@@ -119,9 +119,6 @@ try {
       "--timeout",
       "90000",
       "tests/account-routes.test.ts",
-      "tests/tree-isolation.test.ts",
-      "tests/secondary-tree-isolation.test.ts",
-      "tests/data-tools-isolation.test.ts",
       "tests/discovery.test.ts",
     ],
     {

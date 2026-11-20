@@ -2,6 +2,7 @@
 // connection to an isolated ingress. The backend is bound to the loopback host.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { request as httpsRequest } from "node:https";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -58,10 +59,32 @@ export function agentTlsIngress(backend) {
         });
       },
     });
+    const fetchTls = async (path, init = {}) => {
+      const url = new URL(path, server.url);
+      const body = init.body == null
+        ? null
+        : Buffer.from(await new Response(init.body).arrayBuffer());
+      return new Promise((resolve, reject) => {
+        const request = httpsRequest(url, {
+          method: init.method,
+          headers: Object.fromEntries(new Headers(init.headers)),
+          ca,
+          rejectUnauthorized: true,
+        }, (response) => {
+          const chunks = [];
+          response.on("data", (chunk) => chunks.push(chunk));
+          response.on("end", () => resolve(new Response(Buffer.concat(chunks), {
+            status: response.statusCode,
+            headers: response.headers,
+          })));
+        });
+        request.on("error", reject);
+        request.end(body);
+      });
+    };
     return {
       url: server.url,
-      fetch: (path, init = {}) =>
-        fetch(server.url.origin + path, { ...init, tls: { ca } }),
+      fetch: fetchTls,
       close: () => server.stop(true),
     };
   } finally {

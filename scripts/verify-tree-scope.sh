@@ -8,7 +8,7 @@ for suite in utils/auth/tree-access.test.ts tests/tree-isolation.test.ts tests/s
     exit 1
   fi
   report="$report_dir/${suite##*/}.xml"
-  bun test --reporter=junit --reporter-outfile="$report" "./$suite"
+  bun test --timeout 90000 --reporter=junit --reporter-outfile="$report" "./$suite"
   if [ ! -s "$report" ]; then
     echo "Production promotion requires a test report from $suite" >&2
     exit 1

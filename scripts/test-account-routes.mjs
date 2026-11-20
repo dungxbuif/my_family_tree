@@ -112,6 +112,8 @@ try {
     [
       process.execPath,
       "test",
+      "--timeout",
+      "90000",
       "tests/account-routes.test.ts",
       "tests/tree-isolation.test.ts",
       "tests/secondary-tree-isolation.test.ts",

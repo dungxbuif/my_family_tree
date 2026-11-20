@@ -45,7 +45,7 @@ export default function FamilyTree({
     DEFAULT_AUTO_COLLAPSE_LEVEL,
   );
 
-  const { showAvatar } = useMemberListView();
+  const { showAvatar, focusCreatedPerson } = useMemberListView();
 
   const {
     scale,
@@ -189,7 +189,14 @@ export default function FamilyTree({
 
     // Double rAF: wait for React to re-render with collapsed state, then center
     const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(centerTree);
+      requestAnimationFrame(() => {
+        centerTree();
+        const id = roots[0]?.id;
+        if (id) {
+          const node = containerRef.current?.querySelector<HTMLButtonElement>(`button[data-person-id="${id}"]`);
+          focusCreatedPerson(id, node ?? null);
+        }
+      });
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps

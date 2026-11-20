@@ -1,0 +1,42 @@
+# Gia Phả Family Tree
+
+> Multi-family genealogy service. [OpenAPI for REST](/api/openapi.json) describes all family resource paths, inputs, success envelopes and errors.
+
+## Connecting
+
+Use HTTPS with a user-owned key in the Authorization: Bearer header. Create a key in Tài khoản → Khóa API. Save its secret when displayed and revoke it from the same screen. The service checks activation, key expiry, revocation and current tree membership on every operation.
+
+The MCP endpoint is /api/mcp (stateless Streamable HTTP, POST only). Tool discovery requires authentication. Use the service's configured HTTPS origin. If sending Origin, match the request Host. Initialize with the supported SDK protocol and discover the static tool catalog.
+
+Call list_family_trees first. Pass the chosen familyTreeId explicitly on every other tool. Use id for one resource and body for create/update fields. REST uses the same field names. Lists take limit (default 50, range 1–100) and offset (default 0, range 0–2147483647).
+
+## Tools
+
+- `list_family_trees` — read. Lists the user's available trees and role in each.
+- `list_people` — read. Public person fields in one tree.
+- `get_person` — read. Owner plus private scope also receives email and privateData.
+- `create_person` — write. Requires full_name.
+- `update_person` — write. Merges the patch with the existing person. Editing life dates can convert an omitted legacy leap lunar month from positive to negative when confirmed by the complete solar death date.
+- `delete_person` — delete. Remove Person Link and relationships first.
+- `list_relationships` — read. Returns recorded edges and endpoints.
+- `create_relationship` — write. Supply type, person_a and person_b.
+- `delete_relationship` — delete. Removes one edge.
+- `list_events` — read. Lists custom events.
+- `create_event` — write. Requires name and event_date.
+- `update_event` — write. Merges the patch, trims the name and converts empty location/content strings to null, including omitted legacy values.
+- `delete_event` — delete. Removes one custom event.
+- `list_gallery` — read. Lists gallery metadata.
+- `create_gallery_item` — write. Supply title and the tree's uploaded /api/storage/ image_url.
+- `delete_gallery_item` — delete. Removes one gallery record.
+- `get_family_stats` — read. Counts persons, relationships, custom events and gallery records.
+- `export_family_data` — read and private, Owner only. Complete v4 backup including private details.
+
+Read permits Owner, Editor and Viewer. Write and delete need Owner or Editor and their respective key scope. Writing private fields requires Owner, write and private. A Super Admin also needs membership in the selected tree.
+
+## Limits and errors
+
+Person date fields may be omitted or null. Integer years range from 1 to 9999, solar months from 1 to 12, and solar days from 1 to 31. Lunar months range from 1 to 12 for ordinary months and -12 to -1 for leap months. Lunar days range from 1 to 30. The service checks month length, full lunar dates and chronological order using the known date parts.
+
+REST accepts JSON bodies up to 64 KiB. MCP accepts one JSON-RPC object per POST up to 4 MiB and up to 100 fields and array elements combined per tool input, including nested values. Each data result is limited to 1 MiB before MCP framing. Export allows up to 100 records per collection. Reduce the page limit for oversized lists, or use the application's backup UI for larger exports.
+
+REST returns {data: …} or an error with code, message and requestId. MCP returns structuredContent.data plus text on success. Check isError and retain the requestId from application errors. Keep Bearer secrets, private records and request bodies out of logs.

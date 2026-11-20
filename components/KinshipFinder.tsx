@@ -36,6 +36,7 @@ interface RelEdge {
 }
 
 interface Props {
+  treeId:string;
   persons: PersonNode[];
   relationships: RelEdge[];
 }
@@ -82,6 +83,8 @@ function PersonSelector({
         {label}
       </p>
       <button
+        aria-label={label + " · " + (selected?.full_name ?? "Chọn thành viên")}
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-all ${selected
           ? "bg-amber-50 border-amber-300 text-stone-800"
@@ -290,43 +293,35 @@ const REGIONAL_TERMS: RegionalTerm[] = [
 ];
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function KinshipFinder({ persons, relationships }: Props) {
+export default function KinshipFinder({ treeId, persons, relationships }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const p1Id = searchParams.get("p1");
-  const p2Id = searchParams.get("p2");
-
+  const available = useMemo(() => new Set(persons.map(p => p.id)), [persons]);
+  const rawA = searchParams.get("p1"), rawB = searchParams.get("p2");
+  const p1Id = rawA && available.has(rawA) ? rawA : null;
+  const p2Id = rawB && available.has(rawB) ? rawB : null;
   useEffect(() => {
-    if (!p1Id && !p2Id) {
-      try {
-        const savedP1 = localStorage.getItem("kinship_p1");
-        const savedP2 = localStorage.getItem("kinship_p2");
-        if (savedP1 || savedP2) {
-          const params = new URLSearchParams(searchParams.toString());
-          if (savedP1) params.set("p1", savedP1);
-          if (savedP2) params.set("p2", savedP2);
-          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-        }
-      } catch (e) {
-        console.warn("Failed to read from localStorage:", e);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
+    const key = "kinship:" + treeId;
+    let first = p1Id, second = p2Id;
     try {
-      if (p1Id) localStorage.setItem("kinship_p1", p1Id);
-      else localStorage.removeItem("kinship_p1");
-
-      if (p2Id) localStorage.setItem("kinship_p2", p2Id);
-      else localStorage.removeItem("kinship_p2");
-    } catch (e) {
-      console.warn("Failed to write to localStorage:", e);
-    }
-  }, [p1Id, p2Id]);
+      if (rawA || rawB) {
+        localStorage.setItem(key, JSON.stringify([first, second]));
+      } else {
+        const saved = JSON.parse(localStorage.getItem(key) ?? "[]");
+        if (Array.isArray(saved)) {
+          if (available.has(saved[0])) first = saved[0];
+          if (available.has(saved[1])) second = saved[1];
+        }
+      }
+    } catch { /* The selectors also work with browser storage disabled. */ }
+    if (rawA === first && rawB === second) return;
+    const params = new URLSearchParams(searchParams.toString());
+    if (first) params.set("p1", first); else params.delete("p1");
+    if (second) params.set("p2", second); else params.delete("p2");
+    router.replace(pathname + "?" + params.toString(), { scroll: false });
+  }, [treeId, available, rawA, rawB, p1Id, p2Id, searchParams, router, pathname]);
 
   const personA = useMemo(
     () => persons.find((p) => p.id === p1Id) || null,
@@ -362,7 +357,7 @@ export default function KinshipFinder({ persons, relationships }: Props) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 [&_button]:min-h-11 [&_button]:min-w-11 [&_input]:min-h-11">
       {/* ── Selector row ── */}
       <div className="bg-surface border border-stone-200/60 rounded-2xl p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4">
@@ -638,9 +633,9 @@ export default function KinshipFinder({ persons, relationships }: Props) {
                     {KINSHIP_TERMS.map((row) => (
                       <div
                         key={row.relation}
-                        className="flex items-start gap-4 px-5 py-3"
+                        className="grid gap-2 px-4 py-3 sm:grid-cols-2"
                       >
-                        <span className="text-sm font-bold text-amber-700 w-48 shrink-0">
+                        <span className="text-sm font-bold text-amber-700 break-words">
                           {row.relation}
                         </span>
                         <div className="min-w-0">

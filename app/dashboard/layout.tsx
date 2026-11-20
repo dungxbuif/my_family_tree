@@ -1,10 +1,12 @@
 import config from "@/app/config";
 import { HeritageBottomNav, HeritageHeader } from "@/components/heritage";
+import TreeSelectionSync from "@/components/TreeSelectionSync";
 import Footer from "@/components/Footer";
 import LogoutButton from "@/components/LogoutButton";
 import { UserProvider } from "@/components/UserProvider";
 import { getProfile, getUser } from "@/utils/data/queries";
 import Link from "next/link";
+import { getBrowserTreeSelection } from "@/utils/auth/browser-tree-selection";
 import { redirect } from "next/navigation";
 import React from "react";
 
@@ -54,16 +56,13 @@ export default async function DashboardLayout({
               </svg>
             </div>
             <h2 className="text-2xl font-serif font-bold text-stone-800 mb-2">
-              Tài khoản chờ duyệt
+              Tài khoản đã bị khóa
             </h2>
             <p className="text-stone-600">
-              Tài khoản của bạn đã được đăng ký thành công. Tuy nhiên, hệ thống
-              yêu cầu Quản trị viên kích hoạt tài khoản của bạn trước khi bạn có
-              thể xem các thông tin gia đình.
+              Tài khoản của bạn cần được Quản trị viên hệ thống kích hoạt.
             </p>
             <p className="text-stone-500 text-sm mt-4 italic">
-              Vui lòng liên hệ lại với người quản trị dòng họ để được cấp quyền
-              sớm nhất.
+              Vui lòng liên hệ Quản trị viên hệ thống để được hỗ trợ.
             </p>
           </div>
         </main>
@@ -72,8 +71,10 @@ export default async function DashboardLayout({
     );
   }
 
+  const selection = await getBrowserTreeSelection(user.id);
   return (
-    <UserProvider user={user} profile={profile}>
+    <UserProvider user={user} profile={profile} treeRole={selection.current?.role}>
+      <TreeSelectionSync initialRevision={selection.revision} treeId={selection.current?.id} role={selection.current?.role} />
       <div className="dashboard-shell bg-neutral text-primary flex flex-col font-sans">
         <HeritageHeader />
         {children}

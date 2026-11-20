@@ -6,11 +6,13 @@ services:
     container_name: family-tree-app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/family_tree
       - SITE_NAME=My Family Tree
       - UPLOAD_DIR=/app/uploads
+      - MCP_ALLOWED_ORIGINS=${MCP_ALLOWED_ORIGINS:-}
+      - AGENT_TRUST_TLS_PROXY=${AGENT_TRUST_TLS_PROXY:-0}
       - S3_ENDPOINT=${S3_ENDPOINT:-}
       - S3_BUCKET=${S3_BUCKET:-}
       - S3_PREFIX=${S3_PREFIX:-family-tree}
@@ -35,6 +37,8 @@ services:
       - "55432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docs:/family-tree/docs:ro
+      - ./scripts:/family-tree/scripts:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d family_tree"]
       interval: 5s

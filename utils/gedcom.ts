@@ -1,3 +1,6 @@
+import { recordedLifeStatus } from "./dateHelpers";
+import { FamilyDataError, uuid } from "./family/records";
+
 export interface GedcomPerson {
   id?: string;
   full_name?: string | null;
@@ -8,7 +11,10 @@ export interface GedcomPerson {
   death_year?: number | null;
   death_month?: number | null;
   death_day?: number | null;
-  is_deceased?: boolean;
+  death_lunar_year?: number | null;
+  death_lunar_month?: number | null;
+  death_lunar_day?: number | null;
+  is_deceased?: boolean | null;
   is_in_law?: boolean;
   birth_order?: number | null;
   generation?: number | null;
@@ -20,6 +26,22 @@ export interface GedcomRelationship {
   type?: string;
   person_a?: string;
   person_b?: string;
+}
+
+function recordedDateParts(...parts: (number | null | undefined)[]) {
+  return parts.map((part) => part ?? "?").join(" ");
+}
+
+type ParentType = "biological_child" | "adopted_child";
+type Family = {
+  id: string;
+  husb?: string;
+  wife?: string;
+  children: Map<string, ParentType>;
+};
+
+function unsupportedPedigree() {
+  return new FamilyDataError("GEDCOM cần ghi rõ quan hệ con ruột hoặc con nuôi cho từng gia đình. Hãy kiểm tra phả hệ trong tệp nguồn hoặc dùng bản JSON hay CSV.");
 }
 
 export function exportToGedcom(data: {
@@ -56,63 +78,56 @@ export function exportToGedcom(data: {
   const formatNum = (n: number | null) =>
     n && n > 0 ? String(n).padStart(2, "0") : "";
 
-  // Pre-process Families
-  let familyCounter = 1;
-  const marriages = data.relationships.filter((r) => r.type === "marriage");
-  const childrenRels = data.relationships.filter(
-    (r) => r.type === "biological_child" || r.type === "adopted_child",
-  );
-
-  const families: {
-    id: string;
-    husb?: string;
-    wife?: string;
-    children: string[];
-  }[] = [];
-
-  for (const marriage of marriages) {
-    if (!marriage.person_a || !marriage.person_b) continue;
-    const pA = personMap.get(marriage.person_a);
-    const pB = personMap.get(marriage.person_b);
-    if (!pA || !pB || !pA.id || !pB.id) continue;
-
-    const fam = {
-      id: `F${familyCounter++}`,
-      husb: pA.gender === "male" ? pA.id : pB.gender === "male" ? pB.id : pA.id,
-      wife:
-        pA.gender === "female" ? pA.id : pB.gender === "female" ? pB.id : pB.id,
-      children: [] as string[],
-    };
-    families.push(fam);
+  const families: Family[] = [];
+  function addFamily(husb?: string, wife?: string): Family {
+    const family: Family = { id: `F${families.length + 1}`, husb, wife, children: new Map() };
+    families.push(family);
+    return family;
+  }
+  const coupleKey = (a: string, b: string) => JSON.stringify([a, b].sort());
+  const couples = new Map<string, Family>();
+  const parentsByChild = new Map<string, { id: string; type: ParentType }[]>();
+  if (personMap.size !== data.persons.length) throw Error("Mã thành viên GEDCOM bị thiếu hoặc trùng lặp.");
+  for (const { person_a: a, person_b: b, type } of data.relationships) {
+    if (!a || !b || a === b || !personMap.has(a) || !personMap.has(b))
+      throw Error("Quan hệ GEDCOM tham chiếu thành viên không hợp lệ.");
+    if (type === "marriage") {
+      const swap = personMap.get(a)?.gender !== "male" &&
+        (personMap.get(b)?.gender === "male" || personMap.get(a)?.gender === "female");
+      couples.set(coupleKey(a, b), swap ? addFamily(b, a) : addFamily(a, b));
+    } else if (type === "biological_child" || type === "adopted_child") {
+      const parents = parentsByChild.get(b) ?? [];
+      parents.push({ id: a, type });
+      parentsByChild.set(b, parents);
+    } else throw unsupportedPedigree();
   }
 
-  // Assign children to families
-  for (const childRel of childrenRels) {
-    const parentId = childRel.person_a;
-    const childId = childRel.person_b;
-    if (!parentId || !childId) continue;
-
-    let fam = families.find((f) => f.husb === parentId || f.wife === parentId);
-
-    if (!fam) {
-      const pP = personMap.get(parentId);
-      if (!pP) continue;
-      fam = {
-        id: `F${familyCounter++}`,
-        husb: pP.gender === "male" ? parentId : undefined,
-        wife: pP.gender === "female" ? parentId : undefined,
-        children: [],
-      };
-      families.push(fam);
+  // A FAMC pedigree applies to all parents in that family. Only use a couple's
+  // record if both are actual parents of this child with the same pedigree.
+  const singleParents = new Map<string, Family>();
+  for (const [child, parents] of parentsByChild) {
+    const [first, second] = parents;
+    const couple = parents.length === 2 && first.type === second.type &&
+      couples.get(coupleKey(first.id, second.id));
+    if (couple) {
+      couple.children.set(child, first.type);
+      continue;
     }
-
-    if (!fam.children.includes(childId)) {
-      fam.children.push(childId);
+    for (const parent of parents) {
+      // Distinct pedigrees for the same parent and child require distinct FAMs.
+      const key = JSON.stringify([parent.id, parent.type]);
+      let family = singleParents.get(key);
+      if (!family) {
+        family = personMap.get(parent.id)?.gender === "female"
+          ? addFamily(undefined, parent.id) : addFamily(parent.id);
+        singleParents.set(key, family);
+      }
+      family.children.set(child, parent.type);
     }
   }
 
   // Map persons to their families (for FAMC and FAMS)
-  const personFamc = new Map<string, string[]>();
+  const personFamc = new Map<string, Family[]>();
   const personFams = new Map<string, string[]>();
 
   for (const fam of families) {
@@ -126,10 +141,10 @@ export function exportToGedcom(data: {
       if (!current.includes(fam.id))
         personFams.set(fam.wife, [...current, fam.id]);
     }
-    for (const childId of fam.children) {
+    for (const childId of fam.children.keys()) {
       const current = personFamc.get(childId) || [];
-      if (!current.includes(fam.id))
-        personFamc.set(childId, [...current, fam.id]);
+      current.push(fam);
+      personFamc.set(childId, current);
     }
   }
 
@@ -137,6 +152,7 @@ export function exportToGedcom(data: {
   for (const person of data.persons) {
     if (!person.id) continue;
     gedcom += `0 ${getIndiXref(person.id)} INDI\n`;
+    if (uuid.test(person.id)) gedcom += `1 UID ${person.id}\n`;
 
     // Name
     if (person.full_name) {
@@ -165,24 +181,36 @@ export function exportToGedcom(data: {
       }
     }
 
+    const deceased = recordedLifeStatus(person);
+    if (deceased === false) gedcom += "1 _LIVING Y\n";
+
     // Death
-    if (person.is_deceased) {
+    if (deceased) {
       gedcom += "1 DEAT Y\n";
-      if (person.death_year || person.death_month || person.death_day) {
-        const day = formatNum(person.death_day ?? null);
-        const mont = getMonthName(person.death_month ?? null);
-        const yea = person.death_year ? String(person.death_year) : "";
-        const dateParts = [day, mont, yea].filter(Boolean);
-        if (dateParts.length > 0) {
-          gedcom += `2 DATE ${dateParts.join(" ")}\n`;
-        }
+      const { death_year: year, death_month: month, death_day: day } = person;
+      if (year && (!day || month)) {
+        const date = [formatNum(day ?? null), getMonthName(month ?? null), year]
+          .filter(Boolean)
+          .join(" ");
+        gedcom += `2 DATE ${date}\n`;
+      } else if (year || month || day) {
+        // A day without its month or year cannot be expressed as a standard DATE.
+        gedcom += `2 _SOLAR_DATE ${recordedDateParts(year, month, day)}\n`;
       }
+      const lunar = [
+        person.death_lunar_year,
+        person.death_lunar_month,
+        person.death_lunar_day,
+      ];
+      if (lunar.some(Boolean))
+        gedcom += `2 _LUNAR_DATE ${recordedDateParts(...lunar)}\n`;
     }
 
     // Family Links
     const famcs = personFamc.get(person.id) || [];
-    for (const famId of famcs) {
-      gedcom += `1 FAMC @${famId}@\n`;
+    for (const fam of famcs) {
+      gedcom += `1 FAMC @${fam.id}@\n`;
+      gedcom += `2 PEDI ${fam.children.get(person.id) === "adopted_child" ? "ADOPTED" : "BIRTH"}\n`;
     }
     const famss = personFams.get(person.id) || [];
     for (const famId of famss) {
@@ -203,7 +231,8 @@ export function exportToGedcom(data: {
     gedcom += `0 @${fam.id}@ FAM\n`;
     if (fam.husb) gedcom += `1 HUSB ${getIndiXref(fam.husb)}\n`;
     if (fam.wife) gedcom += `1 WIFE ${getIndiXref(fam.wife)}\n`;
-    for (const childId of fam.children) {
+    if (fam.husb && fam.wife) gedcom += "1 MARR Y\n";
+    for (const childId of fam.children.keys()) {
       gedcom += `1 CHIL ${getIndiXref(childId)}\n`;
     }
   }
@@ -276,9 +305,12 @@ export function parseGedcom(gedcom: string): {
 
   const records: ParseRecord[] = [];
   let currentRecord: ParseRecord | null = null;
+  let inHeader = false;
+  let giaPhaSource = false;
 
   for (const line of lines) {
     if (line.startsWith("0 ")) {
+      inHeader = line.trim() === "0 HEAD";
       if (currentRecord) records.push(currentRecord);
       const match = line.match(/^0\s+@([^@]+)@\s+(INDI|FAM)/);
       if (match) {
@@ -290,29 +322,47 @@ export function parseGedcom(gedcom: string): {
       } else {
         currentRecord = null;
       }
+    } else if (inHeader && line.trim() === "1 SOUR Giapha_OS") {
+      giaPhaSource = true;
     } else if (currentRecord) {
       currentRecord.lines.push(line.trim());
     }
   }
   if (currentRecord) records.push(currentRecord);
 
+  const expectedMembers = new Map<
+    string,
+    { FAMS: Set<string>; FAMC: Set<string> }
+  >();
+
+  const pedigrees = new Map<string, Map<string, ParentType>>();
+  const personIds = new Set<string>();
+
   // Parse Individuals
   for (const record of records.filter((r) => r.type === "INDI")) {
-    const uuid = generateUUID();
-    idMap.set(record.id, uuid);
+    const uid = record.lines.find(line => line.startsWith("1 UID ") && uuid.test(line.slice(6)));
+    const personId = uid ? uid.slice(6).toLowerCase() : generateUUID();
+    if (idMap.has(record.id)) throw Error("Tệp GEDCOM có mã thành viên trùng lặp.");
+    if (personIds.has(personId)) throw Error("Tệp GEDCOM có UID thành viên trùng lặp.");
+    personIds.add(personId);
+    idMap.set(record.id, personId);
 
     let fullName = "Unknown";
     let gender: "male" | "female" | "other" = "other";
-    let is_deceased = false;
+    let is_deceased: boolean | null = null;
     let birth_day = null;
     let birth_month = null;
     let birth_year = null;
     let death_day = null;
     let death_month = null;
     let death_year = null;
+    let death_lunar_year = null,
+      death_lunar_month = null,
+      death_lunar_day = null;
     let note = "";
 
     let currentTag = "";
+    let childFamilyId = "";
 
     for (let i = 0; i < record.lines.length; i++) {
       const line = record.lines[i];
@@ -325,18 +375,45 @@ export function parseGedcom(gedcom: string): {
 
       if (level === 1) {
         currentTag = tag;
-        if (tag === "NAME") {
+        // A separate adoption event can specify just one spouse, which a
+        // family-wide pedigree cannot disambiguate during a replace restore.
+        if (tag === "ADOP") throw unsupportedPedigree();
+        if (tag === "FAMS" || tag === "FAMC") {
+          const pointer = /^@([^@]+)@$/.exec(val);
+          if (!pointer) throw Error("Tham chiếu gia đình GEDCOM không hợp lệ.");
+          const familyId = pointer[1];
+          const expected = expectedMembers.get(familyId) ?? {
+            FAMS: new Set<string>(),
+            FAMC: new Set<string>(),
+          };
+          if (tag === "FAMC") {
+            childFamilyId = familyId;
+            if (expected.FAMC.has(personId)) throw unsupportedPedigree();
+          }
+          expected[tag].add(personId);
+          expectedMembers.set(familyId, expected);
+        } else if (tag === "NAME") {
           fullName = val.replace(/\//g, "").trim();
         } else if (tag === "SEX") {
           if (val === "M") gender = "male";
           else if (val === "F") gender = "female";
+        } else if (tag === "_LIVING" && val === "Y" && is_deceased !== true) {
+          is_deceased = false;
         } else if (tag === "DEAT") {
-          is_deceased = val.trim().length === 0 || val === "Y";
+          if (!val || val === "Y") is_deceased = true;
+          else if (val === "N" && is_deceased !== true) is_deceased = false;
         } else if (tag === "NOTE") {
           note = val;
         }
       } else if (level === 2) {
-        if (currentTag === "NOTE" && tag === "CONT") {
+        if (currentTag === "FAMC" && tag === "PEDI") {
+          const pedigree = val.toUpperCase();
+          const children = pedigrees.get(childFamilyId) ?? new Map<string, ParentType>();
+          if (children.has(personId) || (pedigree !== "ADOPTED" && pedigree !== "BIRTH"))
+            throw unsupportedPedigree();
+          children.set(personId, pedigree === "ADOPTED" ? "adopted_child" : "biological_child");
+          pedigrees.set(childFamilyId, children);
+        } else if (currentTag === "NOTE" && tag === "CONT") {
           note += "\n" + val;
         } else if (currentTag === "BIRT" && tag === "DATE") {
           const cleanVal = val.replace(/^(ABT|EST|AFT|BEF|CAL)\s+/i, "");
@@ -350,6 +427,26 @@ export function parseGedcom(gedcom: string): {
           } else if (parts.length === 2) {
             birth_month = parseMonthName(parts[0]);
             birth_year = parseInt(parts[1]) || null;
+          }
+        } else if (
+          currentTag === "DEAT" &&
+          (tag === "_SOLAR_DATE" || tag === "_LUNAR_DATE")
+        ) {
+          const parts = val.trim().split(/\s+/);
+          if (
+            parts.length === 3 &&
+            parts.every((part) => /^(?:-?\d+|\?)$/.test(part))
+          ) {
+            const date = parts.map((part) =>
+              part === "?" ? null : Number(part),
+            );
+            if (date.some((part) => part !== null)) {
+              is_deceased = true;
+              if (tag === "_SOLAR_DATE")
+                [death_year, death_month, death_day] = date;
+              else
+                [death_lunar_year, death_lunar_month, death_lunar_day] = date;
+            }
           }
         } else if (currentTag === "DEAT" && tag === "DATE") {
           is_deceased = true;
@@ -370,7 +467,7 @@ export function parseGedcom(gedcom: string): {
     }
 
     persons.push({
-      id: uuid,
+      id: personId,
       full_name: fullName,
       gender,
       is_deceased,
@@ -380,6 +477,9 @@ export function parseGedcom(gedcom: string): {
       death_day: Number.isNaN(death_day) ? null : death_day,
       death_month,
       death_year: Number.isNaN(death_year) ? null : death_year,
+      death_lunar_year,
+      death_lunar_month,
+      death_lunar_day,
       is_in_law: false,
       birth_order: null,
       generation: null,
@@ -389,7 +489,11 @@ export function parseGedcom(gedcom: string): {
   }
 
   // Parse Families
+  const familyIds = new Set<string>();
   for (const record of records.filter((r) => r.type === "FAM")) {
+    if (familyIds.has(record.id))
+      throw Error("Tệp GEDCOM có mã gia đình trùng lặp.");
+    familyIds.add(record.id);
     let husb = null;
     let wife = null;
     const children: string[] = [];
@@ -400,15 +504,30 @@ export function parseGedcom(gedcom: string): {
         const tag = match[1];
         const refId = match[2];
         const uuid = idMap.get(refId);
-        if (!uuid) continue;
+        if (!uuid) throw Error("Tệp GEDCOM tham chiếu thành viên không tồn tại.");
 
+        if ((tag === "HUSB" && husb) || (tag === "WIFE" && wife))
+          throw Error("Tệp GEDCOM có vai trò gia đình trùng lặp.");
         if (tag === "HUSB") husb = uuid;
         else if (tag === "WIFE") wife = uuid;
         else if (tag === "CHIL") children.push(uuid);
       }
     }
 
-    if (husb && wife && husb !== wife) {
+    const expected = expectedMembers.get(record.id);
+    if (expected) {
+      if (husb) expected.FAMS.delete(husb);
+      if (wife) expected.FAMS.delete(wife);
+      for (const child of children) expected.FAMC.delete(child);
+      if (expected.FAMS.size || expected.FAMC.size)
+        throw Error("Vai trò thành viên trong gia đình GEDCOM không khớp.");
+      expectedMembers.delete(record.id);
+    }
+    if ((husb && husb === wife) || children.some(id => id === husb || id === wife)) throw Error("Quan hệ GEDCOM không hợp lệ.");
+    // Earlier Gia Pha exports used a two-adult FAM to record marriage.
+    // Their child links lack pedigree and are rejected below.
+    const recordsMarriage = record.lines.some(line => /^1 MARR(?: Y)?$/.test(line));
+    if (husb && wife && (recordsMarriage || (giaPhaSource && !children.length))) {
       relationships.push({
         type: "marriage",
         person_a: husb,
@@ -416,24 +535,18 @@ export function parseGedcom(gedcom: string): {
       });
     }
 
-    // Assigning children to both parents
+    // Old exports omitted pedigree even for adoptions. A destructive import
+    // must have an explicit supported FAMC.PEDI for every family child.
     for (const childId of children) {
-      if (husb && husb !== childId) {
-        relationships.push({
-          type: "biological_child",
-          person_a: husb,
-          person_b: childId,
-        });
-      }
-      if (wife && wife !== childId) {
-        relationships.push({
-          type: "biological_child",
-          person_a: wife,
-          person_b: childId,
-        });
-      }
+      const type = pedigrees.get(record.id)?.get(childId);
+      if (!type || (!husb && !wife)) throw unsupportedPedigree();
+      for (const parent of [husb, wife])
+        if (parent) relationships.push({ type, person_a: parent, person_b: childId });
     }
   }
+
+  if (expectedMembers.size)
+    throw Error("Tệp GEDCOM tham chiếu gia đình không tồn tại.");
 
   // Deduplicate relationships to prevent database unique constraint errors
   const uniqueRelationships: GedcomRelationship[] = [];

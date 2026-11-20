@@ -5,6 +5,24 @@ export type RelationshipType =
   | "adopted_child";
 export type UserRole = "admin" | "editor" | "member";
 
+export const FAMILY_TREE_NAME_LIMIT = 120;
+export type TreeRole = "owner" | "editor" | "viewer";
+
+export interface FamilyTree {
+  id: string;
+  name: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TreeMembership {
+  tree_id: string;
+  user_id: string;
+  role: TreeRole;
+  created_at: string;
+}
+
 export interface AppUser {
   id: string;
   email: string;
@@ -13,6 +31,7 @@ export interface AppUser {
 }
 
 export interface Profile {
+  is_super_admin: boolean;
   id: string;
   role: UserRole;
   is_active: boolean;
@@ -23,12 +42,15 @@ export interface Profile {
 export interface AdminUserData {
   id: string;
   email: string;
-  role: UserRole;
+  is_super_admin: boolean;
   is_active: boolean;
   created_at: string;
 }
 
 export interface Person {
+  tree_id: string;
+  email?: string | null;
+  linked_user_id?: string | null;
   id: string;
   full_name: string;
   gender: Gender;
@@ -54,14 +76,17 @@ export interface Person {
   death_lunar_day: number | null;
 
   // New fields
-  is_deceased: boolean;
+  is_deceased: boolean | null;
   is_in_law: boolean;
   birth_order: number | null;
   generation: number | null;
   other_names: string | null;
 }
 
+export type PersonOption = Pick<Person, "id" | "full_name" | "birth_year" | "gender" | "avatar_url" | "generation">;
+
 export interface Relationship {
+  tree_id: string;
   id: string;
   type: RelationshipType;
   person_a: string; // UUID
@@ -79,10 +104,11 @@ export interface PersonWithDetails extends Person {
 }
 
 export interface GalleryItem {
+  tree_id: string;
   id: string;
   title: string;
   description: string | null;
-  image_url: string;
+  image_url: string | null;
   event_date: string | null; // ISO string or date string
   created_at: string;
   created_by: string | null;

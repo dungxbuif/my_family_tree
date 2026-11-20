@@ -1,29 +1,18 @@
 import LineageManager from "@/components/LineageManager";
-import { Person, Relationship } from "@/types";
-import { getProfile, getDataClient } from "@/utils/data/queries";
-import { redirect } from "next/navigation";
+import { currentFamilyPage } from "@/utils/family/browser";
 
 export default async function LineagePage() {
-  const profile = await getProfile();
-
-  if (profile?.role !== "admin") {
-    redirect("/dashboard");
-  }
-
-  const dataClient = getDataClient();
-
-  const { data: personsData } = await dataClient
-    .from<Person>("persons")
-    .select("*")
-    .order("birth_year", { ascending: true, nullsFirst: false });
-
-  const { data: relsData } = await dataClient
-    .from<Relationship>("relationships")
-    .select("*");
-
-  // Identify "roots" - people with no parents
-  const persons = personsData || [];
-  const relationships = relsData || [];
+  const { people, tree } = await currentFamilyPage();
+  const { persons, relationships, role } = await people.graph();
+  if (role === "viewer")
+    return (
+      <main className="p-4">
+        <h1 className="title">Thứ tự gia phả</h1>
+        <p role="status">
+          Chỉ chủ sở hữu và người chỉnh sửa có thể cập nhật thứ tự gia phả.
+        </p>
+      </main>
+    );
 
   return (
     <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col pt-8 relative w-full">
@@ -89,7 +78,16 @@ export default async function LineagePage() {
 
         {/* Manager */}
         <div className="bg-surface rounded-2xl border border-stone-200/60 shadow-sm p-5 sm:p-8">
-          <LineageManager persons={persons} relationships={relationships} />
+          {persons.length ? (
+            <LineageManager
+              key={tree.id}
+              treeId={tree.id}
+              persons={persons}
+              relationships={relationships}
+            />
+          ) : (
+            <p>Chưa có thành viên trong cây gia phả.</p>
+          )}
         </div>
       </div>
     </main>

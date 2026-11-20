@@ -14,8 +14,9 @@ Dự án này giúp gia đình bạn nắm trọn quyền kiểm soát dữ li�
 - **Tìm danh xưng**: Tự động xác định cách gọi tên chính xác.
 - **Quản lý thành viên**: Lưu trữ thông tin, avatar và sắp xếp thứ tự nhánh dòng họ.
 - **Lưu trữ nội bộ**: Tất cả dữ liệu và hình ảnh được lưu trữ trực tiếp trong cơ sở dữ liệu PostgreSQL và hệ thống tệp của bạn.
-- **Bảo mật**: Hệ thống đăng nhập và phân quyền (Admin, Editor, Member) tích hợp sẵn.
-- **Sao lưu & Phục hồi**: Xuất/nhập file JSON, CSV, GEDCOM dễ dàng.
+- **Bảo mật**: Đăng nhập bằng tài khoản do Quản trị viên hệ thống cấp.
+- **Khóa API** cho phép tác nhân đọc và quản lý hồ sơ theo quyền hiện tại của người dùng trong từng cây. [Hướng dẫn sử dụng REST và quản lý khóa](docs/API.md)
+- **Sao lưu & Phục hồi**: Chủ sở hữu có thể xuất hoặc phục hồi cây đang chọn bằng JSON, CSV hoặc GEDCOM. [Định dạng và cách phục hồi](docs/runbooks/family-tree-backup.md)
 
 ## Giao diện responsive
 
@@ -59,13 +60,100 @@ docker-compose up -d
 ### 4. Khởi tạo Database
 Lần đầu tiên chạy, bạn cần khởi tạo cấu trúc bảng:
 ```bash
-docker-compose exec app bun scripts/migrate-local-dev.sh
+bash scripts/migrate-local-dev.sh
 ```
 
-## Tài khoản đầu tiên
-- Truy cập vào trang web và chọn **Đăng ký**.
-- Người đăng ký đầu tiên sẽ tự động được cấp quyền **Admin**.
-- Các tài khoản sau đó sẽ cần được Admin kích hoạt trong mục **Quản lý Người dùng**.
+### Kiểm thử trình chọn cây bằng Chrome
+
+Chạy ứng dụng với `DATABASE_URL` trỏ đến PostgreSQL kiểm thử đã áp dụng
+`docs/schema.sql`. Trong terminal thứ hai, đặt `FAMILY_TREE_TEST_DATABASE_URL`
+trỏ đến cùng cơ sở dữ liệu và `FAMILY_TREE_TEST_APP_URL` trỏ đến ứng dụng đó.
+Máy chạy kiểm thử cần Bun, npx và Google Chrome.
+
+```sh
+bun scripts/test-tree-selector-browser.mjs
+bun scripts/test-tree-membership-browser.mjs
+bun scripts/test-tree-add-browser.mjs
+bun scripts/test-data-tools-browser.mjs
+```
+
+Script tạo tài khoản và cây tạm thời, chạy Playwright CLI ở 320×568, 430×932
+và 1280×800, rồi dọn dữ liệu kiểm thử. Ảnh và số đo nằm trong
+`output/playwright/tree-selector/`. Đặt `PLAYWRIGHT_CLI` nếu cần dùng đường dẫn
+đến wrapper Playwright CLI đã cài. Kiểm thử quản lý quyền ghi kết quả vào
+`output/playwright/tree-membership/`. Kiểm thử thêm thành viên ghi kết quả vào
+`output/playwright/tree-add/`.
+
+Khi mất kết nối lúc thêm người, lần thử lại dùng cùng mã biểu mẫu và cùng tệp ảnh. Nếu mở lại trang, chọn lại tệp và nhập lại nội dung đã gửi để nhận kết quả lần trước. Kiểm thử ảnh đại diện dùng API ký thật. Khởi chạy ứng dụng kiểm thử với `S3_ENDPOINT=http://127.0.0.1:33407`, `S3_BUCKET=family`, `S3_ACCESS_KEY_ID=test` và `S3_SECRET_ACCESS_KEY=test`. Tạo bucket kiểm thử ở endpoint loopback và cho phép PUT từ origin của ứng dụng. Playwright gửi các PUT thật, sau đó ứng dụng xác nhận đối tượng trong bucket khi lưu hồ sơ.
+
+Khi thẻ khác chuyển cây, bản nháp đang mở cho phép sao chép nội dung. Chọn **Ở lại với bản nháp** rồi **Chọn lại cây của bản nháp** để xác thực lại quyền và tiếp tục lưu, hoặc bỏ bản nháp để xem cây mới.
+
+GEDCOM dùng thẻ mở rộng `1 _LIVING Y` cho người được ghi rõ còn sống và `1 DEAT Y` cho người đã mất. Nếu thiếu cả hai thông tin, trạng thái là chưa rõ. Chỉ cần có dữ liệu ngày mất, bản xuất ghi `1 DEAT Y` kể cả khi cờ cũ ghi còn sống hoặc chưa rõ. Thông tin đã mất được ưu tiên nếu có cả hai thẻ. Bên dưới `DEAT`, thẻ `DATE` lưu ngày dương lịch chuẩn. Thẻ mở rộng `_SOLAR_DATE` lưu ngày dương lịch thiếu thành phần mà `DATE` không biểu diễn được, còn `_LUNAR_DATE` lưu ngày âm lịch. Hai thẻ mở rộng dùng thứ tự năm, tháng, ngày và dấu `?` cho phần chưa rõ. Tháng âm lịch nhuận được lưu bằng số âm. Ngày mất dương lịch đầy đủ có thể xác định tháng nhuận trong dữ liệu cũ ghi tháng không dấu.
+
+Trong **Cây gia phả**, chủ sở hữu và người chỉnh sửa có thể chọn **Thêm thành viên**.
+Mở một người trên sơ đồ rồi chọn **Thêm thành viên** để lưu hồ sơ mới cùng
+quan hệ với người đó. Nút ở ngoài hồ sơ tạo người chưa có quan hệ. Trạng thái mặc định là **Chưa rõ**. Có thể ghi rõ **Sống** hoặc **Đã mất**. Sau khi
+lưu, cả ba chế độ sơ đồ lấy người vừa tạo làm gốc. Nút **Hủy** giữ vị trí trước đó.
+Chỉ chủ sở hữu có quyền đọc và sửa thông tin riêng tư, bao gồm email có
+thể thiết lập liên kết tài khoản. Muốn xóa hồ sơ đã liên kết, chủ sở hữu
+cần hủy liên kết trong phần quản lý quyền trước.
+
+## Đăng nhập và quản lý tài khoản
+
+Trang `/login` dành cho người đã có tài khoản. Quản trị viên hệ thống đang hoạt
+động có thể tạo, kích hoạt, khóa hoặc xóa tài khoản trong **Tài khoản → Quản lý
+người dùng**. Tài khoản mới được tạo ở trạng thái đang hoạt động theo mặc định.
+Khi bị khóa, các phiên đăng nhập hiện tại kết thúc. Người dùng đăng nhập lại
+sau khi tài khoản được kích hoạt.
+
+Mỗi tài khoản đang hoạt động mở **Tài khoản → Cây gia phả của tôi** để tạo và
+chuyển cây gia phả. Hệ thống tạo cây và cấp quyền Chủ sở hữu cho bạn trong
+cùng một giao dịch, sau đó chọn cây mới. Bạn có thể tạo nhiều cây. Danh sách hiển thị
+vai trò hiện tại của bạn trong từng cây còn hoạt động. Khi mở lại danh sách,
+máy chủ kiểm tra lại quyền trước khi dùng lựa chọn đã lưu trong trình duyệt.
+Nếu bạn mất quyền hoặc cây đã lưu trữ, hệ thống chọn cây còn truy cập được tạo
+sớm nhất. Khi danh sách trống, bạn có thể tạo cây đầu tiên.
+
+Trong cây đang chọn, Chủ sở hữu mở **Quản lý quyền truy cập → Thêm quyền truy
+cập**, nhập đầy đủ email của tài khoản đang hoạt động và chọn vai trò. Vai trò
+mặc định là Người xem. Bạn có thể đổi vai trò trong danh sách người đã có quyền.
+Mỗi cây cần giữ ít nhất một Chủ sở hữu đang hoạt động. Trước khi gỡ quyền,
+hạ quyền, khóa hoặc xóa tài khoản Chủ sở hữu cuối cùng đang hoạt động, hãy cấp
+quyền này cho một tài khoản đang hoạt động khác trong mỗi cây bị ảnh hưởng.
+
+Để gắn tài khoản với một người trong gia phả, chọn **Liên kết hồ sơ**, nhập
+email đầy đủ và chọn hồ sơ. Mã bên cạnh tên giúp phân biệt các hồ sơ trùng tên.
+Nếu kết nối gián đoạn khi lưu, hãy mở lại danh sách trong thẻ mới để kiểm tra
+kết quả. Thẻ hiện tại giữ thông tin đã gửi. Mở lại địa chỉ biểu mẫu trong cùng
+phiên đăng nhập để xem kết quả, kể cả sau khi tự gỡ quyền. Nếu sau 30 giây hệ
+thống vẫn chưa xác nhận, địa chỉ đó tiếp tục hiển thị thông tin đã gửi để đối
+chiếu. Khi hệ thống xác nhận đã từ chối, bạn có thể sửa và gửi biểu mẫu mới.
+Nếu tài khoản chưa tham gia cây, hệ thống cấp quyền
+Người xem. Mỗi tài khoản có thể liên kết với một hồ sơ trong mỗi cây. Gỡ liên
+kết trước khi đổi sang tài khoản khác hoặc gỡ quyền truy cập. Thay đổi email
+của hồ sơ đã liên kết vẫn giữ nguyên tài khoản gắn với hồ sơ.
+
+Cây đang chọn xác định dữ liệu của trang chủ, thành viên, sơ đồ, lịch, thư viện ảnh,
+thống kê, tra cứu danh xưng, sắp xếp gia phả và sao lưu/phục hồi. Máy chủ kiểm tra
+tư cách thành viên hiện tại cho từng thao tác.
+
+Trong **Tài khoản → Khóa API**, mỗi người dùng có thể tạo hoặc thu hồi khóa của mình.
+Trình khách REST và MCP chọn cây từ danh sách được cấp quyền rồi gửi `familyTreeId`
+với từng yêu cầu dữ liệu. Trên máy chủ đang chạy, `/api/openapi.json` mô tả 18
+thao tác REST và `/llms.txt` liệt kê 18 công cụ MCP. [Hướng dẫn REST](docs/API.md) · [Kết nối MCP](docs/MCP.md)
+
+Quản trị viên hệ thống không thể tự khóa hoặc tự xóa tài khoản đang đăng nhập.
+Trước khi xóa tài khoản còn liên kết với hồ sơ thành viên, cần gỡ liên kết.
+Nếu tài khoản là Chủ sở hữu duy nhất của một cây gia phả, cần bổ sung Chủ sở hữu
+khác trước khi xóa.
+
+Khi nâng cấp cơ sở dữ liệu cũ đã có dữ liệu, cần ít nhất một Admin đang hoạt
+động để nhận quyền Chủ sở hữu cây hiện tại. Nếu mọi Admin đã bị khóa, hãy
+thống nhất với chủ dữ liệu về người được cấp lại quyền trước khi chạy migration.
+Cơ sở dữ liệu giữ quyền Quản trị viên hệ thống cho những tài khoản Admin đã có.
+Với cơ sở dữ liệu mới hoặc khi hệ thống sau migration không còn Quản trị viên hệ thống
+đang hoạt động, người vận hành khởi tạo tài khoản từ máy quản trị sau khi chạy
+migration. [Quy trình khởi tạo Quản trị viên hệ thống](docs/runbooks/bootstrap-super-admin.md)
 
 ## Triển khai Homelab
 
@@ -95,9 +183,9 @@ RustFS trước khi chuyển dịch vụ sang image mới.
 [Quy trình phát hành và kiểm tra dữ liệu](docs/deployment/gitlab-homelab-migration.md)
 
 ## Phân quyền người dùng
-1. **Admin**: Toàn quyền hệ thống, quản lý người dùng và dữ liệu riêng tư.
-2. **Editor**: Thêm, sửa, xóa thành viên và quan hệ.
-3. **Member**: Chỉ xem thông tin công khai và sơ đồ.
+
+Quản trị viên hệ thống quản lý vòng đời tài khoản. Quyền truy cập dữ liệu gia
+phả do tư cách thành viên trong từng cây quyết định.
 
 ## Quyền riêng tư
 - **Dữ liệu của bạn thuộc về bạn**: Toàn bộ thông tin được lưu trữ cục bộ trên máy chủ của bạn.
@@ -105,3 +193,7 @@ RustFS trước khi chuyển dịch vụ sang image mới.
 
 ## Giấy phép
 Mã nguồn được phân phối dưới giấy phép MIT.
+
+### Ảnh và sự kiện theo cây gia phả
+
+Chủ sở hữu và người chỉnh sửa có thể quản lý sự kiện và hình ảnh trong cây đang chọn. Người xem có thể đọc lịch và xem ảnh. Mỗi ảnh tải lên có khóa riêng theo cây. Máy chủ kiểm tra quyền hiện tại cho từng lần đọc hoặc tải lên, kể cả khi trình duyệt còn giữ đường dẫn cũ. Quy trình chuyển đổi ảnh cũ và dọn tệp không còn được sử dụng nằm trong [hướng dẫn triển khai](docs/runbooks/multi-family-production-migration.md#media-ownership-at-cutover).

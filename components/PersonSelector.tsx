@@ -1,6 +1,6 @@
 "use client";
 
-import { Person } from "@/types";
+import type { PersonOption } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown, Database, Search } from "lucide-react";
 import Image from "next/image";
@@ -31,7 +31,7 @@ export default function PersonSelector({
   showAllOption = false,
   allOptionLabel = "Toàn bộ dữ liệu",
 }: {
-  persons: Person[];
+  persons: PersonOption[];
   selectedId?: string | null;
   onSelect: (id: string | null) => void;
   placeholder?: string;

@@ -116,9 +116,10 @@ export default function FamilyNodeCard({
     return content;
   }
 
-    return (
+  return (
     <button
       type="button"
+      data-person-id={person.id}
       onClick={() => setMemberModalId(person.id)}
       aria-label={`Xem thông tin ${person.full_name}`}
       className="block min-h-11 w-fit"

@@ -1,55 +1,39 @@
+import { adminCreateUser } from "@/app/actions/user";
 import AdminUserList from "@/components/AdminUserList";
-import { AdminUserData, UserRole } from "@/types";
-import { getProfile, getDataClient } from "@/utils/data/queries";
+import type { AdminUserData } from "@/types";
+import { getProfile } from "@/utils/auth/session";
+import { query } from "@/utils/db/client";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export default async function AdminUsersPage() {
   const profile = await getProfile();
-  const isAdmin = profile?.role === "admin";
+  if (!profile?.is_active || !profile.is_super_admin) redirect("/dashboard");
 
-  if (!isAdmin || !profile) {
-    redirect("/dashboard");
+  let users: AdminUserData[] | null = null;
+  try {
+    const { rows } = await query<Omit<AdminUserData, "created_at"> & { created_at: Date }>(
+      `SELECT u.id, u.email, u.created_at, COALESCE(p.is_active, false) AS is_active,
+              COALESCE(p.is_super_admin, false) AS is_super_admin
+         FROM users u LEFT JOIN profiles p ON p.id = u.id
+        ORDER BY u.email`,
+    );
+    users = rows.map((user) => ({ ...user, created_at: user.created_at.toISOString() }));
+  } catch {
+    console.error("Could not load account list");
   }
-
-  const db = getDataClient();
-
-  // Fetch users and profiles to combine into AdminUserData
-  const { data: users, error: uError } = await db
-    .from<{ id: string; email: string; created_at: string }>("users")
-    .select("id, email, created_at");
-  const { data: profiles, error: pError } = await db
-    .from<{ id: string; role: string; is_active: boolean }>("profiles")
-    .select("id, role, is_active");
-
-  if (uError || pError) {
-    console.error("Error fetching users/profiles:", uError || pError);
-  }
-
-  const typedUsers: AdminUserData[] =
-    (users || [])?.map((user) => {
-      const p = (profiles || [])?.find((p) => p.id === user.id);
-      return {
-        id: user.id,
-        email: user.email,
-        role: (p?.role as UserRole) || "member",
-        is_active: p?.is_active || false,
-        created_at: user.created_at,
-      };
-    }) || [];
 
   return (
-    <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col pt-8 relative w-full">
-      <div className="max-w-7xl mx-auto px-4 pb-8 sm:px-6 lg:px-8 w-full relative z-10">
-        <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-          <div>
-            <h1 className="title">Quản lý Người dùng</h1>
-            <p className="text-stone-500 mt-2 text-sm sm:text-base">
-              Danh sách các tài khoản đang tham gia vào hệ thống.
-            </p>
-          </div>
-        </div>
-        <AdminUserList initialUsers={typedUsers} currentUserId={profile.id} />
-      </div>
+    <main className="content-gutter mx-auto w-full max-w-5xl flex-1 py-8">
+      <Link href="/dashboard/account" className="inline-flex min-h-11 items-center text-primary hover:underline">
+        Về tài khoản
+      </Link>
+      <h1 className="mb-4 font-sans text-[26px] font-bold leading-[34px] text-primary">Quản lý người dùng</h1>
+      {users ? (
+        <AdminUserList users={users} currentUserId={profile.id} createUserAction={adminCreateUser} />
+      ) : (
+        <p role="alert" className="body-sm text-error">Không thể tải danh sách tài khoản. Vui lòng tải lại trang.</p>
+      )}
     </main>
   );
 }

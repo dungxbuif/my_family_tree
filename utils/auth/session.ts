@@ -7,19 +7,27 @@ import { cache } from "react";
 const SESSION_COOKIE = "family_tree_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
-function hashToken(token: string) {
+export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export async function getSessionToken() {
+  return (await cookies()).get(SESSION_COOKIE)?.value;
 }
 
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
-  const tokenHash = hashToken(token);
+  const tokenHash = hashSessionToken(token);
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
 
-  await query(
-    "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+  // A suspension waits for sign-in to finish writing, then removes its session.
+  const { rowCount } = await query(
+    `INSERT INTO sessions (user_id, token_hash, expires_at)
+     SELECT id, $2, $3 FROM profiles WHERE id = $1 AND is_active
+     FOR SHARE`,
     [userId, tokenHash, expiresAt],
   );
+  if (!rowCount) return false;
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
@@ -29,6 +37,7 @@ export async function createSession(userId: string) {
     maxAge: SESSION_MAX_AGE_SECONDS,
     path: "/",
   });
+  return true;
 }
 
 export async function destroySession() {
@@ -36,15 +45,14 @@ export async function destroySession() {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (token) {
     await query("DELETE FROM sessions WHERE token_hash = $1", [
-      hashToken(token),
+      hashSessionToken(token),
     ]);
   }
   cookieStore.delete(SESSION_COOKIE);
 }
 
 export const getSessionUser = cache(async () => {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = await getSessionToken();
   if (!token) return null;
 
   const result = await query<AppUser & Profile>(
@@ -54,14 +62,15 @@ export const getSessionUser = cache(async () => {
       users.created_at,
       users.updated_at,
       profiles.role,
-      profiles.is_active
+      profiles.is_active,
+      profiles.is_super_admin
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     LEFT JOIN profiles ON profiles.id = users.id
     WHERE sessions.token_hash = $1
       AND sessions.expires_at > now()
     LIMIT 1`,
-    [hashToken(token)],
+    [hashSessionToken(token)],
   );
 
   return result.rows[0] ?? null;
@@ -83,7 +92,7 @@ export const getProfile = cache(async (userId?: string) => {
   if (!id) return null;
 
   const result = await query<Profile>(
-    "SELECT id, role, is_active, created_at, updated_at FROM profiles WHERE id = $1",
+    "SELECT id, role, is_active, is_super_admin, created_at, updated_at FROM profiles WHERE id = $1",
     [id],
   );
   return result.rows[0] ?? null;

@@ -17,17 +17,4 @@ until docker compose exec -T "$DB_SERVICE" pg_isready -U "$DB_USER" -d "$DB_NAME
 done
 echo " DB is up!"
 
-run_psql_file() {
-  local file="$1"
-  echo "Applying $file..."
-  docker compose exec -T "$DB_SERVICE" psql \
-    -v ON_ERROR_STOP=1 \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
-    -f - < "$file"
-}
-
-# Apply core application schema
-run_psql_file "docs/schema.sql"
-
-echo "Migration completed successfully."
+exec bash scripts/migrate-local-dev.sh

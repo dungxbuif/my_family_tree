@@ -8,11 +8,13 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function GalleryClient({
+  treeId,
   initialItems,
-  isAdmin,
+  canEdit,
 }: {
+  treeId: string;
   initialItems: GalleryItem[];
-  isAdmin: boolean;
+  canEdit: boolean;
 }) {
   const [items, setItems] = useState<GalleryItem[]>(initialItems);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,7 +47,7 @@ export default function GalleryClient({
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setTimeout(() => setEditingItem(null), 300); // clear after animation
+    setEditingItem(null);
   };
 
   return (
@@ -53,31 +55,33 @@ export default function GalleryClient({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 sm:mb-12">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="title">Phòng trưng bày</h1>
-            <p className="text-stone-500 mt-2 text-sm sm:text-base ">
+            <h1 tabIndex={-1} data-collection-focus className="title">Phòng trưng bày</h1>
+            <p className="text-secondary mt-2 text-sm sm:text-base ">
               Lưu giữ những kỷ niệm và khoảnh khắc đáng nhớ
             </p>
           </div>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
+        {canEdit ? <button onClick={() => setIsModalOpen(true)} className="btn-primary">
           <Plus className="size-5" />
           Thêm hình ảnh
-        </button>
+        </button> : <span className="text-secondary">Chỉ xem</span>}
       </div>
 
       <GalleryGrid
+        treeId={treeId}
         items={items}
-        isAdmin={isAdmin}
+        canEdit={canEdit}
         onEdit={handleEdit}
         onDeleteSuccess={handleDeleteSuccess}
       />
 
-      <UploadModal
+      {isModalOpen && canEdit && <UploadModal
+        treeId={treeId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSuccess={handleUploadSuccess}
         initialData={editingItem}
-      />
+      />}
     </>
   );
 }

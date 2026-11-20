@@ -5,6 +5,8 @@ import RelationshipManager from "@/components/RelationshipManager";
 import { Person } from "@/types";
 import {
   calculateAge,
+  recordedLifeStatus,
+  recordedLunarMonth,
   formatDisplayDate,
   getLunarDateString,
   getSolarDateString,
@@ -30,14 +32,14 @@ import { FemaleIcon, MaleIcon } from "@/components/GenderIcons";
 interface MemberDetailContentProps {
   person: Person;
   privateData: Record<string, unknown> | null;
-  isAdmin: boolean;
+  isOwner: boolean;
   canEdit?: boolean;
 }
 
 export default function MemberDetailContent({
   person,
   privateData,
-  isAdmin,
+  isOwner,
   canEdit = false,
 }: MemberDetailContentProps) {
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
@@ -70,14 +72,7 @@ export default function MemberDetailContent({
   const note = (fullPerson.note as string) || "";
   const isNoteLong = note.length > 300;
 
-  const isDeceased =
-    person.is_deceased ||
-    !!person.death_year ||
-    !!person.death_month ||
-    !!person.death_day ||
-    !!person.death_lunar_year ||
-    !!person.death_lunar_month ||
-    !!person.death_lunar_day;
+  const isDeceased = recordedLifeStatus(person);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -108,9 +103,9 @@ export default function MemberDetailContent({
       <div className="h-28 sm:h-36 bg-stone-100 relative shrink-0">
         {/* Decorative blur in cover */}
         <div
-          className={`absolute right-0 -top-20 w-64 h-64 rounded-full blur-[60px] opacity-40 ${person.gender === "male" ? "bg-sky-300" : person.gender === "female" ? "bg-rose-300" : "bg-stone-300"}`}
+          className={`pointer-events-none absolute right-0 -top-20 w-64 h-64 rounded-full blur-[60px] opacity-40 ${person.gender === "male" ? "bg-sky-300" : person.gender === "female" ? "bg-rose-300" : "bg-stone-300"}`}
         />
-        <div className="absolute -left-20 -bottom-20 w-64 h-64 rounded-full blur-[60px] opacity-20 bg-amber-200" />
+        <div className="pointer-events-none absolute -left-20 -bottom-20 w-64 h-64 rounded-full blur-[60px] opacity-20 bg-amber-200" />
 
         <motion.div
           variants={itemVariants}
@@ -164,6 +159,7 @@ export default function MemberDetailContent({
           <div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 flex items-center gap-2 sm:gap-3 flex-wrap">
               {fullPerson.full_name}
+              {isDeceased === null && <span className="body-sm text-secondary">Tình trạng chưa rõ</span>}
               {isDeceased && (
                 <span className="text-[10px] sm:text-xs font-sans font-bold text-stone-500 border border-stone-200/80 bg-stone-100/50 rounded-md px-2 py-0.5 whitespace-nowrap uppercase tracking-wider shadow-xs">
                   Đã mất
@@ -313,7 +309,7 @@ export default function MemberDetailContent({
                             person.death_lunar_year
                             ? formatDisplayDate(
                               person.death_lunar_year,
-                              person.death_lunar_month,
+                              recordedLunarMonth(person.death_year, person.death_month, person.death_day, person.death_lunar_year, person.death_lunar_month, person.death_lunar_day),
                               person.death_lunar_day,
                             )
                             : getLunarDateString(
@@ -568,10 +564,10 @@ export default function MemberDetailContent({
                 <Users className="size-5 text-amber-600" />
                 Gia đình
               </h2>
-              <div className="bg-surface p-4 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative z-0">
+              <div id="relationships" className="bg-surface p-4 sm:p-6 rounded-2xl border border-stone-200/60 shadow-sm relative z-0">
                 <RelationshipManager
                   person={person}
-                  isAdmin={isAdmin}
+                  isOwner={isOwner}
                   canEdit={canEdit}
                   onStatsLoaded={handleStatsLoaded}
                 />
@@ -582,7 +578,7 @@ export default function MemberDetailContent({
           {/* Sidebar / Private Info */}
           <div className="space-y-6">
             <motion.div layout variants={itemVariants}>
-              {isAdmin ? (
+              {isOwner ? (
                 <div className="bg-stone-50 p-5 sm:p-6 rounded-2xl border border-stone-200/80 shadow-sm">
                   <h3 className="font-bold text-stone-900 mb-4 flex items-center gap-2 text-sm sm:text-base border-b border-stone-200/60 pb-3">
                     <span className="bg-amber-100/80 text-amber-700 p-1.5 rounded-lg border border-amber-200/50">
@@ -633,7 +629,7 @@ export default function MemberDetailContent({
                 <div className="bg-stone-50/50 p-5 rounded-2xl border border-stone-200 border-dashed flex flex-col items-center justify-center text-center gap-2">
                   <span className="text-2xl opacity-50">🔒</span>
                   <p className="text-sm font-medium text-stone-500">
-                    Thông tin liên hệ chỉ hiển thị với Quản trị viên.
+                    Thông tin liên hệ chỉ hiển thị với chủ sở hữu cây.
                   </p>
                 </div>
               )}

@@ -3,24 +3,26 @@
 import { fetchMemberDetail } from "@/app/actions/member";
 import MemberDetailContent from "@/context/MemberDetailContent";
 import MemberForm from "@/components/MemberForm";
-import { Person } from "@/types";
+import { Person, TreeRole } from "@/types";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, ArrowLeft, Edit2, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMemberListView } from "@/context/MemberListContext";
-import { useUser } from "@/components/UserProvider";
+import { useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
+import TreeAddMember from "../TreeAddMember";
 
-export default function MemberDetailModal() {
+export default function MemberDetailModal({treeId,role,graph = false}: {treeId:string;role:TreeRole;graph?:boolean}) {
   const {
-    memberModalId: memberId,
+    view, memberModalId: memberId,
     setMemberModalId,
     showCreateMember,
     setShowCreateMember,
   } = useMemberListView();
-  const { isAdmin, isEditor: canEdit } = useUser();
+  const isOwner = role === "owner", canEdit = role !== "viewer";
   const router = useRouter();
+  const frozen = useStaleTreeDraft();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const prefersReducedMotion = useReducedMotion();
@@ -36,7 +38,11 @@ export default function MemberDetailModal() {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  const returnToDetails = () => {
+    if (!document.documentElement.dataset.staleTreeDraft) setIsEditing(false);
+  };
   const closeModal = useCallback(() => {
+    if (document.documentElement.dataset.staleTreeDraft) return;
     setMemberModalId(null);
     setShowCreateMember(false);
     setIsEditing(false);
@@ -47,7 +53,7 @@ export default function MemberDetailModal() {
       setLoading(true);
       setError(null);
       try {
-        const { person, privateData } = await fetchMemberDetail(id);
+        const { person, privateData } = await fetchMemberDetail(id, treeId);
         setPerson(person);
         setPrivateData(privateData || {});
       } catch (err) {
@@ -58,7 +64,7 @@ export default function MemberDetailModal() {
         setLoading(false);
       }
     },
-    [],
+    [treeId],
   );
 
   // Sync state with URL parameter or create mode
@@ -109,6 +115,7 @@ export default function MemberDetailModal() {
     if (!isOpen) return;
     const timer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
     const handleEscape = (event: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
       if (event.key === "Escape" && !isEditing && !showCreateMember) {
         closeModal();
       }
@@ -200,9 +207,9 @@ export default function MemberDetailModal() {
               {isEditing ? (
                 /* In edit mode — show back button */
                 <button
-                  onClick={() => {
-                    setIsEditing(false);
-                  }}
+                  aria-label="Quay lại"
+                  disabled={frozen}
+                  onClick={returnToDetails}
                   className="inline-flex items-center justify-center shrink-0 gap-1.5 px-3 py-2.5 bg-stone-100/80 text-stone-700 rounded-full hover:bg-stone-200 font-medium text-sm border border-stone-200/50 hover:-translate-y-1 hover:shadow-soft-hover transition-all duration-300"
                 >
                   <ArrowLeft className="size-4" />
@@ -233,6 +240,7 @@ export default function MemberDetailModal() {
               )}
               <button
                 onClick={closeModal}
+                disabled={frozen}
                 ref={closeButtonRef}
                   className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-stone-200/50 bg-stone-100/80 text-stone-600 shadow-sm transition-colors hover:bg-stone-200 hover:text-stone-900"
                 aria-label="Đóng"
@@ -288,18 +296,19 @@ export default function MemberDetailModal() {
                     Chỉnh sửa thành viên
                   </h2>
                   <MemberForm
+                    treeId={treeId}
                     initialData={
                       formInitialData as Parameters<
                         typeof MemberForm
                       >[0]["initialData"]
                     }
                     isEditing={true}
-                    isAdmin={isAdmin}
+                    isOwner={isOwner}
                     onSuccess={handleEditSuccess}
-                    onCancel={() => setIsEditing(false)}
+                    onCancel={returnToDetails}
                   />
                 </motion.div>
-              ) : showCreateMember ? (
+              ) : showCreateMember && canEdit ? (
                 /* ── CREATE MODE ── */
                 <motion.div
                   key="creating"
@@ -313,7 +322,8 @@ export default function MemberDetailModal() {
                     Thêm thành viên mới
                   </h2>
                   <MemberForm
-                    isAdmin={isAdmin}
+                    treeId={treeId}
+                    isOwner={isOwner}
                     onSuccess={handleCreateSuccess}
                     onCancel={closeModal}
                   />
@@ -328,10 +338,11 @@ export default function MemberDetailModal() {
                   transition={{ duration: 0.3 }}
                   className="flex-1 overflow-y-auto custom-scrollbar"
                 >
+                  {graph && view !== "list" && canEdit && <div className="relative z-10 px-4 pt-16"><TreeAddMember treeId={treeId} selected={person} /></div>}
                   <MemberDetailContent
                     person={person}
                     privateData={privateData}
-                    isAdmin={isAdmin}
+                    isOwner={isOwner}
                     canEdit={canEdit}
                   />
                 </motion.div>

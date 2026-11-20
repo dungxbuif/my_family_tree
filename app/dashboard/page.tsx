@@ -4,9 +4,9 @@ import {
   HeritageMetricCard,
   HeritagePersonCard,
 } from "@/components/heritage";
-import type { Person, Relationship } from "@/types";
-import { getDataClient, getUser } from "@/utils/data/queries";
-import { computeEvents, type CustomEventRecord } from "@/utils/eventHelpers";
+import { currentFamilyPage } from "@/utils/family/browser";
+import { getUser } from "@/utils/data/queries";
+import { computeEvents } from "@/utils/eventHelpers";
 import { Cake, CalendarDays, Flower2, GitBranch, Layers3, Star, Users } from "lucide-react";
 import Link from "next/link";
 
@@ -17,16 +17,11 @@ const eventIcons = {
 };
 
 export default async function DashboardLaunchpad() {
-  const [user, personsRes, relationshipsRes, customEventsRes] = await Promise.all([
-    getUser(),
-    getDataClient().from<Person>("persons").select("*").order("updated_at", { ascending: false }),
-    getDataClient().from<Relationship>("relationships").select("*"),
-    getDataClient().from<CustomEventRecord>("custom_events").select("id, name, content, event_date, location, created_by"),
-  ]);
-
-  const persons = personsRes.data ?? [];
-  const relationships = relationshipsRes.data ?? [];
-  const events = computeEvents(persons, customEventsRes.data ?? []).filter((event) => event.daysUntil >= 0);
+  const { people } = await currentFamilyPage();
+  const [user, graph, calendar] = await Promise.all([getUser(), people.graph(), people.calendar()]);
+  const {persons, relationships} = graph;
+  persons.sort((a, b) => Number(new Date(b.updated_at)) - Number(new Date(a.updated_at)));
+  const events = computeEvents(persons, calendar).filter(event => event.daysUntil >= 0);
   const generations = new Set(persons.map((person) => person.generation).filter(Boolean)).size;
   const childIds = new Set(relationships.filter((relationship) => relationship.type.includes("child")).map((relationship) => relationship.person_b));
   const branches = Math.max(1, persons.filter((person) => !childIds.has(person.id)).length);

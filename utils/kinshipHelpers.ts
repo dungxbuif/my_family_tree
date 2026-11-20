@@ -380,18 +380,19 @@ function findBloodKinship(
 // ── Main Entry Point ──────────────────────────────────────────────────────────
 
 export function computeKinship(
-  personA: PersonNode,
-  personB: PersonNode,
+  selectedA: PersonNode,
+  selectedB: PersonNode,
   persons: PersonNode[],
   relationships: RelEdge[],
 ): KinshipResult | null {
-  if (personA.id === personB.id) return null;
-
   const personsMap = new Map(persons.map((p) => [p.id, p]));
+  const personA = personsMap.get(selectedA.id), personB = personsMap.get(selectedB.id);
+  if (!personA || !personB || personA.id === personB.id) return null;
   const parentMap = new Map<string, string[]>();
   const spouseMap = new Map<string, string[]>();
 
   for (const r of relationships) {
+    if (!personsMap.has(r.person_a) || !personsMap.has(r.person_b)) continue;
     if (r.type === "biological_child" || r.type === "adopted_child") {
       const p = parentMap.get(r.person_b) ?? [];
       p.push(r.person_a);

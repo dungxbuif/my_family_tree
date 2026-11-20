@@ -6,13 +6,12 @@ import { formatDisplayDate } from "@/utils/dateHelpers";
 import { getAvatarBg } from "@/utils/styleHelprs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import DefaultAvatar from "./DefaultAvatar";
 
 // Server Actions
 import { 
   fetchMemberRelationships, 
-  getRelationshipStats, 
   addRelationship, 
   deleteRelationship, 
   quickAddSpouse,
@@ -23,7 +22,7 @@ import { searchMembers, getRecentMembers } from "@/app/actions/member";
 
 interface RelationshipManagerProps {
   person: Person;
-  isAdmin: boolean;
+  isOwner: boolean;
   canEdit?: boolean;
   onStatsLoaded?: (stats: {
     biologicalChildren: number;
@@ -38,7 +37,7 @@ interface RelationshipManagerProps {
 
 export default function RelationshipManager({
   person,
-  isAdmin,
+  isOwner,
   canEdit = false,
   onStatsLoaded,
 }: RelationshipManagerProps) {
@@ -46,6 +45,8 @@ export default function RelationshipManager({
   const { setMemberModalId } = useMemberListView();
   const router = useRouter();
 
+  const bulkSubmission = useRef("");
+  const spouseSubmission = useRef("");
   const personId = person.id;
   const personGender = person.gender;
 
@@ -108,20 +109,15 @@ export default function RelationshipManager({
   // Fetch relationships
   const fetchRelationships = useCallback(async () => {
     try {
-      const formattedRels = await fetchMemberRelationships(personId);
-
-      if (onStatsLoaded) {
-        const stats = await getRelationshipStats(personId, formattedRels);
-        onStatsLoaded(stats);
-      }
-
-      setRelationships(formattedRels);
+      const result = await fetchMemberRelationships(personId, person.tree_id);
+      onStatsLoaded?.(result.stats);
+      setRelationships(result.relationships);
     } catch (err) {
       console.error("Error fetching relationships:", err);
     } finally {
       setLoading(false);
     }
-  }, [personId, onStatsLoaded]);
+  }, [personId, person.tree_id, onStatsLoaded]);
 
   useEffect(() => {
     // This callback synchronizes client state with the relationship API.
@@ -138,7 +134,7 @@ export default function RelationshipManager({
       }
 
       try {
-        const results = await searchMembers(searchTerm, personId);
+        const results = await searchMembers(searchTerm, personId, person.tree_id);
         setSearchResults(results);
       } catch (err) {
         console.error("Search error:", err);
@@ -147,14 +143,14 @@ export default function RelationshipManager({
 
     const timeoutId = setTimeout(searchPeople, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, personId]);
+  }, [searchTerm, personId, person.tree_id]);
 
   // Fetch recent members when opening Add form
   useEffect(() => {
     if (isAdding && recentMembers.length === 0) {
       const fetchRecent = async () => {
         try {
-          const results = await getRecentMembers(personId);
+          const results = await getRecentMembers(personId, person.tree_id);
           setRecentMembers(results);
         } catch (err) {
           console.error("Fetch recent error:", err);
@@ -162,7 +158,7 @@ export default function RelationshipManager({
       };
       fetchRecent();
     }
-  }, [isAdding, personId, recentMembers.length]);
+  }, [isAdding, personId, person.tree_id, recentMembers.length]);
 
   const handleAddRelationship = async () => {
     if (!selectedTargetId) return;
@@ -193,12 +189,9 @@ export default function RelationshipManager({
         person_b: personB,
         type: type,
         note: newRelNote ? newRelNote : null,
-        direction: newRelDirection,
-        personGeneration: person.generation,
-        personIsInLaw: person.is_in_law
-      });
+      }, person.tree_id);
 
-      if (result.error) throw new Error(result.error);
+      if (!result.success) throw new Error(result.error);
 
       setIsAdding(false);
       setSearchTerm("");
@@ -231,18 +224,19 @@ export default function RelationshipManager({
       const result = await bulkAddChildren({
         parentId: personId,
         spouseId: selectedSpouseId,
-        parentGeneration: person.generation,
+        submissionId: bulkSubmission.current ||= crypto.randomUUID(),
         children: validChildren.map(c => ({
             name: c.name,
             gender: c.gender,
             birthYear: c.birthYear,
             birthOrder: c.birthOrder
         }))
-      });
+      }, person.tree_id);
 
-      if (result.error) throw new Error(result.error);
+      if (!result.success) throw new Error(result.error);
 
       if (result.success && result.count === validChildren.length) {
+        bulkSubmission.current = "";
         setIsAddingBulk(false);
         setBulkChildren([
           {
@@ -299,13 +293,14 @@ export default function RelationshipManager({
         name: newSpouseName.trim(),
         gender: newSpouseGender as "male" | "female" | "other",
         is_in_law: person.is_in_law === true ? false : true,
-        generation: person.generation,
+        submissionId: spouseSubmission.current ||= crypto.randomUUID(),
         birthYear: isNaN(birthYearNum!) ? undefined : birthYearNum,
         note: newSpouseNote.trim() || null
-      });
+      }, person.tree_id);
 
-      if (result.error) throw new Error(result.error);
+      if (!result.success) throw new Error(result.error);
 
+      spouseSubmission.current = "";
       setIsAddingSpouse(false);
       setNewSpouseName("");
       setNewSpouseBirthYear("");
@@ -324,8 +319,8 @@ export default function RelationshipManager({
   const handleDelete = async (relId: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa mối quan hệ này?")) return;
     try {
-      const result = await deleteRelationship(relId);
-      if (result.error) throw new Error(result.error);
+      const result = await deleteRelationship(relId, person.tree_id);
+      if (!result.success) throw new Error(result.error);
       fetchRelationships();
       router.refresh();
     } catch (err: unknown) {
@@ -365,7 +360,7 @@ export default function RelationshipManager({
         if (group === "child") title = "Con cái";
         if (group === "child_in_law") title = "Con dâu / Con rể";
 
-        if (items.length === 0 && !isAdmin) return null; // Hide empty sections for members? Or show empty state?
+        if (items.length === 0 && !isOwner) return null; // Hide empty sections for members? Or show empty state?
 
         return (
           <div

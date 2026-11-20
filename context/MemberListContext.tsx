@@ -2,9 +2,11 @@
 
 import { ViewMode } from "@/components/ViewToggle";
 import { useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 interface MemberListViewState {
+  requestCreatedFocus: (id: string) => void;
+  focusCreatedPerson: (id: string, node: HTMLElement | SVGElement | null) => void;
   memberModalId: string | null;
   setMemberModalId: (id: string | null) => void;
   showCreateMember: boolean;
@@ -33,6 +35,16 @@ export function MemberListProvider({
   initialShowAvatar?: boolean;
 }) {
   const searchParams = useSearchParams();
+  const focusCreated = useRef<string | null>(null);
+  const requestCreatedFocus = useCallback((id: string) => {
+    focusCreated.current = id;
+  }, []);
+  const focusCreatedPerson = useCallback((id: string, node: HTMLElement | SVGElement | null) => {
+    if (!node || focusCreated.current !== id) return;
+    node.focus({ preventScroll: true });
+    node.scrollIntoView({ block: "center", inline: "center" });
+    focusCreated.current = null;
+  }, []);
 
   // Initialize state directly from URL to avoid flash of wrong view
   const [memberModalId, setMemberModalId] = useState<string | null>(
@@ -124,6 +136,8 @@ export function MemberListProvider({
   return (
     <MemberListContext.Provider
       value={{
+        requestCreatedFocus,
+        focusCreatedPerson,
         memberModalId,
         setMemberModalId: updateModalId,
         showCreateMember,
@@ -147,6 +161,8 @@ export function useMemberListView(): MemberListViewState {
   // (e.g., on the /dashboard/members/[id] standalone page)
   if (context === undefined) {
     return {
+      requestCreatedFocus: () => {},
+      focusCreatedPerson: () => {},
       memberModalId: null,
       setMemberModalId: () => { },
       showCreateMember: false,

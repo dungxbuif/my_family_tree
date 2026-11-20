@@ -42,7 +42,7 @@ export default function MemberList({
           matchesFilter = person.gender === "male" && person.is_in_law;
           break;
         case "deceased":
-          matchesFilter = person.is_deceased;
+          matchesFilter = person.is_deceased === true;
           break;
         case "first_child":
           matchesFilter = person.birth_order === 1;

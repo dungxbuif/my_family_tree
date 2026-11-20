@@ -1,13 +1,11 @@
 import MemberForm from "@/components/MemberForm";
-import { getProfile } from "@/utils/data/queries";
+import { currentFamilyPage } from "@/utils/family/browser";
 import { HeritagePageHero } from "@/components/heritage";
 
 export default async function NewMemberPage() {
-  const profile = await getProfile();
-
-  const isAdmin = profile?.role === "admin";
-  const canEdit = profile?.role === "admin" || profile?.role === "editor";
-
+  const { tree } = await currentFamilyPage();
+  const isOwner = tree.role === "owner";
+  const canEdit = tree.role !== "viewer";
   // If user cannot edit, reject access
   if (!canEdit) {
     return (
@@ -29,7 +27,7 @@ export default async function NewMemberPage() {
       <HeritagePageHero title="Thêm thành viên" backHref="/dashboard/members?view=list" />
 
       <main className="relative z-10 w-full flex-1 py-4 sm:py-6">
-        <MemberForm isAdmin={isAdmin} />
+        <MemberForm treeId={tree.id} isOwner={isOwner} />
       </main>
     </div>
   );

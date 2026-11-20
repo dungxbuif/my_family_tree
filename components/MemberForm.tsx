@@ -1,7 +1,12 @@
 "use client";
 
 import { Gender, Person } from "@/types";
+import {
+  currentHistoryIndex,
+  useStaleTreeDraft,
+} from "@/hooks/useUnsavedNavigation";
 import { saveMember } from "@/app/actions/member";
+import { recordedLifeStatus, recordedLunarMonth } from "@/utils/dateHelpers";
 import { uploadImage } from "@/utils/storage/client";
 import { AnimatePresence, motion, Variants } from "framer-motion";
 import {
@@ -18,12 +23,13 @@ import {
 } from "lucide-react";
 import { Lunar, Solar } from "lunar-javascript";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 interface MemberFormProps {
+  treeId: string;
   initialData?: Person;
   isEditing?: boolean;
-  isAdmin?: boolean;
+  isOwner?: boolean;
   /** Called with the saved person's ID after a successful save. Overrides default router.push. */
   onSuccess?: (personId: string) => void;
   /** Called when user clicks Cancel. Overrides default router.back(). */
@@ -31,13 +37,33 @@ interface MemberFormProps {
 }
 
 export default function MemberForm({
-  initialData,
+  treeId, initialData,
   isEditing = false,
-  isAdmin = false,
+  isOwner = false,
   onSuccess,
   onCancel,
 }: MemberFormProps) {
   const router = useRouter();
+  const stale = useStaleTreeDraft();
+  const submission = useRef("");
+  function submissionId() {
+    if (initialData?.id) return initialData.id;
+    if (!submission.current) {
+      const saved = history.state?.personCreation;
+      submission.current = saved?.treeId === treeId && saved.path === location.href ? saved.id : crypto.randomUUID();
+      history.replaceState({ ...history.state, personCreation: { treeId, id: submission.current, path: location.href } }, "");
+    }
+    return submission.current;
+  }
+  function finishSubmission() {
+    if (history.state?.personCreation?.id === submission.current) {
+      const state = {...history.state};
+      delete state.personCreation;
+      history.replaceState(state, "");
+    }
+    submission.current = "";
+  }
+  const [email, setEmail] = useState(initialData?.email ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,15 +95,19 @@ export default function MemberForm({
     initialData?.death_lunar_year || "",
   );
   const [deathLunarMonth, setDeathLunarMonth] = useState<number | "">(
-    initialData?.death_lunar_month || "",
+    initialData ? recordedLunarMonth(initialData.death_year, initialData.death_month, initialData.death_day,
+      initialData.death_lunar_year, initialData.death_lunar_month, initialData.death_lunar_day) ?? "" : "",
   );
   const [deathLunarDay, setDeathLunarDay] = useState<number | "">(
     initialData?.death_lunar_day || "",
   );
 
-  const [isDeceased, setIsDeceased] = useState<boolean>(
-    initialData?.is_deceased || false,
-  );
+  const [lifeStatus, setLifeStatus] = useState(() => {
+    const recorded = initialData ? recordedLifeStatus(initialData) : null;
+    return recorded === null ? "unknown" : String(recorded);
+  });
+  const isDeceased = lifeStatus === "true";
+  const uploadedAvatar = useRef<{ file: File; upload: Promise<string> } | null>(null);
   const [isInLaw, setIsInLaw] = useState<boolean>(
     initialData?.is_in_law || false,
   );
@@ -133,7 +163,7 @@ export default function MemberForm({
         const solar = Solar.fromYmd(y, m, d);
         const lunar = solar.getLunar();
         setDeathLunarDay(lunar.getDay());
-        setDeathLunarMonth(Math.abs(lunar.getMonth()));
+        setDeathLunarMonth(lunar.getMonth());
         setDeathLunarYear(lunar.getYear());
       } catch {
         // Ignore invalid dates
@@ -176,6 +206,7 @@ export default function MemberForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (stale) return;
     setLoading(true);
     setError(null);
 
@@ -244,7 +275,7 @@ export default function MemberForm({
         const solarDate = Solar.fromYmd(deathYear, deathMonth, deathDay);
         const lunarDate = solarDate.getLunar();
         finalDeathLunarDay = lunarDate.getDay();
-        finalDeathLunarMonth = Math.abs(lunarDate.getMonth());
+        finalDeathLunarMonth = lunarDate.getMonth();
         finalDeathLunarYear = lunarDate.getYear();
       } catch {
         // Safe fallback if conversion fails
@@ -280,10 +311,23 @@ export default function MemberForm({
     }
 
     try {
-      const uploadedAvatarUrl = avatarFile
-        ? await uploadImage(avatarFile, "avatars")
-        : avatarUrl;
+      const uploadedUrl = async () => {
+        if (!avatarFile) return avatarUrl;
+        if (uploadedAvatar.current?.file !== avatarFile) {
+          uploadedAvatar.current = { file: avatarFile, upload: uploadImage(avatarFile, "avatars", { treeId, submissionId: submissionId() }) };
+        }
+        const pending = uploadedAvatar.current;
+        try {
+          return await pending.upload;
+        } catch (err) {
+          if (uploadedAvatar.current === pending) uploadedAvatar.current = null;
+          throw err;
+        }
+      };
+      const uploadedAvatarUrl = await uploadedUrl();
       const formData = new FormData();
+      formData.set("treeId", treeId);
+      if (!initialData?.id) formData.set("submissionId", submissionId());
       if (initialData?.id) {
         formData.append("id", initialData.id);
       }
@@ -292,7 +336,7 @@ export default function MemberForm({
       formData.append("birth_year", birthYear.toString());
       formData.append("birth_month", birthMonth.toString());
       formData.append("birth_day", birthDay.toString());
-      formData.append("is_deceased", isDeceased.toString());
+      formData.append("is_deceased", lifeStatus);
       formData.append("is_in_law", isInLaw.toString());
       formData.append("birth_order", birthOrder.toString());
       formData.append("generation", generation.toString());
@@ -300,31 +344,40 @@ export default function MemberForm({
       formData.append("note", note);
       formData.append("avatar_url", uploadedAvatarUrl);
 
-      if (isDeceased) {
-        formData.append("death_year", finalDeathYear.toString());
-        formData.append("death_month", finalDeathMonth.toString());
-        formData.append("death_day", finalDeathDay.toString());
-        formData.append("death_lunar_year", finalDeathLunarYear.toString());
-        formData.append("death_lunar_month", finalDeathLunarMonth.toString());
-        formData.append("death_lunar_day", finalDeathLunarDay.toString());
-      }
+      formData.append("death_year", finalDeathYear.toString());
+      formData.append("death_month", finalDeathMonth.toString());
+      formData.append("death_day", finalDeathDay.toString());
+      formData.append("death_lunar_year", finalDeathLunarYear.toString());
+      formData.append("death_lunar_month", finalDeathLunarMonth.toString());
+      formData.append("death_lunar_day", finalDeathLunarDay.toString());
 
-      if (isAdmin) {
+      if (isOwner) {
+        formData.set("email", email);
         formData.append("phone_number", phoneNumber);
         formData.append("occupation", occupation);
         formData.append("current_residence", currentResidence);
       }
 
-      const result = await saveMember(formData);
+      let result = await saveMember(formData);
+      if (!result.success && result.code === "MEDIA_UNAVAILABLE" && avatarFile && !document.documentElement.dataset.staleTreeDraft) {
+        // A previously accepted PUT may have expired while the draft was open.
+        uploadedAvatar.current = null;
+        formData.set("avatar_url",await uploadedUrl());
+        if (document.documentElement.dataset.staleTreeDraft) return;
+        result = await saveMember(formData);
+      }
 
-      if (result.error) {
+      if (!result.success) {
+        if (result.code === "MEDIA_UNAVAILABLE") uploadedAvatar.current = null;
         throw new Error(result.error);
       }
 
+      if (document.documentElement.dataset.staleTreeDraft) return;
       const currentPersonId = result.id;
       if (!currentPersonId)
         throw new Error("Không lấy được ID thành viên sau khi lưu.");
 
+      finishSubmission();
       if (onSuccess) {
         onSuccess(currentPersonId);
       } else {
@@ -352,7 +405,17 @@ export default function MemberForm({
     "bg-white text-stone-900 placeholder-stone-500 block min-h-[52px] w-full rounded-2xl border border-stone-300 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[color:var(--color-primary-soft)] focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+    <form
+      data-recovery-role={isOwner ? "owner" : "editor"}
+      onSubmit={handleSubmit}
+      onChangeCapture={({ currentTarget }) => {
+        currentTarget.dataset.dirtyTreeDraft = "true";
+        currentTarget.dataset.treeDraftEntryIndex ??=
+          String(currentHistoryIndex());
+      }}
+      className="space-y-6 sm:space-y-8"
+    >
+      <div data-tree-recovery className="empty:hidden" />
       <motion.div
         variants={formSectionVariants}
         initial="hidden"
@@ -594,48 +657,13 @@ export default function MemberForm({
 
           <div className="md:col-span-2 bg-stone-50/50 p-5 rounded-2xl border border-stone-200/60 shadow-xs">
             <div className="flex flex-col gap-4">
-              <label className="flex items-center gap-3 group">
-                <div className="relative flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={isDeceased}
-                    onChange={(e) => {
-                      setIsDeceased(e.target.checked);
-                      if (!e.target.checked) {
-                        setDeathYear("");
-                        setDeathMonth("");
-                        setDeathDay("");
-                        setDeathLunarYear("");
-                        setDeathLunarMonth("");
-                        setDeathLunarDay("");
-                      }
-                    }}
-                    className="peer sr-only"
-                  />
-                  <div className="size-5 border-2 border-stone-300 rounded peer-checked:bg-stone-600 peer-checked:border-stone-600 transition-colors flex items-center justify-center">
-                    <motion.svg
-                      initial={false}
-                      animate={{
-                        opacity: isDeceased ? 1 : 0,
-                        scale: isDeceased ? 1 : 0.5,
-                      }}
-                      className="size-3 text-white pointer-events-none"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={4}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </motion.svg>
-                  </div>
-                </div>
-                <span className="text-sm font-semibold text-stone-700 group-hover:text-stone-900 transition-colors">
-                  Đã mất
-                </span>
+              <label className="block text-sm font-semibold">
+                Tình trạng
+                <select name="is_deceased" className={inputClasses} value={lifeStatus} onChange={(event) => setLifeStatus(event.target.value)}>
+                  <option value="unknown">Chưa rõ</option>
+                  <option value="false">Sống</option>
+                  <option value="true">Đã mất</option>
+                </select>
               </label>
             </div>
 
@@ -675,9 +703,9 @@ export default function MemberForm({
                           placeholder="Tháng"
                           min="1"
                           max="12"
-                          value={deathLunarMonth}
+                          value={deathLunarMonth === "" ? "" : Math.abs(deathLunarMonth)}
                           onChange={(e) =>
-                            handleLunarDeathChange("month", e.target.value)
+                            handleLunarDeathChange("month", deathLunarMonth !== "" && deathLunarMonth < 0 && e.target.value ? "-" + e.target.value : e.target.value)
                           }
                           className={inputClasses}
                         />
@@ -691,6 +719,13 @@ export default function MemberForm({
                           className={inputClasses}
                         />
                       </div>
+                      <label className="flex min-h-11 items-center gap-2">
+                        <input type="checkbox" checked={deathLunarMonth !== "" && deathLunarMonth < 0}
+                          disabled={!deathLunarMonth} onChange={event => {
+                            if (deathLunarMonth) handleLunarDeathChange("month", String(Math.abs(deathLunarMonth) * (event.target.checked ? -1 : 1)));
+                          }} />
+                        Tháng nhuận
+                      </label>
                     </div>
 
                     {/* Solar Date */}
@@ -753,8 +788,8 @@ export default function MemberForm({
         </div>
       </motion.div>
 
-      {/* Private Information Section (Admin Only) */}
-      {isAdmin && (
+      {/* Private Information Section (Owner Only) */}
+      {isOwner && (
         <motion.div
           variants={formSectionVariants}
           initial="hidden"
@@ -771,9 +806,12 @@ export default function MemberForm({
             </span>
             <span>Thông tin riêng tư</span>
             <span className="text-[10px] ml-auto sm:ml-2 font-bold bg-amber-200/80 text-amber-800 uppercase tracking-wider px-2.5 py-1 rounded-md shadow-xs border border-amber-300/60">
-              Chỉ Admin
+              Chỉ chủ sở hữu
             </span>
           </h3>
+          <label className="mb-4 block font-semibold">Email
+            <input type="text" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClasses} />
+          </label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
             <div>
               <label className="flex items-center gap-1.5 text-sm font-semibold text-amber-900/80 mb-1.5">
@@ -847,12 +885,13 @@ export default function MemberForm({
       >
         <button
           type="button"
-          onClick={() => (onCancel ? onCancel() : router.back())}
+          disabled={stale}
+          onClick={() => { finishSubmission(); if (onCancel) onCancel(); else router.back(); }}
           className="btn min-h-[52px] rounded-2xl"
         >
           Hủy bỏ
         </button>
-        <button type="submit" disabled={loading} className="btn-primary min-h-[52px] rounded-2xl">
+        <button type="submit" disabled={loading || stale} className="btn-primary min-h-[52px] rounded-2xl">
           {loading && <Loader2 className="size-4 animate-spin" />}
           {loading
             ? "Đang lưu..."

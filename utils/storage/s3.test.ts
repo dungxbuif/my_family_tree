@@ -1,14 +1,16 @@
 import { expect, test } from "bun:test";
-import { buildObjectKey, presignUpload, validateUpload } from "./s3";
+import { presignUpload as signUpload, validateUpload, type UploadFolder, type UploadIdentity } from "./s3";
 import { mkdtempSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-test("creates a safe avatar key from a permitted image", () => {
-  expect(
-    buildObjectKey("avatars", "Portrait.JPG", "image/jpeg", "abc123"),
-  ).toBe("avatars/abc123.jpg");
-});
+// Low-level signer tests use the supplied URL as their registered generation.
+function presignUpload(folder: UploadFolder, name: string, type: string, size: number, identity: UploadIdentity) {
+  return signUpload(folder, name, type, size, identity, async url => url);
+}
+
+const upload = { actorId: crypto.randomUUID(), treeId: crypto.randomUUID(),
+  submissionId: crypto.randomUUID(), sha256: "5a".repeat(32) };
 
 test("rejects uploads larger than 10 MiB", () => {
   expect(() =>
@@ -42,13 +44,24 @@ test("keeps uploaded objects private behind the app storage proxy", async () => 
       "gallery",
       "family photo.png",
       "image/png",
-      128,
+      128, upload,
     );
 
     expect(result.publicUrl).toMatch(
-      /^\/api\/storage\/family-tree\/gallery\/[0-9a-f-]+\.png$/,
+      new RegExp("^/api/storage/family-tree/trees/" + upload.treeId + "/gallery/[a-f0-9]{64}[.]png$"),
     );
     expect(result.uploadUrl).toContain("X-Amz-Algorithm");
+
+
+    const avatar = () => presignUpload("avatars", "a.png", "image/png", 128, upload);
+    const first = await avatar();
+    expect((await avatar()).publicUrl).toBe(first.publicUrl);
+    expect(new URL(first.uploadUrl).searchParams.get("X-Amz-SignedHeaders")).toContain("content-type");
+    expect(new URL(first.uploadUrl).searchParams.get("x-amz-checksum-sha256")).toBe(Buffer.from(upload.sha256,"hex").toString("base64"));
+    for (const changed of [{ treeId:crypto.randomUUID() }, { actorId:crypto.randomUUID() }, { submissionId:crypto.randomUUID() }, { sha256:"b0".repeat(32) }]) {
+      expect((await presignUpload("avatars","a.png","image/png",128,{...upload,...changed})).key).not.toBe(first.key);
+    }
+    await expect(presignUpload("avatars","a.png","image/png",128,{...upload,sha256:"bad"})).rejects.toThrow();
   } finally {
     if (previous.endpoint === undefined) delete process.env.S3_ENDPOINT;
     else process.env.S3_ENDPOINT = previous.endpoint;
@@ -79,22 +92,22 @@ test("uses Swarm secret files before direct environment credentials", async () =
     writeFileSync(secret, "dedicated-secret\n", { mode: 0o600 });
     process.env.S3_ACCESS_KEY_ID_FILE = access;
     process.env.S3_SECRET_ACCESS_KEY_FILE = secret;
-    const result = await presignUpload("avatars", "photo.png", "image/png", 128);
+    const result = await presignUpload("avatars", "photo.png", "image/png", 128, upload);
     expect(new URL(result.uploadUrl).searchParams.get("X-Amz-Credential")).toStartWith("dedicated-access/");
 
     for (const invalid of ["", join(folder, "missing"), folder]) {
       process.env.S3_SECRET_ACCESS_KEY_FILE = invalid;
-      await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+      await expect(presignUpload("avatars", "photo.png", "image/png", 128, upload)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
     }
     process.env.S3_SECRET_ACCESS_KEY_FILE = secret;
     writeFileSync(secret, " \n");
-    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128, upload)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
     writeFileSync(secret, "x".repeat(65537));
-    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128, upload)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
     const link = join(folder, "link");
     symlinkSync(access, link);
     process.env.S3_SECRET_ACCESS_KEY_FILE = link;
-    await expect(presignUpload("avatars", "photo.png", "image/png", 128)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
+    await expect(presignUpload("avatars", "photo.png", "image/png", 128, upload)).rejects.toThrow("Không đọc được secret S3_SECRET_ACCESS_KEY.");
   } finally {
     for (const name of names) {
       if (previous[name] === undefined) delete process.env[name];

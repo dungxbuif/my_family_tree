@@ -1,5 +1,7 @@
 "use client";
 
+import { useCollectionDialog } from "@/hooks/useCollectionDialog";
+
 import { saveCustomEvent, deleteCustomEvent } from "@/app/actions/data";
 import { CustomEventRecord } from "@/utils/eventHelpers";
 import { AnimatePresence, motion, Variants } from "framer-motion";
@@ -14,9 +16,11 @@ import {
   X,
 } from "lucide-react";
 import { Lunar } from "lunar-javascript";
+import { currentHistoryIndex, useUnsavedNavigation, useStaleTreeDraft } from "@/hooks/useUnsavedNavigation";
 import { useEffect, useState } from "react";
 
 interface CustomEventModalProps {
+  treeId: string;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -24,6 +28,7 @@ interface CustomEventModalProps {
 }
 
 export default function CustomEventModal({
+  treeId,
   isOpen,
   onClose,
   onSuccess,
@@ -32,10 +37,16 @@ export default function CustomEventModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [editId, setEditId] = useState(eventToEdit?.id);
   const [name, setName] = useState(eventToEdit?.name || "");
   const [eventDate, setEventDate] = useState(eventToEdit?.event_date || "");
   const [location, setLocation] = useState(eventToEdit?.location || "");
   const [content, setContent] = useState(eventToEdit?.content || "");
+
+  const [dirty,setDirty] = useState(false);
+  const stale = useStaleTreeDraft();
+  useUnsavedNavigation(isOpen && dirty,"Hủy các thay đổi chưa lưu?");
+  const close = () => { if (!stale && !loading && (!dirty || window.confirm("Hủy các thay đổi chưa lưu?"))) onClose(); };
 
   // Lunar date mode
   const [dateMode, setDateMode] = useState<"solar" | "lunar">("solar");
@@ -65,6 +76,7 @@ export default function CustomEventModal({
         setLocation("");
         setContent("");
       }
+      setDirty(false);
       setError(null);
       setDateMode("solar");
       setLunarDay("");
@@ -123,16 +135,20 @@ export default function CustomEventModal({
 
     try {
       const payload = {
-        id: eventToEdit?.id,
+        id: editId,
         name,
         event_date: eventDate,
         location: location || null,
         content: content || null,
       };
 
-      const result = await saveCustomEvent(payload);
-      if (result.error) throw new Error(result.error);
+      const result = await saveCustomEvent(payload,treeId);
+      if (!result.success) throw new Error(result.error);
 
+      if (document.documentElement.dataset.staleTreeDraft) {
+        setEditId(result.id);
+        return;
+      }
       onSuccess();
       onClose();
     } catch (err) {
@@ -148,15 +164,16 @@ export default function CustomEventModal({
   };
 
   const handleDelete = async () => {
-    if (!eventToEdit) return;
+    if (!editId) return;
     if (!window.confirm("Bạn có chắc chắn muốn xoá sự kiện này?")) return;
 
     setLoading(true);
     setError(null);
     try {
-      const result = await deleteCustomEvent(eventToEdit.id);
+      const result = await deleteCustomEvent(editId, treeId);
       if (result.error) throw new Error(result.error);
 
+      if (document.documentElement.dataset.staleTreeDraft) return;
       onSuccess();
       onClose();
     } catch (err) {
@@ -180,8 +197,9 @@ export default function CustomEventModal({
     },
   };
 
+  const dialog = useCollectionDialog(isOpen,close);
   const inputClasses =
-    "bg-white text-stone-900 placeholder-stone-500 block w-full rounded-xl border border-stone-300 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:bg-white text-sm px-4 py-3 transition-all outline-none!";
+    "min-h-11 min-w-0 bg-surface text-foreground placeholder-secondary block w-full rounded-xl border border-border shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 focus:bg-surface text-sm px-4 py-3 transition-all outline-none!";
 
   return (
     <AnimatePresence>
@@ -191,10 +209,10 @@ export default function CustomEventModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-stone-900/40"
+          className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-primary-dark/40"
         >
           {/* Click-away backdrop */}
-          <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
+          <div className="absolute inset-0 cursor-pointer" onClick={close} />
 
           {/* Modal Content */}
           <motion.div
@@ -202,14 +220,17 @@ export default function CustomEventModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-stone-200"
+            ref={dialog} tabIndex={-1}
+            role="dialog" aria-modal="true" aria-label="Sự kiện"
+            className="relative bg-surface rounded-3xl shadow-soft w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-border"
           >
             {/* Sticky Header Actions */}
             <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="size-10 flex items-center justify-center bg-stone-100/80 text-stone-600 rounded-full hover:bg-stone-200 hover:text-stone-900 shadow-sm border border-stone-200/50 transition-colors"
+                onClick={close}
+                disabled={loading || stale}
+                className="size-11 flex items-center justify-center bg-[var(--gp-surface-muted)]/80 text-secondary rounded-full hover:bg-[var(--gp-surface-muted)] hover:text-foreground shadow-sm border border-border transition-colors"
                 aria-label="Đóng"
               >
                 <X className="size-5" />
@@ -217,8 +238,8 @@ export default function CustomEventModal({
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-8 pt-16 pb-8">
-              <h2 className="text-xl font-serif font-bold text-stone-800 mb-6">
-                {eventToEdit ? "Sửa Sự Kiện" : "Thêm Sự Kiện Tuỳ Chỉnh"}
+              <h2 className="text-xl font-serif font-bold text-foreground mb-6">
+                {editId ? "Sửa Sự Kiện" : "Thêm Sự Kiện Tuỳ Chỉnh"}
               </h2>
 
               <AnimatePresence>
@@ -227,7 +248,7 @@ export default function CustomEventModal({
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="mb-6 p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-sm font-medium flex items-start gap-3 shadow-sm"
+                    role="alert" className="mb-6 p-4 bg-surface text-error border border-error rounded-xl text-sm font-medium flex items-start gap-3 shadow-sm"
                   >
                     <AlertCircle className="size-5 shrink-0 mt-0.5" />
                     <p>{error}</p>
@@ -235,18 +256,20 @@ export default function CustomEventModal({
                 )}
               </AnimatePresence>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form data-dirty-tree-draft={dirty} data-recovery-role="editor" onChangeCapture={({currentTarget}) => { currentTarget.dataset.treeDraftEntryIndex ??= String(currentHistoryIndex()); }} onChange={() => setDirty(true)} onSubmit={handleSubmit} className="space-y-6">
+                <div data-tree-recovery className="empty:hidden" />
                 <motion.div
                   variants={formSectionVariants}
                   initial="hidden"
                   animate="show"
-                  className="bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200/80 space-y-5"
+                  className="bg-surface p-5 sm:p-6 rounded-2xl shadow-sm border border-border space-y-5"
                 >
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
-                      Tên sự kiện <span className="text-red-500">*</span>
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
+                      Tên sự kiện <span className="text-error">*</span>
                     </label>
                     <input
+                      aria-label="Tên sự kiện"
                       required
                       type="text"
                       className={inputClasses}
@@ -258,8 +281,8 @@ export default function CustomEventModal({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-sm font-semibold text-stone-700">
-                        Ngày diễn ra <span className="text-red-500">*</span>
+                      <label className="block text-sm font-semibold text-foreground">
+                        Ngày diễn ra <span className="text-error">*</span>
                       </label>
                       <button
                         type="button"
@@ -269,7 +292,7 @@ export default function CustomEventModal({
                           );
                           setLunarConvertError(null);
                         }}
-                        className="flex items-center gap-1.5 text-xs font-medium text-stone-500 hover:text-amber-700 transition-colors px-2.5 py-1 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200/60"
+                        className="min-h-11 flex items-center gap-1.5 text-xs font-medium text-secondary hover:text-primary transition-colors px-2.5 py-1 rounded-lg bg-neutral hover:bg-[var(--gp-accent-gold-soft)] border border-border"
                       >
                         {dateMode === "solar" ? (
                           <>
@@ -287,10 +310,10 @@ export default function CustomEventModal({
 
                     {dateMode === "solar" ? (
                       <div className="relative">
-                        <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
+                        <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-secondary" />
                         <input
                           required
-                          type="date"
+                          aria-label="Ngày diễn ra" type="date"
                           className={`${inputClasses} pl-11`}
                           value={eventDate}
                           onChange={(e) => setEventDate(e.target.value)}
@@ -304,7 +327,7 @@ export default function CustomEventModal({
                             placeholder="Ngày"
                             min="1"
                             max="30"
-                            value={lunarDay}
+                            aria-label="Ngày âm" value={lunarDay}
                             onChange={(e) =>
                               setLunarDay(
                                 e.target.value ? Number(e.target.value) : "",
@@ -317,7 +340,7 @@ export default function CustomEventModal({
                             placeholder="Tháng"
                             min="1"
                             max="12"
-                            value={lunarMonth}
+                            aria-label="Tháng âm" value={lunarMonth}
                             onChange={(e) =>
                               setLunarMonth(
                                 e.target.value ? Number(e.target.value) : "",
@@ -328,7 +351,7 @@ export default function CustomEventModal({
                           <input
                             type="number"
                             placeholder="Năm"
-                            value={lunarYear}
+                            aria-label="Năm âm" value={lunarYear}
                             onChange={(e) =>
                               setLunarYear(
                                 e.target.value ? Number(e.target.value) : "",
@@ -338,16 +361,16 @@ export default function CustomEventModal({
                           />
                         </div>
                         {lunarConvertError && (
-                          <p className="text-xs text-rose-500 font-medium flex items-center gap-1">
+                          <p className="text-xs text-error font-medium flex items-center gap-1">
                             <AlertCircle className="size-3" />
                             {lunarConvertError}
                           </p>
                         )}
                         {eventDate && !lunarConvertError && (
-                          <p className="text-xs text-stone-500 flex items-center gap-1.5">
-                            <Sun className="size-3 text-amber-500" />
+                          <p className="text-xs text-secondary flex items-center gap-1.5">
+                            <Sun className="size-3 text-tertiary" />
                             Dương lịch:{" "}
-                            <span className="font-semibold text-stone-700">
+                            <span className="font-semibold text-foreground">
                               {eventDate.split("-").reverse().join("/")}
                             </span>
                           </p>
@@ -357,32 +380,32 @@ export default function CustomEventModal({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Địa điểm
                     </label>
                     <div className="relative">
-                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-stone-400" />
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-secondary" />
                       <input
                         type="text"
                         className={`${inputClasses} pl-11`}
                         placeholder="VD: Nhà từ đường"
-                        value={location}
+                        aria-label="Địa điểm" value={location}
                         onChange={(e) => setLocation(e.target.value)}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-1.5">
+                    <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Nội dung chi tiết
                     </label>
                     <div className="relative">
-                      <AlignLeft className="absolute left-4 top-4 size-4 text-stone-400" />
+                      <AlignLeft className="absolute left-4 top-4 size-4 text-secondary" />
                       <textarea
                         rows={3}
                         className={`${inputClasses} pl-11 resize-none custom-scrollbar`}
                         placeholder="Ghi chú thêm về sự kiện..."
-                        value={content}
+                        aria-label="Nội dung chi tiết" value={content}
                         onChange={(e) => setContent(e.target.value)}
                       />
                     </div>
@@ -396,12 +419,12 @@ export default function CustomEventModal({
                   transition={{ delay: 0.1 }}
                   className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-4 pt-4 sm:pt-6"
                 >
-                  {eventToEdit ? (
+                  {editId ? (
                     <button
                       type="button"
                       onClick={handleDelete}
-                      disabled={loading}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-4 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl disabled:opacity-50 border border-rose-200/50 w-full sm:w-auto hover:-translate-y-1 hover:shadow-soft-hover duration-300 transition-all"
+                      disabled={loading || stale}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-4 text-sm font-medium text-error bg-surface hover:bg-[var(--gp-accent-gold-soft)] rounded-xl disabled:opacity-50 border border-primary w-full sm:w-auto hover:-translate-y-1 hover:shadow-soft-hover duration-300 transition-all"
                     >
                       Xoá sự kiện
                     </button>
@@ -412,15 +435,15 @@ export default function CustomEventModal({
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <button
                       type="button"
-                      onClick={onClose}
-                      disabled={loading}
+                      onClick={close}
+                      disabled={loading || stale}
                       className="btn w-full sm:w-auto"
                     >
                       Huỷ bỏ
                     </button>
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || stale}
                       className="btn-primary w-full sm:w-auto"
                     >
                       {loading && <Loader2 className="size-4 animate-spin" />}

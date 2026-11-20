@@ -4,6 +4,7 @@ import { Person, Relationship } from "@/types";
 import { buildAdjacencyLists, getFilteredTreeData } from "@/utils/treeHelpers";
 import * as d3 from "d3";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemberListView } from "@/context/MemberListContext";
 import { AVATAR_VERSION } from "./DefaultAvatar";
 
 export interface BubbleMapTreeProps {
@@ -36,7 +37,11 @@ export default function BubbleMapTree({
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [error, setError] = useState<Error | null>(null);
-  // const { showAvatar } = useMemberListView();
+  const { focusCreatedPerson, setMemberModalId } = useMemberListView();
+  const showDetail = useRef(setMemberModalId);
+  useEffect(() => {
+    showDetail.current = setMemberModalId;
+  }, [setMemberModalId]);
 
   const adj = useMemo(
     () => buildAdjacencyLists(relationships, personsMap),
@@ -265,7 +270,18 @@ export default function BubbleMapTree({
 
             const avatarGroup = unitContent
               .append("g")
-              .attr("transform", `translate(${cx}, 0)`);
+              .attr("transform", `translate(${cx}, 0)`)
+              .attr("data-person-id", person.id)
+              .attr("tabindex", 0)
+              .attr("role", "button")
+              .attr("aria-label", "Xem thông tin " + person.full_name)
+              .on("click", () => showDetail.current(person.id))
+              .on("keydown", (event: KeyboardEvent) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  showDetail.current(person.id);
+                }
+              });
 
             avatarGroup
               .append("image")
@@ -312,7 +328,15 @@ export default function BubbleMapTree({
         node.attr("transform", (d) => `translate(${d.x},${d.y})`);
       });
 
+      const frame = requestAnimationFrame(() => {
+        const id = rootNodes[0]?.id;
+        if (id) {
+          const node = svgRef.current?.querySelector<SVGGElement>(`g[data-person-id="${id}"]`);
+          focusCreatedPerson(id, node ?? null);
+        }
+      });
       return () => {
+        cancelAnimationFrame(frame);
         simulation.stop();
       };
     } catch (err) {
@@ -321,7 +345,7 @@ export default function BubbleMapTree({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(err instanceof Error ? err : new Error("Unknown error"));
     }
-  }, [nodes, links]);
+  }, [nodes, links, focusCreatedPerson]);
 
   if (error) {
     return (

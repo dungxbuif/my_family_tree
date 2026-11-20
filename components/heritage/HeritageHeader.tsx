@@ -13,7 +13,12 @@ export default function HeritageHeader() {
           <Image src="/heritage/brand-tree.svg" alt="" width={48} height={48} className="size-11 shrink-0" priority />
           <span className="truncate font-serif text-[28px] font-bold leading-none text-primary">{productName}</span>
         </Link>
-        <HeaderMenu />
+        <div className="flex shrink-0 items-center gap-2">
+          <Link href="/dashboard/account" className="hidden min-h-11 items-center rounded-lg px-3 body-sm font-semibold hover:bg-primary-soft md:inline-flex">
+            Tài khoản
+          </Link>
+          <HeaderMenu />
+        </div>
       </div>
     </header>
   );

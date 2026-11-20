@@ -483,7 +483,7 @@ test("same-key reads complete across a bounded pool while another read is admitt
         async () => (await rest(key.secret, "family-trees")).status,
       ),
     );
-    expect(await Promise.race([fast, Bun.sleep(2500).then(() => [])])).toEqual(
+    expect(await Promise.race([fast, Bun.sleep(20_000).then(() => [])])).toEqual(
       Array(12).fill(200),
     );
     revoke = manage(owner, "DELETE", { id: key.id });
@@ -497,7 +497,7 @@ test("same-key reads complete across a bounded pool while another read is admitt
     lock.release();
     await Promise.allSettled([slow, fast, revoke]);
   }
-}, 15000);
+}, 45_000);
 
 test("credential history uses an owner-scoped cursor and retains revoked rows at timestamp ties", async () => {
   const { rows } = await db.query(

@@ -691,9 +691,14 @@ test("selected production routes expose current role and scoped data", async () 
     for (const path of paths) {
       const res = await fetch(base + "/dashboard/" + path, {
         headers: {
+          // Do not reuse upload sockets from the preceding restore coverage.
+          // Bun's fetch pool can otherwise leave a production Next response
+          // waiting indefinitely on constrained CI runners.
+          connection: "close",
           cookie: `family_tree_session=${token}; family_tree_selected=${trees[index]}`,
         },
         redirect: "manual",
+        signal: AbortSignal.timeout(20_000),
       });
       const html = await res.text();
       if (index === 1 && ["data", "lineage"].includes(path)) {
